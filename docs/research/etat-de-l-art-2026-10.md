@@ -60,3 +60,15 @@
 | Goulot de review : +98 % de PR mergées, +91 % de temps de review ⚠️ | [secondaire](https://www.augmentcode.com/guides/ai-productivity-paradox-engineering-delivery) | Petites PR, reviewers IA filtrés |
 | Gains de productivité non démontrés (METR 2026 : −4 %, IC −15 % à +9 %) | [METR](https://evals.alignment.org/blog/2026-02-24-uplift-update/) | Baseline et mesure dès la phase 0 |
 | 13 à 26 % des skills publics vulnérables | [Snyk](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub), [arXiv 2601.10338](https://arxiv.org/abs/2601.10338) | Marketplace interne, scan |
+
+## 6. Architecture des projets (§5 du plan)
+
+| Référence | Apport retenu |
+|---|---|
+| [Vertical Slice Architecture](https://www.jimmybogard.com/vertical-slice-architecture/) (Bogard) | Ranger par fonctionnalité ; chaque tranche choisit sa propre complexité, ce qui fonde le niveau par feature |
+| [The Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) (Martin) | Règle de dépendance : le métier ne dépend ni du framework ni des I/O |
+| [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/) (Cockburn) | Ports et adaptateurs, posés seulement aux frontières qui en ont besoin |
+| [Modular monolith with DDD](https://github.com/kgrzybek/modular-monolith-with-ddd) (Grzybek) | Niveau 3 : modules à contrats publics et règles d'architecture testées |
+| [MADR](https://adr.github.io/madr/) | Base du gabarit ADR, réordonné pour commencer par le besoin |
+| *Building Evolutionary Architectures* (Ford, Parsons, Kua) | Fitness functions : l'architecture vérifiée par des tests (`hx run arch`) |
+| Outils de règles de dépendance | [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) (JS/TS), [import-linter](https://github.com/seddonym/import-linter) (Python), [NetArchTest](https://github.com/BenMorris/NetArchTest) / [ArchUnitNET](https://github.com/TNG/ArchUnitNET) (.NET), ArchUnit (Java) |
