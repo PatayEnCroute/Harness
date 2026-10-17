@@ -1,6 +1,7 @@
 # Harness — Plan directeur
 
-> **Statut** : proposition v0.1 · 2026-10-17
+> **Statut** : proposition v0.2 · 2026-10-17
+> **Nature** : un **template personnel**. On y garde sa configuration d'agents IA, puis on l'applique à chaque projet (nouveau ou existant) et on la met à jour depuis ce repo.
 > **Base** : OpenSpec 1.14.x (workflow OPSX) · état de l'art → [`research/etat-de-l-art-2026-10.md`](research/etat-de-l-art-2026-10.md)
 
 ---
@@ -9,42 +10,41 @@
 
 | | |
 |---|---|
-| **Quoi** | Une couche de *harness* (guides + capteurs) autour d'OpenSpec : **skills, agents, rules, hooks, gates CI** pour produire du logiciel avec des agents IA. |
-| **Agnostique de** | l'outil IA (Claude Code, Copilot, Cursor, Codex…), la stack, la CI, le modèle. |
-| **Comment** | On écrit **une seule source canonique** au plus près des standards ouverts (AGENTS.md, Agent Skills, Agent Plugins). Les formats propres à chaque outil sont **générés**. |
-| **Règle d'or** | Tout gate existe **en CI** ; les hooks locaux ne font qu'accélérer le retour. |
-| **Anti-waterfall** | Le processus est **proportionné** : pistes S / M / L, avec un chemin rapide sans spec pour les petits changements. |
+| **Quoi** | Un template qui installe dans un projet une couche de *harness* autour d'OpenSpec : skills, agents, rules, hooks et contrôles CI. |
+| **Agnostique de** | l'outil IA (Claude Code, Copilot, Cursor, Codex…), la stack, la CI. Ce sont des **questions posées à l'installation**. |
+| **Moteur** | [Copier](https://copier.readthedocs.io) : génération **et mise à jour** des projets par fusion à 3 voies (`copier update`). |
+| **Règle d'or** | Les fichiers sont versionnés **dans le projet**. Tout contrôle existe en CI ; les hooks locaux ne font qu'accélérer le retour. |
+| **Anti-lourdeur** | Pistes S / M / L : un petit correctif n'a pas besoin de spec. |
 
 ```mermaid
 flowchart LR
-  SRC["<b>Repo Harness</b> (source canonique)<br/>skills · agents · rules · hooks<br/>config OpenSpec · packs stack"]
-  SRC --> B["Build : lint · evals · génération"]
-  B --> PKG["Package hx (npm) + lockfile"]
-  B --> PLG["Plugins (Claude + Agent Plugins)"]
-  PKG -->|hx init / hx sync| T["Repo produit"]
-  PLG -->|marketplace interne| T
-  T --> CI["CI : hx check (gate unique)"]
+  H["<b>Repo Harness</b><br/>template versionné (tags)"]
+  H -->|"copier copy · copier update"| P["<b>Tes projets</b><br/>nouveaux ou existants"]
+  P -->|"hx-learn : amélioration générique"| H
 ```
+
+La boucle est simple. On améliore un skill dans un projet, on le remonte dans Harness, on crée un tag, puis `copier update` le propage dans tous les projets.
 
 ---
 
-## 1. Vision & périmètre
+## 1. Usage cible
 
-### Les 4 axes d'agnosticité
-
-| Axe | Comment on reste agnostique |
+| Situation | Commande |
 |---|---|
-| **Outil IA** | Source au format standard. Des adaptateurs génèrent les fichiers `.claude/`, `.github/`, `.cursor/`, `.codex/`… |
-| **Stack** | Un **contrat de commandes** (`harness.yaml` : `test`, `lint`, `build`…) que les skills appellent sans connaître la stack. Les spécificités vont dans des **packs**. |
-| **CI / forge** | Un point d'entrée unique, `hx check --ci`, plus des gabarits fins (GitHub Actions, Azure Pipelines, GitLab). |
-| **Modèle** | Les agents déclarent un **niveau** (`fast` / `standard` / `deep`) ; chaque outil le traduit en modèle concret. |
+| Nouveau projet | `uvx copier copy --trust gh:PatayEnCroute/Harness mon-projet` |
+| Projet existant | `uvx copier copy --trust gh:PatayEnCroute/Harness .` (Copier signale les conflits) |
+| Mettre à jour | `uvx copier update --trust` (fusion à 3 voies, tes modifications locales sont conservées) |
+| Ajouter un outil IA ou changer de CI | `uvx copier update --trust` en changeant la réponse concernée |
+| Vérifier un projet | `node .harness/bin/hx.mjs check` |
 
-### Non-objectifs (v1)
+> `--trust` est nécessaire parce que le template exécute des tâches après génération (`openspec init`, synchronisation). Python n'est requis **qu'à l'installation et à la mise à jour** : le projet, lui, n'en dépend pas.
 
-- ❌ Forker OpenSpec ou modifier ses skills `openspec-*` (ils sont réécrits à chaque `openspec update`).
-- ❌ Construire notre propre runtime d'agent ou un serveur MCP.
-- ❌ Un catalogue de 70 agents : **peu de composants, mesurés**.
-- ❌ Imposer une spec pour un correctif d'une ligne.
+### Non-objectifs
+
+- ❌ Forker OpenSpec ou modifier ses skills `openspec-*` (ils sont réécrits par `openspec update`).
+- ❌ Marketplace, gouvernance multi-équipes, pipeline de release : c'est une config personnelle.
+- ❌ Un catalogue pléthorique : **peu de composants, mesurés, élagués**.
+- ❌ Une spec pour un correctif d'une ligne.
 
 ---
 
@@ -52,69 +52,93 @@ flowchart LR
 
 | # | Principe | Tiré de | Conséquence concrète |
 |---|---|---|---|
-| P1 | **Standards d'abord**, adaptateurs ensuite | AGENTS.md (AAIF), Agent Skills, Agent Plugins 1.0 | Format canonique = standard ; seul ce qui n'est pas standardisé (agents, hooks, rules ciblées) passe par un adaptateur. |
-| P2 | **OpenSpec = registre de l'intention** | OpenSpec `config.yaml`, contrat JSON | On l'étend via `config.yaml`, des skills voisins, des clés `x-*` et la CI, sans jamais le forker. |
-| P3 | **Capteurs déterministes > prose** | Böckeler, OpenAI | Une règle importante = un lint / test / check. La prose ne fait que guider. |
-| P4 | **Le contexte est un budget** | Anthropic, étude ETH | AGENTS.md = une carte (≤ 100 lignes). Rules ciblées par chemin. Skills à divulgation progressive. |
-| P5 | **Qui produit n'évalue pas** | Anthropic (évaluateur séparé), superpowers | Les reviewers sont des sous-agents indépendants, avec un filtre de faux positifs. |
-| P6 | **Pas de « terminé » sans preuve** | superpowers, Anthropic | `hx-verify` exige une sortie de commande fraîche (tests, validate, trace). |
-| P7 | **Processus proportionné** | Böckeler, Marmelab (critiques du SDD) | Pistes S / M / L choisies par `hx-triage`. |
-| P8 | **Boucle de pilotage** | Hashimoto, Compound Engineering | Toute erreur récurrente devient une rule, un capteur ou un skill (`hx-learn`). |
-| P9 | **Élaguer** | Anthropic (mars 2026) | Chaque composant encode une hypothèse sur une faiblesse du modèle. On le mesure par evals et on le retire quand il devient inutile. |
+| P1 | **Standards d'abord** | AGENTS.md (AAIF), Agent Skills | Les fichiers canoniques sont aux emplacements standard ; le reste est généré. |
+| P2 | **OpenSpec = registre de l'intention** | OpenSpec `config.yaml`, contrat JSON | On l'étend sans le forker : `config.yaml`, skills voisins, clés `x-*`, CI. |
+| P3 | **Contrôles déterministes > prose** | Böckeler, OpenAI | Une règle importante devient un lint, un test ou un check. |
+| P4 | **Le contexte est un budget** | Anthropic, étude ETH | AGENTS.md = une carte (≤ 100 lignes). Rules ciblées par chemin. |
+| P5 | **Qui produit n'évalue pas** | Anthropic, superpowers | Les reviewers sont des sous-agents indépendants. |
+| P6 | **Pas de « terminé » sans preuve** | superpowers | `hx-verify` exige une sortie de commande fraîche. |
+| P7 | **Processus proportionné** | critiques du SDD (Böckeler, Marmelab) | Pistes S/M/L. |
+| P8 | **Boucle de pilotage** | Hashimoto, Compound Engineering | Une erreur récurrente devient une rule, un contrôle ou un skill, remonté dans Harness. |
+| P9 | **Élaguer** | Anthropic (mars 2026) | Un composant sans gain mesurable est retiré. |
 
 ---
 
 ## 3. Architecture
 
-### 3.1 Format canonique et cibles générées
+### 3.1 Pourquoi Copier
 
-| Artefact | Format canonique | Standard ? | Généré vers |
+| Option | Nouveau projet | Projet existant | Mises à jour | Choix par outil / CI | Dépendance |
+|---|---|---|---|---|---|
+| Template GitHub (« Use this template ») | ✅ | ❌ | ❌ | ❌ | aucune |
+| **Copier** | ✅ | ✅ | ✅ fusion 3 voies | ✅ questions + Jinja | Python (uvx), à l'install seulement |
+| Script Node maison | ✅ | ✅ | ⚠️ écrasement | ✅ | Node |
+| `npx skills` / plugins | skills seulement | skills seulement | ✅ | partiel | Node |
+
+Le vrai problème d'un template personnel, c'est **la mise à jour** des projets déjà générés. Copier le résout nativement. Les versions sont des tags git du repo Harness.
+
+### 3.2 Format canonique dans le projet
+
+Les fichiers canoniques sont aux **emplacements standard** ou au **format Claude**, lu de fait par plusieurs outils. Le script `.harness/bin/sync.mjs` ne génère que ce qui manque pour les outils choisis.
+
+| Type | Fichier canonique | Déjà lu nativement par | Généré seulement si l'outil est choisi |
 |---|---|---|---|
-| Instructions racine | `AGENTS.md` (bloc géré `hx`) | ✅ AAIF | `CLAUDE.md` → `@AGENTS.md`, `GEMINI.md` si besoin |
-| Skills | `SKILL.md` + `scripts/` `references/` `evals/` | ✅ agentskills.io | `.agents/skills/` (Codex, Cursor, Copilot, OpenCode, Gemini…) **+ copie** `.claude/skills/` (Claude Code ne lit pas `.agents/`) |
-| Rules ciblées | `.md` + frontmatter `paths:` | ❌ | `.claude/rules/`, `.github/instructions/*.instructions.md` (`applyTo`), `.cursor/rules/*.mdc` (`globs`), `.kiro/steering/` (`fileMatch`) |
-| Agents | `.md` + frontmatter neutre (`name`, `description`, `capabilities`, `tier`) | ❌ (le format Claude sert de standard de fait) | `.claude/agents/` (lu aussi par VS Code et Cursor), `.github/agents/*.agent.md`, `.codex/agents/*.toml`, `.opencode/agents/` |
-| Hooks | `hooks.yaml` neutre → scripts `hx` | ❌ (convergence vers les noms Claude) | `.claude/settings.json`, `.github/hooks/`, `.cursor/hooks.json`, `.codex/hooks.json` |
-| Plugin | manifeste double | ✅ Agent Plugins + format Claude de fait | `plugin.json` + `.claude-plugin/plugin.json` |
-| OpenSpec | fragments `config.yaml` (context + rules par artefact) | — | `openspec/config.yaml` (fusion) |
+| Instructions | `AGENTS.md` | Copilot, Cursor, Codex, Gemini, OpenCode | `CLAUDE.md` → `@AGENTS.md` |
+| Skills | `.agents/skills/hx-*` | Codex, Cursor, Copilot, OpenCode, Gemini | `.claude/skills/` (copie : Claude Code ne lit pas `.agents/`) |
+| Agents | `.claude/agents/hx-*.md` | Claude Code, VS Code / Copilot, Cursor | `.github/agents/*.agent.md`, `.codex/agents/*.toml`, `.opencode/agents/` |
+| Rules ciblées | `.claude/rules/*.md` (`paths:`) | Claude Code, VS Code | `.cursor/rules/*.mdc`, `.github/instructions/*.instructions.md` |
+| Hooks | `.claude/settings.json` → scripts `.harness/hooks/*.mjs` | Claude Code (et partiellement Copilot CLI, Cursor, Codex) | `.cursor/hooks.json`, `.github/hooks/*.json` |
+| OpenSpec | `openspec/config.yaml` | OpenSpec | skills `openspec-*` via `openspec init` |
 
-> **Copie, pas lien symbolique** : les liens symboliques posent problème sous Windows. `hx sync --check` détecte toute dérive des fichiers générés.
+> **Copie, pas lien symbolique** (Windows). Tous les fichiers générés sont **commités** : les collègues, la CI et les agents cloud les voient. `hx check` détecte une dérive entre source et copie.
 
-### 3.2 Contrat de commandes (`harness.yaml`, dans le repo produit)
+### 3.3 Questions du template (`copier.yml`)
 
 ```yaml
-version: 1
-targets: [claude-code, copilot, cursor, codex]   # outils à générer
-packs: [dotnet, angular]                          # surcouches stack
-commands:                                         # appelés via `hx run <nom>`
+_subdirectory: template
+_min_copier_version: "9.10"
+tools:          # multiselect
+  choices: [claude-code, copilot, cursor, codex, opencode, gemini]
+  default: [claude-code, copilot]
+stack:          # préréglages du contrat de commandes + pack de rules
+  choices: [dotnet, node-ts, python, java, autre]
+ci:
+  choices: [github, azure, gitlab, aucune]
+openspec_version: "1.14.3"   # épinglée
+_tasks:         # après copy ET update
+  - node .harness/bin/sync.mjs      # lance openspec init/update + génère les cibles
+```
+
+### 3.4 Contrat de commandes (`.harness/config.yaml`)
+
+Pré-rempli selon `stack`, puis ajusté à la main. Les skills n'appellent **jamais** `dotnet test` ou `npm test` : ils passent par `hx run test`. C'est ce qui les rend indépendants de la stack.
+
+```yaml
+commands:
   test:      dotnet test
   test-file: dotnet test --filter {file}
   lint:      dotnet format --verify-no-changes
   typecheck: dotnet build -warnaserror
-  e2e:       npx playwright test
-tiers: { fast: <modèle>, standard: <modèle>, deep: <modèle> }   # par outil
 tracks:
-  S: { max_files: 3, spec: false }
+  S: { spec: false }
   M: { spec: true, design: optional }
   L: { spec: true, design: required, adr: required }
 ```
 
-Les skills n'appellent **jamais** `npm test` ou `dotnet test` directement, toujours `hx run test`. C'est ce qui rend un skill indépendant de la stack.
+### 3.5 Points d'accroche OpenSpec
 
-### 3.3 Points d'accroche OpenSpec utilisés
-
-| Point d'extension | Usage Harness |
+| Point d'extension | Usage |
 |---|---|
-| `config.yaml › context` | Lien vers AGENTS.md, golden principles, contrat de commandes |
-| `config.yaml › rules.<artefact>` | Règles d'écriture par artefact : proposal (piste, non-objectifs), specs (scénarios testables), design (alternatives et ADR), tasks (2–5 min, test d'abord, vérification) |
-| `operations.apply.guidance` | Renvoie vers la discipline `hx-implement` / `hx-tdd` |
-| `.openspec.yaml › x-*` | `x-track: M`, `x-ticket: ADO-1234`, `x-owner` |
-| Contrat `--json` (`status`, `instructions`, `validate`, `show`) | Seule interface programmatique utilisée par `hx` ; couverte par des tests de contrat |
-| Schéma custom | **Pas en v1** : pas d'héritage de schéma (#778), un fork coûterait cher à maintenir. On le réévaluera en phase 4. |
+| `config.yaml › context` | Renvoi vers AGENTS.md et le contrat de commandes |
+| `config.yaml › rules.<artefact>` | Règles d'écriture : proposal (piste, non-objectifs), specs (scénarios testables), tasks (2–5 min, test d'abord) |
+| `operations.apply.guidance` | Renvoie vers `hx-implement` / `hx-tdd` |
+| `.openspec.yaml › x-*` | `x-track: M`, `x-ticket: …` |
+| CLI `--json` (`status`, `instructions`, `validate`) | Seule interface utilisée par les scripts `hx` |
+| Schéma custom | **Pas en v1** : pas d'héritage de schéma (#778), un fork serait à maintenir |
 
 ---
 
-## 4. Workflow de production
+## 4. Workflow
 
 ```mermaid
 flowchart LR
@@ -129,265 +153,185 @@ flowchart LR
   RV --> SH["hx-ship<br/>PR + CI"]
   SH --> AR["/opsx:archive"]
   AR --> L[hx-learn]
-  L -.->|boucle de pilotage| HX[(Harness)]
+  L -.->|générique| HX[(Harness)]
 ```
 
-### Pistes
-
-| Piste | Quand | Artefacts OpenSpec | Gates |
+| Piste | Quand | Artefacts OpenSpec | Contrôles |
 |---|---|---|---|
-| **S** — chemin rapide | Diff descriptible en une phrase, aucun changement de comportement spécifié | Aucun | Tests + lint + review |
-| **M** — standard | Fonctionnalité ou changement de comportement | proposal + delta specs + tasks | + `validate --strict` + traçabilité |
-| **L** — structurant | Archi, contrat d'API, migration, transverse | + design.md + ADR obligatoires | + review archi + revue humaine du design **avant** apply |
+| **S** | Diff descriptible en une phrase, aucun comportement spécifié ne change | aucun | tests + lint + review |
+| **M** | Fonctionnalité ou changement de comportement | proposal + delta specs + tasks | + `validate --strict` + traçabilité |
+| **L** | Archi, contrat d'API, migration | + `design.md` + ADR | + relecture humaine du design **avant** l'implémentation |
 
-### Phases, composants et gates
-
-| Phase | Skill | Agent(s) | Capteur / gate |
-|---|---|---|---|
-| Triage | `hx-triage` | — | Piste écrite dans `x-track` |
-| Explorer | `/opsx:explore`, `hx-discover` | `hx-explorer` | — |
-| Clarifier | `hx-clarify` (≤ 5 questions) | — | Questions ouvertes = 0 |
-| Proposer | `/opsx:propose` + rules config | `hx-architect` (L) | `openspec validate --strict` |
-| Implémenter | `hx-implement`, `hx-tdd` | `hx-implementer` (contexte frais) | Test rouge → vert, `hx run test` |
-| Vérifier | `hx-verify`, `/opsx:verify` | `hx-verifier` | `hx check` + `hx trace` |
-| Relire | `hx-review` | `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer` + filtre faux positifs | 0 constat bloquant |
-| Livrer | `hx-ship` | — | CI verte, `tasks.md` 100 % |
-| Archiver | `/opsx:archive` | — | `validate --archived` |
-| Apprendre | `hx-learn` | — | Leçon enregistrée ou issue Harness |
-
-> **Dégradation gracieuse** : un outil sans sous-agents exécute les mêmes skills en séquentiel, avec un point de contrôle entre l'implémentation et la review.
+> **Dégradation gracieuse** : un outil sans sous-agents exécute les mêmes skills en séquentiel.
 
 ---
 
 ## 5. Catalogue
 
-Priorité : **MVP** = phase 1 · **v1** = phases 2–3 · **v2** = phase 4.
+**MVP** = phase 1 · **v1** = phase 2 · **v2** = phase 3.
 
-### 5.1 Skills (`hx-*`)
+### Skills (`.agents/skills/hx-*`)
 
 | Skill | Rôle | Prio |
 |---|---|---|
-| `hx-triage` | Classer la demande en S/M/L et router | MVP |
-| `hx-tdd` | Discipline rouge → vert → refactor, avec preuve | MVP |
-| `hx-implement` | Boucle sur `tasks.md` : 1 tâche = 1 sous-agent, puis review de conformité, puis case cochée | MVP |
+| `hx-triage` | Classer la demande en S/M/L et l'orienter | MVP |
+| `hx-tdd` | Rouge → vert → refactor, avec preuve | MVP |
+| `hx-implement` | Boucle sur `tasks.md` : une tâche = un sous-agent, puis review de conformité | MVP |
 | `hx-verify` | Aucune déclaration de fin sans preuve fraîche | MVP |
-| `hx-review` | Lance les reviewers en parallèle, filtre les faux positifs, consolide | MVP |
-| `hx-ship` | PR liée au change, description générée, suivi CI | MVP |
-| `hx-clarify` | Entretien ciblé avant la proposition | v1 |
-| `hx-debug` | Débogage systématique : reproduire → isoler → corriger → test de non-régression | v1 |
+| `hx-review` | Reviewers en parallèle, filtre des faux positifs | MVP |
+| `hx-ship` | PR liée au change, suivi de la CI | MVP |
+| `hx-clarify` | Entretien ciblé (≤ 5 questions) avant la proposition | v1 |
+| `hx-debug` | Reproduire → isoler → corriger → test de non-régression | v1 |
 | `hx-adr` | Rédiger un ADR (piste L) | v1 |
-| `hx-learn` | Capitaliser : leçon locale, ou proposition de rule / capteur au Harness | v1 |
-| `hx-discover` | Brownfield : dériver des specs de base depuis le code (OpenSpec n'en a pas, #724) | v2 |
-| `hx-write-skill` | Écrire un skill **avec evals** (TDD appliqué aux skills) | v1 (interne) |
-| `hx-doctor` | Diagnostiquer l'installation dans un repo | v1 |
+| `hx-learn` | Capitaliser : leçon locale (`docs/learnings/`) ou amélioration à remonter dans Harness | v1 |
+| `hx-discover` | Brownfield : dériver des specs de base depuis le code | v2 |
 
-### 5.2 Agents
+### Agents (`.claude/agents/hx-*.md`)
 
-| Agent | Rôle | Capacités | Niveau |
+| Agent | Rôle | Capacités | Niveau de modèle |
 |---|---|---|---|
-| `hx-explorer` | Cartographier le code et l'impact d'un change | lecture seule | fast |
-| `hx-architect` | Proposer 2–3 options de design avec compromis | lecture seule | deep |
+| `hx-explorer` | Cartographier le code et l'impact | lecture seule | rapide |
 | `hx-implementer` | Réaliser **une** tâche en TDD | lecture, écriture, shell | standard |
-| `hx-verifier` | Exécuter et prouver : tests, app, e2e | lecture, shell | standard |
-| `hx-spec-reviewer` | Le code respecte-t-il les scénarios des delta specs ? | lecture seule | standard |
+| `hx-spec-reviewer` | Le code respecte-t-il les scénarios des specs ? | lecture seule | standard |
 | `hx-code-reviewer` | Qualité, conventions, simplicité | lecture seule | standard |
-| `hx-security-reviewer` | OWASP, secrets, injection, dépendances | lecture seule | deep |
-| `hx-janitor` (v2) | Agent planifié : dérive spec ↔ code, entropie, petites PR de nettoyage | lecture, écriture, shell | standard |
+| `hx-verifier` (v1) | Exécuter et prouver : tests, app | lecture, shell | standard |
+| `hx-security-reviewer` (v1) | Secrets, injection, dépendances | lecture seule | puissant |
+| `hx-architect` (v2) | 2–3 options de design avec compromis | lecture seule | puissant |
 
-### 5.3 Rules
+### Rules
 
 | Rule | Portée | Contenu |
 |---|---|---|
-| `AGENTS.md` (bloc `hx`) | toujours | Carte du repo, contrat de commandes, workflow, golden principles. **≤ 100 lignes**. |
-| `golden-principles` | toujours | Petites PR, preuve avant « fini », test d'abord, aucun secret, commits conventionnels |
-| `openspec-authoring` | `openspec/**` | SHALL/MUST, scénarios WHEN/THEN testables, exigence ≤ 500 caractères, pas de détail d'implémentation |
-| `testing` | `**/*test*/**`, `**/*.spec.*` | Convention de nommage, tag de traçabilité `@scenario` |
-| `adr` | `docs/adr/**` | Gabarit MADR |
-| Packs (`dotnet`, `angular`, `python`…) | globs par stack | Idiomes, pièges, commandes préréglées |
+| `AGENTS.md` | toujours | Carte du repo, contrat de commandes, workflow, principes. ≤ 100 lignes, avec une section projet libre. |
+| `openspec-authoring` | `openspec/**` | SHALL/MUST, scénarios WHEN/THEN testables, concision |
+| `testing` | fichiers de test | Nommage, tag de traçabilité `@scenario` |
+| Pack stack | globs de la stack | Idiomes et pièges (`dotnet`, `node-ts`…) |
 
-### 5.4 Hooks (accélérateurs)
+### Hooks
 
-| Événement | Action | Pourquoi |
-|---|---|---|
-| `SessionStart` | Résumé `openspec status --json` | Le change actif est dans le contexte dès le départ |
-| `PreToolUse` (écriture) | **Bloque** les écritures dans `openspec/specs/**` et `changes/archive/**` | Les specs ne changent que par archive |
-| `PreToolUse` (shell) | Bloque l'exfiltration de secrets et les commandes destructrices | Sécurité |
-| `PostToolUse` (édition) | `hx run lint --file` | Retour immédiat |
-| `Stop` | `hx check --fast` si un change est actif | Évite la victoire prématurée |
+| Événement | Action |
+|---|---|
+| `SessionStart` | Résumé `openspec status --json` (le change actif est dans le contexte) |
+| `PreToolUse` (écriture) | **Bloque** les écritures dans `openspec/specs/**` : les specs ne changent que par archive |
+| `PostToolUse` (édition) | Lint du fichier modifié |
+| `Stop` | `hx check --fast` si un change est actif |
 
-### 5.5 Capteurs (`hx check`, identiques en local et en CI)
+### Contrôles (`hx check`, identiques en local et en CI)
 
-| Capteur | Type | Vérifie |
-|---|---|---|
-| `openspec validate --all --strict` | déterministe | Structure des specs et changes |
-| `hx trace` | déterministe | Chaque scénario ADDED/MODIFIED a ≥ 1 test tagué ; aucun tag orphelin (= dérive) |
-| `hx run test / lint / typecheck` | déterministe | Contrat de commandes |
-| `tasks-complete` | déterministe | `tasks.md` à 100 % avant archive |
-| `track-policy` | déterministe | Piste L → `design.md` + ADR présents |
-| `context-budget` | déterministe | Taille de AGENTS.md, SKILL.md < 500 lignes, descriptions de skills |
-| `sync-drift` | déterministe | Fichiers générés = source verrouillée |
-| `hx-review` en CI (optionnel) | inférentiel | Review indépendante sur la PR |
-
-**Convention de traçabilité** (agnostique de la stack, simple grep) : un test porte `@scenario <capability>/<scenario-slug>` dans son nom ou un commentaire.
+| Contrôle | Vérifie |
+|---|---|
+| `openspec validate --all --strict` | Structure des specs et des changes |
+| `hx run test / lint / typecheck` | Contrat de commandes |
+| `hx trace` (v1) | Chaque scénario ADDED/MODIFIED a ≥ 1 test tagué `@scenario` ; aucun tag orphelin |
+| `tasks-complete` | `tasks.md` complet avant l'archive |
+| `track-policy` | Piste L → `design.md` et ADR présents |
+| `sync-drift` | Fichiers générés = source |
 
 ---
 
-## 6. Structure des repos
+## 6. Structure
 
 <table><tr><td>
 
 **Repo Harness**
 
 ```
-harness/
-├── AGENTS.md            # dogfooding
-├── openspec/            # le Harness est
-│                        # spécifié avec OpenSpec
-├── core/
-│   ├── skills/hx-*/     # SKILL.md, scripts/,
-│   │                    # references/, evals/
-│   ├── agents/*.md
-│   ├── rules/*.md
-│   ├── hooks/hooks.yaml
-│   └── openspec/        # fragments config.yaml
-├── packs/<stack>/       # rules, presets
-├── cli/                 # hx (TypeScript)
-├── adapters/<outil>/    # générateurs + golden files
-├── evals/
-│   ├── fixtures/        # repos jouets multi-stack
-│   └── scenarios/
-├── ci/                  # gabarits GHA / ADO / GitLab
-└── docs/                # PLAN, ADR, guides
+Harness/
+├── copier.yml
+├── template/            # ce qui atterrit
+│   │                    # dans le projet
+│   ├── AGENTS.md.jinja
+│   ├── .agents/skills/hx-*/
+│   ├── .claude/
+│   │   ├── agents/  rules/
+│   │   └── settings.json.jinja
+│   ├── .harness/
+│   │   ├── config.yaml.jinja
+│   │   ├── bin/     # hx.mjs, sync.mjs
+│   │   └── hooks/
+│   ├── openspec/config.yaml.jinja
+│   └── {{ci}}/…     # gabarit CI
+├── packs/<stack>/       # rules + presets
+├── tests/               # copy + update sur
+│                        # projets fixtures
+└── docs/                # PLAN, ADR, research
 ```
 
 </td><td>
 
-**Repo produit après `hx init`**
+**Projet après `copier copy`**
 
 ```
-repo/
-├── AGENTS.md            # bloc hx géré
+mon-projet/
+├── .copier-answers.yml  # version + réponses
+├── AGENTS.md
 ├── CLAUDE.md            # @AGENTS.md
-├── harness.yaml         # contrat + cibles
-├── harness.lock         # version + hashes
+├── .agents/skills/      # hx-* + openspec-*
+├── .claude/             # agents, rules,
+│                        # skills (copie), hooks
+├── .github/ .cursor/ …  # selon `tools`
+├── .harness/
+│   ├── config.yaml      # contrat de commandes
+│   ├── bin/
+│   └── hooks/
 ├── openspec/
-│   ├── config.yaml      # context + rules hx
+│   ├── config.yaml
 │   ├── specs/
 │   └── changes/
-├── .agents/skills/      # openspec-* + hx-*
-├── .claude/             # skills, agents,
-│                        # rules, settings
-├── .github/             # agents, instructions,
-│                        # hooks, workflows
-├── .cursor/ .codex/ …   # selon targets
 └── docs/
     ├── adr/
-    └── learnings/       # sortie de hx-learn
+    └── learnings/
 ```
 
 </td></tr></table>
 
-**CLI `hx`** (TypeScript : OpenSpec impose déjà Node ≥ 20.19, donc aucun nouveau runtime) :
-`init` · `sync [--check]` · `run <cmd>` · `check [--fast|--ci]` · `trace [--change]` · `doctor` · `upgrade`
+Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose déjà Node ≥ 20.19.
 
 ---
 
-## 7. Qualité du Harness lui-même
+## 7. Qualité du template
 
-| Niveau | Quoi | Outil |
-|---|---|---|
-| Statique | Validation de spec des skills, frontmatter, budgets, scan Unicode caché et scripts | `skills-ref validate` + lint maison |
-| Adaptateurs | Golden files : source → sortie attendue, pour chaque outil | tests unitaires CLI |
-| Contrat OpenSpec | Tests sur le `--json` de `status`, `instructions`, `validate`, `show` pour la version épinglée | CI, à chaque montée de version d'OpenSpec |
-| Evals de déclenchement | « Ce prompt active-t-il le bon skill ? » | jeux de prompts positifs et négatifs |
-| Evals de comportement | Tâche réelle sur un repo fixture, puis notation **déterministe** (tests passent, `validate` OK, trace OK) | agents en mode headless (`claude -p`, `codex exec`, CLI Copilot) |
-| Matrice outils | Mêmes scénarios × outils de niveau 1 | CI nocturne : c'est la **preuve d'agnosticité** |
-| A/B | Avec ou sans un skill : uplift réel ? (principe P9) | benchmark (taux de réussite, tokens, temps) |
-
----
-
-## 8. Distribution & gouvernance
-
-| Sujet | Décision proposée |
+| Test (CI du repo Harness) | Vérifie |
 |---|---|
-| Versioning | SemVer sur le Harness. Canaux `stable` et `next` (deux refs de marketplace). OpenSpec **épinglé** dans `harness.lock`. |
-| Installation | `hx init` / `hx sync` : fichiers versionnés dans le repo, revus en PR, fonctionne avec **tous** les outils. Plugins en complément, pour un usage au niveau utilisateur. |
-| Mise à jour | `hx upgrade` ouvre une PR avec le diff des fichiers générés (lisible, réversible) |
-| Supply chain | Marketplace **interne uniquement**, hashes dans le lockfile, scan des skills (Unicode caché, scripts), CODEOWNERS sur `core/`, releases signées. Contexte : 13 à 26 % des skills publics sont vulnérables (Snyk, arXiv). |
-| Politique outils | Claude : managed settings (`strictKnownMarketplaces`, `allowManagedHooksOnly`). Copilot et Cursor : équivalents org. |
-| Télémétrie tierce | `OPENSPEC_TELEMETRY=0` / `DO_NOT_TRACK=1` par défaut (OpenSpec l'active par défaut) |
-| Contribution | Retours via issues Harness (`hx-learn`). Tout nouveau skill arrive **avec ses evals**. |
+| `copier copy` sur un dossier vide **et** sur un projet fixture existant, pour chaque combinaison principale d'outils | Génération correcte, `hx check` vert |
+| `copier update` du tag précédent vers le tag courant, sur une fixture modifiée localement | Les mises à jour ne cassent rien et conservent les modifications locales |
+| Golden files de `sync.mjs` | Chaque format d'outil est conforme |
+| `skills-ref validate` + budgets (SKILL.md < 500 lignes, AGENTS.md ≤ 100) | Respect du standard et du budget de contexte |
+| Contrat `--json` d'OpenSpec sur la version épinglée | Pas de casse silencieuse lors d'une montée de version |
+| Evals des skills clés (v1) : tâche sur une fixture, puis vérification déterministe | Le skill apporte un gain réel (principe P9) |
 
 ---
 
-## 9. Mesure
+## 8. Roadmap
 
-| Métrique | Source | Signal |
-|---|---|---|
-| Lead time d'un change (création → archive) | OpenSpec + git | Débit |
-| CI verte au 1er passage | CI | Qualité amont |
-| Taille médiane des PR | git | Maîtrise du flux de review |
-| Rework post-review | PR | Efficacité des reviewers IA |
-| Couverture de traçabilité scénario → test | `hx trace` | Ancrage spec ↔ code |
-| Orphelins / dérive | `hx trace`, janitor | Entropie |
-| Activation des skills, coût en tokens par change | OTel (Claude Code), logs selon l'outil | Usage, coût |
-| Ressenti des devs (trimestriel) | Sondage (cadre DX) | Adoption |
-
-> ⚠️ Pas de « taux d'acceptation » ni de lignes de code : ce sont des métriques trompeuses (cadre DX). La **baseline** est mesurée en phase 0, avant le Harness.
-
----
-
-## 10. Roadmap
-
-```mermaid
-gantt
-  dateFormat YYYY-MM-DD
-  axisFormat %d/%m
-  section P0 Fondations
-  ADR + spike adaptateurs + baseline :p0, 2026-10-26, 2w
-  section P1 MVP
-  Boucle M de bout en bout + gate CI :p1, after p0, 4w
-  section P2 Qualité
-  Traçabilité, hooks, evals, matrice outils :p2, after p1, 3w
-  section P3 Distribution
-  Release, marketplace, gouvernance, métriques :p3, after p2, 3w
-  section P4 Échelle
-  Packs, brownfield, janitor, learn, multi-repo :p4, after p3, 6w
-```
-*Durées indicatives, sur l'hypothèse d'une équipe de 1 à 2 personnes.*
-
-| Phase | Livrables | Critère de sortie |
-|---|---|---|
-| **P0 Fondations** | ADR 001–006 (§12) · squelette du repo · OpenSpec initialisé sur le Harness · spike : 1 skill + 1 agent + 1 rule générés vers 3 outils · repo pilote choisi · baseline des métriques | Spike fonctionnel sur 3 outils, ADR acceptés |
-| **P1 MVP** | `hx init/sync/run/check` · bloc AGENTS.md · fragments `config.yaml` · skills MVP (6) · agents `explorer`, `implementer`, `spec-reviewer`, `code-reviewer` · gabarit CI | L'équipe pilote livre **5 changes M** de bout en bout, CI verte, sans intervention sur le Harness |
-| **P2 Qualité** | `hx trace` · hooks · `security-reviewer`, `verifier` · evals par skill · matrice outils nocturne · `hx-debug`, `hx-clarify` | Evals ≥ seuil sur les outils de niveau 1 · trace ≥ 80 % sur le pilote |
-| **P3 Distribution** | Pipeline de release, canaux, lockfile, scan · plugins (double manifeste) · `hx upgrade` · tableau de bord des métriques · guide d'onboarding | 2ᵉ équipe onboardée en < 1 jour |
-| **P4 Échelle** | Packs de stack · `hx-discover` · `hx-janitor` planifié · `hx-learn` · évaluation des *stores* OpenSpec (multi-repo) · revue d'élagage (P9) | Métriques ≥ baseline sur 3 équipes |
-
----
-
-## 11. Risques
-
-| Risque | Proba | Impact | Mitigation |
+| Phase | Durée indicative | Livrables | Terminé quand |
 |---|---|---|---|
-| OpenSpec évolue vite (1 release / semaine, commandes → skills seuls #2022, merge d'archive fragile #2033) | Haute | Moyen | Version épinglée, tests de contrat `--json`, aucune dépendance aux commandes `/opsx:*` dans nos skills (uniquement la CLI) |
-| Les formats des outils changent (Windsurf → Devin, Gemini → Antigravity) | Haute | Faible | Adaptateurs isolés + golden files ; le standard d'abord limite la surface |
-| L'outil de génération choisi (APM, rulesync) est pré-1.0 ou très instable | Moyenne | Moyen | Format canonique au plus près des standards = outil remplaçable (ADR-002) |
-| Lourdeur / effet waterfall / fatigue de review | Haute | Haut | Pistes S/M/L, rules de concision des specs, suivi du lead time |
-| Specs ignorées ou dérive spec ↔ code | Moyenne | Haut | `hx trace` en CI, `hx-spec-reviewer`, janitor |
-| Changes parallèles qui se chevauchent (invisibles jusqu'à l'archive) | Moyenne | Moyen | Un responsable par change ; `hx check` détecte les capabilities touchées par plusieurs changes ouverts |
-| Injection de prompt ou supply chain via les skills | Faible (interne) | Haut | Marketplace interne, scan, revue des scripts, `allowed-tools` minimal |
-| Faible adoption | Moyenne | Haut | Pilote volontaire, onboarding < 1 jour, chemin S sans friction |
+| **P0 Socle** | ~1 sem. | `copier.yml`, squelette `template/`, AGENTS.md, `openspec/config.yaml`, `.harness/config.yaml`, `sync.mjs` pour les outils prioritaires, CI du template | `copier copy` (projet vide et existant) puis `copier update` fonctionnent |
+| **P1 Boucle de base** | ~2 sem. | 6 skills MVP, 4 agents, hooks, `hx check` / `hx run`, gabarit CI | 3 changes M menés de bout en bout sur un vrai projet |
+| **P2 Qualité** | ~2 sem. | `hx trace`, `hx-verifier`, `hx-security-reviewer`, `hx-debug` / `hx-clarify` / `hx-adr` / `hx-learn`, evals | Traçabilité ≥ 80 % sur le projet pilote, evals vertes |
+| **P3 Extensions** | au fil de l'eau | Packs de stack, `hx-discover`, outils supplémentaires, revue d'élagage | Selon les besoins |
 
 ---
 
-## 12. Décisions à prendre (ADR)
+## 9. Risques
 
-| ADR | Question | Recommandation |
+| Risque | Mitigation |
+|---|---|
+| OpenSpec évolue vite (une release par semaine, commandes remplacées par des skills, #2022) | Version épinglée dans le template, tests de contrat `--json`, nos skills appellent la CLI et pas les commandes `/opsx:*` |
+| Les formats des outils changent (Windsurf → Devin, Gemini → Antigravity) | Génération isolée dans `sync.mjs`, golden files ; la priorité aux standards limite la surface |
+| Conflits lors de `copier update` | Contenu propre au projet dans des sections ou fichiers dédiés (`_skip_if_exists`) ; fichiers gérés aussi petits que possible |
+| Projets qui ne se mettent plus à jour | La version est visible dans `.copier-answers.yml` ; `hx doctor` signale un template en retard |
+| Lourdeur | Pistes S/M/L ; élaguer ce qui ne sert pas |
+
+---
+
+## 10. Décisions à prendre
+
+| # | Question | Recommandation |
 |---|---|---|
-| 001 | Outils de **niveau 1** (testés en CI) ? | Claude Code + GitHub Copilot, plus Cursor **ou** Codex selon l'usage réel. Le reste en best-effort. |
-| 002 | Génération : **APM** vs **rulesync** vs générateur maison ? | Spike en P0. Hypothèse : générateur maison **fin** (la surface non standard est petite : agents, rules ciblées, hooks), avec APM évalué pour la distribution et le lockfile. |
-| 003 | CI cible ? | `hx check --ci` agnostique + gabarit GitHub Actions et Azure Pipelines dès le MVP |
-| 004 | Archive OpenSpec : dans la PR ou après le merge ? | **Dernier commit de la PR**, après approbation : `main` a toujours des specs et du code cohérents |
-| 005 | Premiers packs de stack ? | Ceux du repo pilote |
-| 006 | Mono-repo ou multi-repo ? | Mono-repo d'abord ; les *stores* OpenSpec (bêta) seront évalués en P4 |
+| 1 | Quels outils IA utilises-tu au quotidien ? Ils seront prioritaires au MVP. | Claude Code + Copilot, les autres en option |
+| 2 | Copier (Python via `uvx`, seulement à l'install et à la mise à jour) te convient-il ? | Oui : c'est le seul choix qui gère les mises à jour proprement |
+| 3 | Tes projets sont-ils solo ou partagés ? | Fichiers commités dans le projet dans les deux cas. En solo, on pourra ajouter une installation au niveau utilisateur (`~/.claude`, `~/.agents`) en P3. |
+| 4 | Quelle CI pour tes projets ? | Les gabarits GitHub Actions et Azure Pipelines sont sélectionnables |
+| 5 | Quelles stacks principales ? | Elles déterminent les premiers packs et les préréglages de commandes |
+| 6 | Archive OpenSpec : dans la PR ou après le merge ? | Dernier commit de la PR : `main` a toujours un code et des specs cohérents |
