@@ -1,0 +1,33 @@
+# Template Harness : couche de harness Claude Code + OpenSpec, agnostique de la stack.
+# Usage : uvx copier copy --trust gh:PatayEnCroute/Harness .   puis /hx-setup dans Claude Code.
+
+_min_copier_version: "9.10.0"
+_subdirectory: template
+_answers_file: .copier-answers.yml
+
+# Fichiers spécifiques au projet : créés une fois, jamais réécrits par `copier update`.
+_skip_if_exists:
+  - .harness/config.json
+  - .harness/project.md
+
+_tasks:
+  - command: node .harness/hx.mjs openspec init --tools claude .
+    when: "{{ _copier_operation == 'copy' }}"
+  - command: node .harness/hx.mjs openspec update .
+    when: "{{ _copier_operation == 'update' }}"
+
+_message_after_copy: |
+  Harness installé dans {{ project_name }}. Étapes suivantes :
+    1. npm i -g @fission-ai/openspec@{{ openspec_version }}   (CLI requise par les commandes /opsx:*)
+    2. Dans Claude Code : /hx-setup                         (personnalisation à la stack)
+    3. node .harness/hx.mjs doctor                     (vérification)
+
+project_name:
+  type: str
+  help: Nom du projet
+  default: "{{ _folder_name }}"
+
+openspec_version:
+  type: str
+  help: Version d'OpenSpec épinglée
+  default: "1.14.3"

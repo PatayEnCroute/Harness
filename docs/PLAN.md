@@ -1,6 +1,6 @@
 # Harness — Plan directeur
 
-> **Statut** : proposition v0.4 · 2026-10-17
+> **Statut** : v0.5 · 2026-10-17 · **phase 0 livrée** (template, `hx`, `/hx-setup` v0, CI)
 > **Nature** : un **template personnel**. On y garde sa configuration Claude Code, on l'applique à chaque projet (nouveau ou existant), puis on la met à jour depuis ce repo.
 > **Cadre** : Claude Code · projets solo · GitHub Actions · **agnostique de la stack** · OpenSpec 1.14.x (OPSX)
 > **État de l'art** → [`research/etat-de-l-art-2026-10.md`](research/etat-de-l-art-2026-10.md)
@@ -34,7 +34,7 @@ flowchart LR
 |---|---|---|
 | 1. Installer | `uvx copier copy --trust gh:PatayEnCroute/Harness .` (projet nouveau ou existant) | 1 min |
 | 2. Personnaliser pour la stack | `/hx-setup` dans Claude Code : il détecte, propose, **exécute chaque commande pour la vérifier**, établit le profil d'architecture, et tu valides | 10–20 min |
-| 3. Vérifier | `node .harness/bin/hx.mjs doctor` | 1 min |
+| 3. Vérifier | `node .harness/hx.mjs doctor` | 1 min |
 | Mettre à jour plus tard | `uvx copier update --trust` (tes personnalisations sont conservées) | 1 min |
 
 > `--trust` autorise les tâches post-génération (`openspec init`). Python (via `uv`) n'est requis **qu'à l'installation et à la mise à jour**.
@@ -74,48 +74,58 @@ C'est le cœur de l'agnosticité.
 
 | | **Générique** (vient du template, mis à jour par `copier update`) | **Spécifique** (personnalisé à l'intégration par `/hx-setup`) |
 |---|---|---|
-| Fichiers | `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.harness/bin/`, `.harness/hooks/`, `openspec/config.yaml`, `.claude/rules/openspec.md`, `testing.md` et `architecture.md` | `.harness/config.yaml` (commandes, profil d'architecture), `.claude/rules/stack-*.md`, section « Carte » de `CLAUDE.md`, étape *setup* du workflow CI, permissions shell |
+| Fichiers | `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.harness/`, `.harness/hooks/`, `openspec/config.yaml`, `.claude/rules/openspec.md`, `testing.md` et `architecture.md` | `.harness/config.json` (commandes, profil d'architecture), `.claude/rules/stack-*.md`, section « Carte » de `CLAUDE.md`, étape *setup* du workflow CI, permissions shell |
 | Change… | quand le Harness s'améliore | une seule fois par projet, puis rarement |
 | Conflits `copier update` | gérés par la fusion à 3 voies | **aucun** : fichiers créés par `/hx-setup`, absents du template ou marqués `_skip_if_exists` |
 
-### 3.2 Contrat de commandes (`.harness/config.yaml`)
+### 3.2 Contrat de commandes (`.harness/config.json`)
 
-C'est la seule interface entre le harness et la stack. Il gère aussi les projets **multi-stack** par composants.
+C'est la seule interface entre le harness et la stack. Il gère aussi les projets **multi-stack** par composants. Chaque commande s'exécute **dans le dossier du composant**. Un schéma JSON (`config.schema.json`) fournit l'autocomplétion dans l'éditeur.
 
-```yaml
-version: 1
-components:                 # un seul composant pour un projet mono-stack
-  api:
-    path: src/Api
-    test:      dotnet test src/Api
-    test-file: dotnet test src/Api --filter {name}
-    lint:      dotnet format src/Api --verify-no-changes
-    typecheck: dotnet build src/Api -warnaserror
-    arch:      dotnet test tests/Architecture   # règles de dépendance (v1)
-  web:
-    path: web
-    test:      npm test --prefix web
-    test-file: npm test --prefix web -- {file}
-    lint:      npm run lint --prefix web
-    typecheck: npm run typecheck --prefix web
-architecture:               # voir §5
-  style: feature-first
-  level: 1                  # niveau par défaut du projet
-  features:                 # niveau par feature, si le besoin le justifie
-    facturation: 2
-  profile: { size: small, lifespan: long, domain_complexity: medium }
-tracks:
-  S: { spec: false }
-  M: { spec: true, design: optional }
-  L: { spec: true, design: required, adr: required }
+```jsonc
+{
+  "version": 1,
+  "components": {                       // un seul composant pour un projet mono-stack
+    "api": {
+      "path": "src/Api", "stack": "dotnet",
+      "commands": {
+        "setup": "dotnet restore",
+        "test": "dotnet test",
+        "lint": "dotnet format --verify-no-changes",
+        "arch": "dotnet test ../../tests/Architecture"   // règles de dépendance (v1)
+      }
+    },
+    "web": {
+      "path": "web", "stack": "node",
+      "commands": {
+        "setup": "npm ci",
+        "test": "npm run test",
+        "test-file": "npx vitest run {file}",          // {file} : relatif au composant
+        "lint": "npm run lint",
+        "typecheck": "npm run typecheck"
+      }
+    }
+  },
+  "architecture": {                     // voir §5
+    "style": "feature-first",
+    "level": 1,                         // niveau par défaut du projet
+    "features": { "facturation": 2 },   // écarts justifiés par le besoin
+    "profile": { "size": "small", "lifespan": "long", "domain_complexity": "medium" }
+  },
+  "tracks": { "S": { "spec": false }, "M": { "spec": true, "design": "optional" }, "L": { "spec": true, "design": "required", "adr": "required" } }
+}
 ```
+
+> Format JSON plutôt que YAML : `hx` n'a aucune dépendance, et Node lit le JSON nativement.
 
 | Appel | Effet |
 |---|---|
+| `hx detect [--write]` | Propose les composants et commandes à partir des manifestes (point de départ déterministe de `/hx-setup`) |
 | `hx run test` | Lance `test` sur tous les composants |
 | `hx run lint --file web/src/app.ts` | Choisit le composant d'après le chemin du fichier |
-| `hx check` | validate OpenSpec + test + lint + typecheck + arch + règles des pistes |
-| `hx doctor` | Toutes les commandes requises sont définies et **passent** |
+| `hx check [--fast]` | validate OpenSpec + lint + typecheck + arch + test (`--fast` : lint + typecheck) |
+| `hx doctor` | Installation saine (fichiers, versions, rien d'ignoré par git) et chaque commande **passe** |
+| `hx openspec <args>` | Appelle la version épinglée d'OpenSpec, télémétrie coupée |
 
 ### 3.3 `/hx-setup` : la personnalisation assistée
 
@@ -253,7 +263,7 @@ src/
 
 | Élément | Rôle |
 |---|---|
-| `.harness/config.yaml › architecture` | Niveau du projet, niveaux par feature, profil (taille, durée de vie, complexité métier). Rempli par `/hx-setup`, revu par `hx-architect`. |
+| `.harness/config.json › architecture` | Niveau du projet, niveaux par feature, profil (taille, durée de vie, complexité métier). Rempli par `/hx-setup`, revu par `hx-architect`. |
 | `.claude/rules/architecture.md` | Forme du code, règle de dépendance, « pas de besoin, pas de couche » ; chargée sur les fichiers source |
 | `hx-architect` (agent) | Analyse besoin → options → décision. Appelé en piste L, par `/hx-setup` sur un projet neuf, et quand un signal de changement de niveau apparaît. |
 | `hx-adr` (skill) | Gabarit ADR « besoin d'abord » (ci-dessous) |
@@ -351,22 +361,23 @@ Harness/
 ├── copier.yml
 ├── template/             # ce qui atterrit
 │   │                     # dans le projet
-│   ├── CLAUDE.md.jinja
+│   ├── CLAUDE.md
 │   ├── .claude/
 │   │   ├── skills/hx-*/
 │   │   ├── agents/hx-*.md
 │   │   ├── rules/
 │   │   └── settings.json
 │   ├── .harness/
-│   │   ├── config.yaml   # squelette
-│   │   ├── bin/hx.mjs
-│   │   └── hooks/
-│   ├── openspec/config.yaml.jinja
+│   │   ├── config.json   # squelette
+│   │   ├── project.md.jinja
+│   │   ├── hx.mjs
+│   │   └── hooks/        # P1
+│   ├── openspec/config.yaml
 │   └── .github/workflows/
 │       └── hx-check.yml.jinja
 ├── tests/
-│   └── fixtures/         # node, dotnet,
-│                         # python, multi
+│   └── fixtures/         # node, python, dotnet,
+│                         # go, mixte
 └── docs/                 # PLAN, ADR, research
 ```
 
@@ -384,8 +395,9 @@ mon-projet/
 │   ├── rules/            # + stack-*.md
 │   └── settings.json     # hooks, permissions
 ├── .harness/
-│   ├── config.yaml       # ← personnalisé
-│   ├── bin/  hooks/
+│   ├── config.json       # ← personnalisé
+│   ├── project.md        # ← personnalisé
+│   ├── hx.mjs  hooks/
 ├── openspec/
 │   ├── config.yaml
 │   ├── specs/
@@ -406,7 +418,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 
 | Test (GitHub Actions du repo Harness) | Vérifie |
 |---|---|
-| `copier copy` puis contrat pré-rempli sur des **fixtures multi-stack** (Node, .NET, Python, projet mixte) → `hx doctor` et `hx check` verts | **Preuve d'agnosticité** : le générique fonctionne quelle que soit la stack |
+| `copier copy` puis `hx detect --write` sur des **fixtures multi-stack** (Node, Python, .NET, Go, projet mixte) → `hx doctor` et `hx check` verts | **Preuve d'agnosticité** : le générique fonctionne quelle que soit la stack |
 | `copier update` du tag précédent vers le courant, sur une fixture personnalisée | Les personnalisations survivent à la mise à jour |
 | Tests unitaires de `hx.mjs` (résolution de composant, exécution, codes de sortie) | Fiabilité du contrat |
 | Validation `SKILL.md` + budgets (< 500 lignes, `CLAUDE.md` ≤ 100) | Standard et budget de contexte |
@@ -419,7 +431,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 
 | Phase | Durée indicative | Livrables | Terminé quand |
 |---|---|---|---|
-| **P0 Socle** | ~1 sem. | `copier.yml`, squelette `template/`, `CLAUDE.md`, `openspec/config.yaml`, `hx run / check / doctor`, `/hx-setup` v0 (commandes), fixtures multi-stack, CI du template | Sur 3 fixtures de stacks différentes : `copier copy` → `/hx-setup` → `hx doctor` vert, et `copier update` OK |
+| **P0 Socle** ✅ | livrée | `copier.yml`, `template/`, `CLAUDE.md`, `openspec/config.yaml`, `hx run / check / doctor / detect / openspec`, `/hx-setup` v0, 5 fixtures, CI du template | ✅ Sur 5 fixtures (Node, Python, .NET, Go, mixte) : `copier copy` → `hx detect` → `hx doctor` et `hx check` verts ; `copier update` conserve les personnalisations |
 | **P1 Boucle de base** | ~2 sem. | 7 skills MVP (dont `hx-adr`), 5 agents (dont `hx-architect`), rule `architecture.md`, hooks, workflow `hx-check.yml`, `/hx-setup` complet (rules stack, carte, CI, permissions) | 3 changes M menés de bout en bout sur un vrai projet |
 | **P2 Qualité** | ~2 sem. | `hx trace`, `hx run arch`, `hx-verifier`, `hx-security-reviewer`, `hx-debug` / `hx-clarify` / `hx-learn`, evals | Traçabilité ≥ 80 % sur le projet pilote, evals vertes |
 | **P3 Extensions** | au fil de l'eau | `hx-discover`, plugin utilisateur optionnel, autres outils si besoin, revue d'élagage | Selon les besoins |

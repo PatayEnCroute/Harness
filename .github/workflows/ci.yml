@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  COPIER_VERSION: "9.19.1"
+  OPENSPEC_TELEMETRY: "0"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm test
+
+  e2e:
+    name: e2e (${{ matrix.fixture }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [node, python, dotnet, go, mixed]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - if: matrix.fixture == 'dotnet'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+      - if: matrix.fixture == 'go'
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: tests/e2e.sh ${{ matrix.fixture }}
+
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v7
+      - run: tests/e2e-update.sh

@@ -1,0 +1,5 @@
+node_modules/
+tests/fixtures/**/bin/
+tests/fixtures/**/obj/
+__pycache__/
+.venv/
