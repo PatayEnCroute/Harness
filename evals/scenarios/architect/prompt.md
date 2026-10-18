@@ -1,0 +1,1 @@
+Je veux ajouter à ce petit projet une fonctionnalité qui calcule la TVA d'un montant. Demande à l'agent hx-architect quelle architecture adopter, puis résume sa recommandation en indiquant le niveau d'architecture retenu. N'écris pas de code.

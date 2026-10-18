@@ -1,0 +1,32 @@
+{
+  "$schema": "./config.schema.json",
+  "version": 1,
+  "components": {},
+  "architecture": {
+    "style": "feature-first",
+    "level": 1,
+    "features": {},
+    "profile": {
+      "size": null,
+      "lifespan": null,
+      "domain_complexity": null
+    }
+  },
+  "trace": {
+    "min_coverage": 100
+  },
+  "tracks": {
+    "S": {
+      "spec": false
+    },
+    "M": {
+      "spec": true,
+      "design": "optional"
+    },
+    "L": {
+      "spec": true,
+      "design": "required",
+      "adr": "required"
+    }
+  }
+}

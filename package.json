@@ -1,0 +1,13 @@
+{
+  "name": "harness",
+  "private": true,
+  "description": "Template Copier : harness Claude Code + OpenSpec, agnostique de la stack",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "e2e": "for f in node python dotnet go mixed; do tests/e2e.sh $f || exit 1; done && tests/e2e-openspec.sh && tests/e2e-update.sh",
+    "evals": "evals/run.sh"
+  }
+}

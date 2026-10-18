@@ -1,0 +1,10 @@
+# Outillage propre à la stack du projet : rempli par /hx-setup, jamais écrasé par copier update.
+# Exemples par stack : .claude/skills/hx-setup/references/ci-setup.md
+name: Outillage de la stack
+description: Installe les runtimes nécessaires aux commandes de .harness/config.json
+runs:
+  using: composite
+  steps:
+    - name: Outillage non déclaré
+      shell: bash
+      run: echo "::warning::Outillage de la stack non déclaré dans .harness/ci/setup/action.yml (lance /hx-setup)"

@@ -1,0 +1,39 @@
+# Géré par le template Harness (copier update).
+# Le contexte propre au projet vit dans CLAUDE.md et .harness/project.md.
+schema: spec-driven
+
+context: |
+  Contexte du projet : lire CLAUDE.md et .harness/project.md.
+  Commandes (setup, tests, lint…) : uniquement via `node .harness/hx.mjs` ; contrat dans .harness/config.json.
+  Architecture : feature-first ; niveau déclaré dans .harness/config.json (architecture) ; aucune couche sans besoin nommé.
+
+rules:
+  proposal:
+    - "Indiquer la piste (M ou L) et la justifier en une phrase ; un correctif de piste S ne passe pas par OpenSpec."
+    - "Lister explicitement les non-objectifs."
+    - "Rester court : le pourquoi et le quoi, jamais le comment."
+  specs:
+    - "Chaque exigence utilise SHALL ou MUST et décrit un comportement observable, sans détail d'implémentation."
+    - "Chaque scénario est vérifiable par un test automatisé (WHEN/THEN concrets, valeurs explicites)."
+    - "Le moins d'exigences possible pour couvrir le besoin."
+    - "Pour une nouvelle capability, le delta commence par ## Purpose (au moins 50 caractères) : sans lui, l'archive laisse un texte provisoire refusé par validate --strict."
+  design:
+    - "Commencer par le besoin (problème, attribut qualité visé) avant toute solution."
+    - "Indiquer le niveau d'architecture visé (0 à 3) pour chaque feature touchée, et pourquoi."
+    - "Présenter les options, dont « ne rien changer » et la plus simple ; justifier toute abstraction par un besoin nommé."
+    - "Une décision difficilement réversible (schéma de données, contrat d'API publique, découpage en services) fait l'objet d'un ADR dans docs/adr/."
+  tasks:
+    - "Tâches de 2 à 5 minutes, chacune avec son critère de vérification."
+    - "Pour chaque comportement, l'écriture du test précède l'implémentation."
+    - "Dernière tâche : `node .harness/hx.mjs check` vert."
+
+operations:
+  apply:
+    guidance:
+      - "Préférer le skill hx-implement : un sous-agent neuf par tâche, test d'abord (hx-tdd), revue de conformité après chaque tâche."
+      - "Lancer les tests via `node .harness/hx.mjs run test` (ou `--file <chemin>` pour un test ciblé)."
+      - "Taguer chaque test qui couvre un scénario : `@scenario <capability>/<scénario>`."
+      - "Ne cocher une tâche qu'après avoir vu son test passer."
+  archive:
+    guidance:
+      - "L'archive est le dernier commit de la PR, après un `node .harness/hx.mjs check` vert."
