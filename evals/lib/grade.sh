@@ -35,7 +35,8 @@ mutant_caught() {
 # Usage : mutant_caught_by <capability/scénario> <fichier> <code du mutant>
 mutant_caught_by() {
   local id="$1" file="$2" code="$3" tagged caught=""
-  tagged="$(grep -rlF --exclude-dir=node_modules --exclude-dir=.git -- "@scenario $id" . || true)"
+  # Fichiers de test seulement : une spec, une doc ou un design qui cite le tag n'est pas un test à lancer.
+  tagged="$(grep -rlF --exclude-dir={node_modules,.git,openspec,docs,.claude,.harness} --exclude='*.md' -- "@scenario $id" . || true)"
   [ -n "$tagged" ] || fail "aucun fichier tagué @scenario $id"
   local t
   while IFS= read -r t; do

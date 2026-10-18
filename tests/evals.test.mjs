@@ -74,6 +74,7 @@ function demo() {
     'package.json': '{ "type": "module" }',
     'src/mult.js': 'export const mult = (a, b) => a * b;',
     'test/two.test.js': "// @scenario calc/two\nimport { test } from 'node:test'; import assert from 'node:assert'; import { mult } from '../src/mult.js';\ntest('2x3', () => assert.equal(mult(2, 3), 6));",
+    'openspec/changes/add-mult/design.md': 'Le test « @scenario calc/zero » couvre le cas nul.\n',
     'test/zero.test.js': "// @scenario calc/zero\nimport { test } from 'node:test'; import assert from 'node:assert'; import { mult } from '../src/mult.js';\ntest('7x0', () => assert.equal(mult(7, 0), 0));",
   };
   for (const [rel, content] of Object.entries(files)) {
