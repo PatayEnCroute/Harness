@@ -25,4 +25,4 @@ disable-model-invocation: true
    - **Vérification** : résumé de la sortie de `hx check`.
    - **Traçabilité** : résumé de `hx trace`.
 4. **CI** : `gh pr checks --watch`. En cas d'échec : diagnostique (`hx-debug`), corrige, relance `hx-verify`, pousse. Ne désactive jamais un contrôle pour passer.
-5. **Après le merge** : `hx-learn`. Si le change avait son worktree (`hx worktree`), supprime-le depuis le dossier principal : `git worktree remove <dossier>`.
+5. **Après le merge**, dans le dossier principal mis à jour (`git pull`) : `hx-learn`. Si le change avait son worktree (`hx worktree`), supprime-le ensuite avec sa branche : `git worktree remove <dossier>`, puis `git branch -d <branche>`.

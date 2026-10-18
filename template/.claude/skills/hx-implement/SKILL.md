@@ -38,9 +38,10 @@ Ensuite, **sans rendre la main** : `hx-verify`, puis `hx-review`, qui se termine
 
 Seulement ceux-là. Dans chaque cas, arrête-toi avec un rapport de fin de run qui expose le blocage.
 
+- `state: "blocked"` (préparation, étape 2).
 - 3 échecs sur une même tâche (boucle ci-dessus).
-- Spec fausse ou incomplète : propose `/opsx:update`.
-- Nouvelle couche, contrat public ou migration découverts : la piste monte (`hx-triage`).
+- Spec fausse ou incomplète : propose `/opsx:update` et retire `x-validated`. La spec modifiée repasse la porte de cadrage.
+- Nouvelle couche, contrat public ou migration découverts : la piste monte (`hx-triage`), et `x-validated` est retiré de la même façon.
 - Outillage cassé : une commande `hx` qui échoue pour une raison étrangère au code.
 
 Tout le reste se décide sans l'utilisateur. Le choix le plus simple qui respecte la spec est consigné comme hypothèse dans le rapport, et non posé comme question.

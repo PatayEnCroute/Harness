@@ -735,14 +735,16 @@ export function checkPolicy(root, config = {}) {
 }
 
 // Un change = une branche = un worktree, dossier frère du projet : le run d'un change n'est pas troublé par le cadrage
-// du suivant (trace et pistes portent sur tous les changes en cours du dossier). Le worktree part de HEAD ; le change
-// et les ADR cités par son design.md, s'ils ne sont pas encore suivis, y sont déplacés et commités.
-// Retourne { target, branch, moved } ou { error }.
+// du suivant (trace et pistes portent sur tous les changes en cours du dossier). Seulement après la porte de cadrage
+// (x-validated). Le worktree part de HEAD ; le change et les ADR cités par son design.md, s'ils sont nouveaux (non
+// suivis ou seulement indexés), y sont déplacés et commités. Un change déjà commité reste aussi dans le dossier
+// principal (stayed: true). Retourne { target, branch, moved, stayed } ou { error }.
 export function createWorktree(root, change, { target, branch = change } = {}) {
   const git = (args, cwd = root) => spawnSync('git', args, { cwd, encoding: 'utf8' });
   const rel = `openspec/changes/${change}`;
   if (!/^[a-z0-9][a-z0-9._-]*$/i.test(change) || change === 'archive') return { error: `nom de change invalide : ${change}` };
   if (!fs.existsSync(path.join(root, rel))) return { error: `change introuvable : ${rel}` };
+  if (!readChangeMeta(path.join(root, rel))['x-validated']) return { error: `${change} : cadrage non validé (x-validated absent de .openspec.yaml) : passe d'abord la porte de cadrage` };
   const top = git(['rev-parse', '--show-toplevel']).stdout.trim();
   if (!top || fs.realpathSync(top) !== fs.realpathSync(root)) return { error: 'le projet doit être la racine de son dépôt git' };
   if (git(['rev-parse', '--verify', '--quiet', 'HEAD']).status !== 0) return { error: 'aucun commit : le worktree part de HEAD' };
@@ -754,9 +756,14 @@ export function createWorktree(root, change, { target, branch = change } = {}) {
   const adrs = [...readText(path.join(root, rel, 'design.md')).matchAll(ADR_REF)].map((m) => m[0]);
   const paths = [...new Set([rel, ...adrs])].filter((p) => fs.existsSync(path.join(root, p)));
   const status = git(['status', '--porcelain', '-z', '--untracked-files=all', '--', ...paths]).stdout.split('\0').filter(Boolean);
-  const tracked = status.filter((entry) => !entry.startsWith('??'));
-  if (tracked.length) return { error: `modifications suivies non commitées (commite-les d'abord) :\n${tracked.join('\n')}` };
-  const untracked = status.map((entry) => entry.slice(3));
+  // Nouveaux : non suivis (??) ou ajoutés à l'index (A). Le reste modifie un fichier déjà commité.
+  const isNew = (entry) => /^(\?\?|A[ MD]) /.test(entry);
+  const changed = status.filter((entry) => !isNew(entry));
+  if (changed.length) {
+    return { error: `fichiers déjà commités et modifiés : commite-les d'abord (le change restera aussi dans le dossier principal) :\n${changed.join('\n')}` };
+  }
+  const staged = status.filter((entry) => entry.startsWith('A')).map((entry) => entry.slice(3));
+  const untracked = status.filter((entry) => !entry.startsWith('AD')).map((entry) => entry.slice(3));
   if (git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]).status === 0) return { error: `la branche ${branch} existe déjà` };
   const dest = path.resolve(target ?? path.join(path.dirname(root), `${path.basename(root)}-${change}`));
   if (fs.existsSync(dest)) return { error: `le dossier existe déjà : ${dest}` };
@@ -772,12 +779,13 @@ export function createWorktree(root, change, { target, branch = change } = {}) {
     if (!commit || commit.status !== 0) {
       return { error: `worktree créé (${dest}), mais le commit de la proposition a échoué : ${commit?.stderr?.trim() ?? 'git add'}. Le change reste aussi dans le dossier principal.` };
     }
+    if (staged.length) git(['rm', '-q', '--cached', '--', ...staged]);
     for (const p of untracked) fs.rmSync(path.join(root, p), { force: true });
     if (!fs.readdirSync(path.join(root, rel), { recursive: true }).some((f) => fs.statSync(path.join(root, rel, f)).isFile())) {
       fs.rmSync(path.join(root, rel), { recursive: true, force: true });
     }
   }
-  return { target: dest, branch, moved };
+  return { target: dest, branch, moved, stayed: fs.existsSync(path.join(root, rel)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -1110,6 +1118,7 @@ function cmdWorktree(root, args) {
   }
   console.log([
     `Worktree prêt : ${result.target} (branche ${result.branch})${result.moved ? ` ; change déplacé et commité : « ${change} : proposition »` : ''}.`,
+    ...(result.stayed ? [`⚠ ${change} était déjà commité : il reste aussi dans ce dossier, dont hx check restera rouge sur ses scénarios tant qu'il n'est pas mergé.`] : []),
     'Lancer le run :',
     `  cd ${shellQuote(result.target)} && claude --permission-mode acceptEdits "/hx-implement ${change}"`,
     `Après le merge : git worktree remove ${shellQuote(result.target)}`,
@@ -1134,7 +1143,7 @@ const HELP = `hx : contrat de commandes du harness
   hx detect [--json] [--write [--force]]
                       propose les composants à partir des manifestes
   hx worktree <change> [--path <dossier>] [--branch <nom>]
-                      branche + worktree frère pour le run d'un change (y déplace le change s'il n'est pas commité)
+                      branche + worktree frère pour le run d'un change validé (y déplace et commite le change s'il est nouveau)
   hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 

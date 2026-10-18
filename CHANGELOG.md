@@ -8,7 +8,7 @@ Un change M ou L se fait désormais en trois temps : cadrage avec l'utilisateur,
 
 ### Ajouté
 - **Porte de cadrage** (`hx-triage`) : le seul arrêt prévu en M et L. Proposition, scénarios et design sont montrés en un message, avec les points déduits plutôt que recopiés de la demande. Après validation explicite, `x-validated: AAAA-MM-JJ` va dans `.openspec.yaml`. `hx-implement` refuse de démarrer sans lui. Le hook de démarrage de session affiche l'état du cadrage de chaque change. Le contrat OpenSpec vérifie que `validate --strict` accepte la clé.
-- **`hx worktree <change>`** : une branche et un worktree frère par change. Un change non suivi y est déplacé et commité, avec les ADR cités par son `design.md`. La commande affiche celle qui lance le run (`claude --permission-mode acceptEdits "/hx-implement <change>"`). Le dossier principal reste vert et libre pour cadrer la suite. Testé en unitaire et dans `tests/e2e-openspec.sh`.
+- **`hx worktree <change>`** : une branche et un worktree frère par change. La commande refuse un change sans `x-validated`. Un change nouveau (non suivi, ou seulement indexé) y est déplacé et commité, avec les ADR cités par son `design.md`. Un change déjà commité reste aussi dans le dossier principal, et la commande le signale. La commande affiche celle qui lance le run (`claude --permission-mode acceptEdits "/hx-implement <change>"`). Le dossier principal reste vert et libre pour cadrer la suite. Testé en unitaire et dans `tests/e2e-openspec.sh`.
 - **Rapport de fin de run** (`hx-review`) : verdict, vérification, hypothèses à confirmer, revue, mineurs proposés, prochaine étape. `hx-implementer` rend ses hypothèses, `hx-ship` les reprend dans la PR.
 
 ### Modifié

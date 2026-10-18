@@ -460,9 +460,10 @@ describe('worktree : un change, une branche, un dossier', () => {
     git(root, 'commit', '-qm', 'initial');
     return { parent, root };
   }
-  const writeChange = (root, name) => {
+  const writeChange = (root, name, { validated = true } = {}) => {
     fs.mkdirSync(path.join(root, 'openspec', 'changes', name), { recursive: true });
     fs.writeFileSync(path.join(root, 'openspec', 'changes', name, 'proposal.md'), '## Why\nx\n');
+    fs.writeFileSync(path.join(root, 'openspec', 'changes', name, '.openspec.yaml'), `x-track: M\n${validated ? 'x-validated: 2026-10-18\n' : ''}`);
   };
   const savedEnv = {};
   const withGitIdentity = (fn) => {
@@ -482,7 +483,7 @@ describe('worktree : un change, une branche, un dossier', () => {
     writeChange(root, 'add-mult');
     const r = withGitIdentity(() => createWorktree(root, 'add-mult'));
     assert.equal(r.error, undefined);
-    assert.deepEqual(r, { target: path.join(parent, 'app-add-mult'), branch: 'add-mult', moved: true });
+    assert.deepEqual(r, { target: path.join(parent, 'app-add-mult'), branch: 'add-mult', moved: true, stayed: false });
     assert.ok(!fs.existsSync(path.join(root, 'openspec', 'changes', 'add-mult')), 'retiré du dossier principal');
     assert.ok(fs.existsSync(path.join(r.target, 'openspec', 'changes', 'add-mult', 'proposal.md')));
     assert.equal(git(r.target, 'log', '-1', '--format=%s').stdout.trim(), 'add-mult : proposition');
@@ -512,15 +513,29 @@ describe('worktree : un change, une branche, un dossier', () => {
     git(root, 'commit', '-qm', 'proposition');
     const target = path.join(parent, 'ailleurs');
     const r = createWorktree(root, 'add-mult', { target, branch: 'feat/mult' });
-    assert.deepEqual(r, { target, branch: 'feat/mult', moved: false });
+    assert.deepEqual(r, { target, branch: 'feat/mult', moved: false, stayed: true });
     assert.ok(fs.existsSync(path.join(root, 'openspec', 'changes', 'add-mult')));
+  });
+
+  test('change indexé mais pas commité : déplacé aussi, et retiré de l\'index du dossier principal', () => {
+    const { root } = repoWithHarness();
+    writeChange(root, 'add-mult');
+    git(root, 'add', '-A');
+    const r = withGitIdentity(() => createWorktree(root, 'add-mult'));
+    assert.equal(r.error, undefined);
+    assert.equal(r.moved, true);
+    assert.equal(r.stayed, false);
+    assert.equal(git(root, 'status', '--porcelain').stdout, '');
+    assert.ok(fs.existsSync(path.join(r.target, 'openspec', 'changes', 'add-mult', '.openspec.yaml')));
   });
 
   test('refus : change absent, nom invalide, branche existante, harness non commité, modifications suivies', () => {
     const { root } = repoWithHarness();
     assert.match(createWorktree(root, 'absent').error, /introuvable/);
+    writeChange(root, 'brouillon', { validated: false });
+    assert.match(createWorktree(root, 'brouillon').error, /cadrage non validé/);
     assert.match(createWorktree(root, '../x').error, /invalide/);
-    fs.mkdirSync(path.join(root, 'sub', 'openspec', 'changes', 'c'), { recursive: true });
+    writeChange(path.join(root, 'sub'), 'c');
     assert.match(createWorktree(path.join(root, 'sub'), 'c').error, /racine de son dépôt/);
     writeChange(root, 'add-mult');
     git(root, 'branch', 'add-mult');
@@ -532,7 +547,7 @@ describe('worktree : un change, une branche, un dossier', () => {
     git(root, 'add', '-A');
     git(root, 'commit', '-qm', 'proposition');
     fs.appendFileSync(path.join(root, 'openspec', 'changes', 'add-mult', 'proposal.md'), 'y\n');
-    assert.match(createWorktree(root, 'add-mult').error, /modifications suivies/);
+    assert.match(createWorktree(root, 'add-mult').error, /déjà commités et modifiés/);
   });
 
   test('CLI : commande de lancement du run affichée ; usage sans change', () => {

@@ -31,12 +31,15 @@ C'est le seul arrêt prévu entre la demande et le rapport de fin de run. C'est 
 
 1. **Montre**, en un seul message : la demande d'origine en une phrase ; le pourquoi et les non-objectifs de `proposal.md` ; la liste des scénarios (WHEN/THEN) ; en L, le niveau visé et la décision de `design.md`, ainsi que les ADR. Signale chaque point où tu as **déduit** au lieu de recopier la demande.
 2. **Attends une validation explicite**. Une correction : modifie la proposition et remontre-la. Ne commence jamais à coder sans validation.
-3. **Validé** : ajoute `x-validated: AAAA-MM-JJ` dans `.openspec.yaml` (en L, l'ADR passe à `Accepté`), puis lance `node .harness/hx.mjs worktree <change>`. La commande déplace le change sur sa propre branche, dans un dossier frère, et affiche la commande qui lance le run. Ne commite pas le change dans le dossier principal : `hx worktree` le commite sur sa branche.
-4. **Donne cette commande à l'utilisateur.** Le dossier principal est de nouveau libre pour cadrer le change suivant. Si l'utilisateur préfère lancer le run dans cette session, enchaîne `hx-implement` sans worktree.
+3. **Validé** : ajoute `x-validated: AAAA-MM-JJ` dans `.openspec.yaml` (en L, l'ADR passe à `Accepté`). Ne commite pas le change dans le dossier principal : `hx worktree` le commite sur sa branche, et un change commité ici y resterait.
+4. **Où lancer le run** :
+   - **Par défaut, dans son worktree.** Le worktree part du HEAD du dossier principal : mets d'abord ce dossier à jour (`git pull`, s'il suit un dépôt distant). Lance ensuite `node .harness/hx.mjs worktree <change>`. La commande refuse un change sans `x-validated`, déplace le change et ses ADR sur leur propre branche dans un dossier frère, puis affiche la commande qui lance le run. **Donne cette commande à l'utilisateur** : le dossier principal est de nouveau libre pour cadrer le change suivant.
+   - En L, si l'ADR change le niveau d'une feature (`hx-adr`, étape 6), modifie le `.harness/config.json` **du worktree** et commite-le là (`git -C <worktree> commit`). Ne le fais pas dans le dossier principal : `hx worktree` refuse un harness modifié.
+   - **Si l'utilisateur préfère le run dans cette session** : pas de `hx worktree`, enchaîne `hx-implement`.
 
 ## En cours de route
 
-Si tu découvres un contrat public touché, une migration de données ou le besoin d'une nouvelle couche : arrête-toi, annonce le changement de piste et reprends à la bonne étape.
+Si tu découvres un contrat public touché, une migration de données ou le besoin d'une nouvelle couche : arrête-toi et annonce le changement de piste. Retire `x-validated` : le cadrage reprend avec l'utilisateur, jusqu'à la porte.
 
 ## Pièges
 

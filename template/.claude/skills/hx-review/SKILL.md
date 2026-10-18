@@ -10,7 +10,7 @@ Celui qui a écrit le code ne le juge pas. Les relecteurs n'ont pas ton contexte
 
 ## Étapes
 
-1. **Périmètre** : base = `$ARGUMENTS`, sinon `main`. Lance `git diff <base>...HEAD --stat` et identifie le change OpenSpec concerné.
+1. **Périmètre** : base = `$ARGUMENTS`, sinon `default_branch` de `.copier-answers.yml`, sinon `main`. Lance `git diff <base>...HEAD --stat` et identifie le change OpenSpec concerné.
 2. **En parallèle** :
    - `hx-spec-reviewer`, si un change OpenSpec est concerné ;
    - `hx-code-reviewer`, toujours ;
