@@ -4,7 +4,7 @@
 
 ## Méthode
 
-1. **Mesurer** : `evals/run.sh --runs 3 <scénario>`, puis la même commande avec `--without <skill>`.
+1. **Mesurer** : `evals/run.sh --runs 10 <scénario>`, puis la même commande avec `--without <skill>` (en dessous de 10 exécutions, 90 % et 70 % de réussite ne se distinguent pas). Chaque campagne écrit ses résultats dans `evals/results/` ; commite ceux qui fondent une décision.
 2. **Décider** :
 
    | Résultat | Décision |
@@ -14,7 +14,7 @@
    | La réussite est égale et le coût est égal | On simplifie le skill, ou on le retire |
 
 3. **Quand** : à chaque nouvelle génération de modèle, et au plus tard tous les trimestres.
-4. **Tracer** : chaque retrait ou simplification est noté dans le tableau ci-dessous, avec la mesure qui le justifie.
+4. **Tracer** : chaque retrait ou simplification est noté dans le journal ci-dessous, avec la mesure qui le justifie (fichier de `evals/results/`).
 
 ## Hypothèses par composant
 
@@ -38,4 +38,4 @@ Les contrôles déterministes (`hx check`, trace, pistes, archives) coûtent peu
 |---|---|---|---|
 | 2026-10-18 | Plugin utilisateur | Non construit ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)) | Besoin non observé |
 | 2026-10-18 | Génération multi-outils | Non construite ([ADR-002](adr/002-claude-code-seul-standards-gratuits.md)) | Un seul outil utilisé |
-| 2026-10-18 | Ligne de base | 4/4 evals vertes, une exécution chacune (`architect`, `setup`, `tdd-s`, `implement-m`), environ 1,10 $ au total | Première mesure ; à répéter avec `--runs 3` et en A/B |
+| 2026-10-18 | Ligne de base | 4/4 evals vertes, une exécution chacune (`architect`, `setup`, `tdd-s`, `implement-m`), environ 1,10 $ au total | Première mesure ; à répéter avec `--runs 10` et en A/B, résultats dans `evals/results/` |

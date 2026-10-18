@@ -1,0 +1,2 @@
+# Présence de ce fichier : l'agent a le droit d'écrire .harness/config.json (c'est l'objet du scénario).
+# Sans lui, run.sh fait échouer toute exécution qui modifie le contrat avant la notation.

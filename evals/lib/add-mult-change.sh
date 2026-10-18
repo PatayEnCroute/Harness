@@ -1,5 +1,5 @@
 # Prépare un change OpenSpec de piste M (multiplication) dans le projet courant.
-node .harness/hx.mjs openspec new change add-mult > /dev/null 2>&1
+node .harness/hx.mjs openspec new change add-mult
 change=openspec/changes/add-mult
 echo 'x-track: M' >> "$change/.openspec.yaml"
 cat > "$change/proposal.md" <<'MD'
