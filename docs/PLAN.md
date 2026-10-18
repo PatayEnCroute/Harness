@@ -338,8 +338,8 @@ src/
 |---|---|
 | `SessionStart` | Changes en cours (piste, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
 | `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `.claude/settings*.json`. Couvre Edit/Write et les commandes Bash qui écrivent ces chemins. Confirmation aussi avant le skill `openspec-apply-change`, avec renvoi vers `hx-implement` |
-| `PostToolUse` (édition) | Note le fichier pour `Stop`, puis `lint-file` si défini, pour rester rapide. Contrat cassé → retour à Claude, jamais un silence |
-| `Stop` | Lint + typecheck des seuls composants dont Claude a édité du code **pendant la session** (modifications antérieures ignorées) ; liste vidée au vert ; une seule relance (`stop_hook_active`) |
+| `PostToolUse` (édition) | `lint-file` si défini, pour rester rapide (arrêté au-delà de 100 s). Contrat cassé → retour à Claude, jamais un silence |
+| `Stop` | D'après **git** (donc aussi les écritures faites par Bash, et les fichiers commités pendant la session) : lint + typecheck des seuls composants dont le code a changé depuis le dernier vert de la session (ce qui était modifié au démarrage est ignoré) ; budget de 570 s ; une seule relance (`stop_hook_active`). Signale aussi à l'utilisateur les chemins protégés modifiés, quel que soit l'outil |
 
 > Le niveau de modèle des agents n'est pas fixé dans le template (champ `model` absent : modèle de la session). Il se règle par projet si besoin.
 

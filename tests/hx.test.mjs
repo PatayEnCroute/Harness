@@ -13,6 +13,7 @@ import {
   parseScenarios,
   slugify,
   trace,
+  formatTrace,
   findComponentForFile,
   main,
   checkSettings,
@@ -288,14 +289,16 @@ describe('CLI', () => {
     assert.equal(r.status, 0, r.stdout);
   });
 
-  test('run : 3 si la commande n\'est définie nulle part, 0 si un --file ne concerne aucun composant', async () => {
+  test('run : 3 si la commande n\'est définie nulle part ou si un --file ne concerne aucun composant (0 avec --file-only)', async () => {
     const root = tempProject({ version: 1, components: { web: { path: '.', commands: { test: ok } } } });
     fs.mkdirSync(path.join(root, 'sub'));
     const other = tempProject({ version: 1, components: { web: { path: 'sub', commands: { lint: ko } } } });
     fs.mkdirSync(path.join(other, 'sub'));
     assert.equal(await quiet(() => main(['run', 'typecheck'], root)), 3);
-    assert.equal(await quiet(() => main(['run', 'lint', '--file', path.join(other, 'README.md')], other)), 0);
+    assert.equal(await quiet(() => main(['run', 'lint', '--file', path.join(other, 'README.md')], other)), 3, 'rien exécuté n\'est pas un succès');
+    assert.equal(await quiet(() => main(['run', 'lint', '--file', path.join(other, 'README.md'), '--file-only'], other)), 0, 'usage des hooks');
     assert.equal(await quiet(() => main(['run', 'test', '--component', 'nope'], root)), 2);
+    assert.equal(await quiet(() => main(['run', 'test', '--component', 'web', '--file', path.join(root, 'a.js')], root)), 2, '--file et --component exclusifs');
   });
 
   test('detect --write remplit un contrat vide et refuse d\'écraser sans --force', async () => {
@@ -477,6 +480,18 @@ describe('OpenSpec : scénarios et traçabilité', () => {
     writeFiles(root, { 'src/add.test.js': '// @scenario calc/ajouter-deux-nombres\n' });
     report = trace(root, {});
     assert.equal(report.ok, true);
+  });
+
+  test('trace : une spec dont aucun scénario n\'est lu échoue au lieu de valoir 100 %', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), {
+      'openspec/specs/calc/spec.md': '## Requirements\n\n### Requirement: Add\nThe system SHALL add.\n\n#### Scénario: mauvais titre\n',
+      'openspec/changes/rm/specs/calc/spec.md': '## REMOVED Requirements\n\n### Requirement: Old\n',
+    });
+    const report = trace(root, {});
+    assert.equal(report.coverage, 100);
+    assert.deepEqual(report.empty, ['openspec/specs/calc/spec.md'], 'un delta REMOVED seul n\'a pas de scénario à lire');
+    assert.equal(report.ok, false);
+    assert.match(formatTrace(report), /aucun scénario lu/);
   });
 
   test('trace : couverture minimale configurable', () => {

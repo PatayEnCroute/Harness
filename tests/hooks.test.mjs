@@ -29,6 +29,21 @@ function hook(event, root, input = {}, env = {}) {
   return { code: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
+// Projet versionné, comme dans la vraie vie : le hook Stop lit les changements dans git.
+function gitProject(config, files = {}) {
+  const root = project(config, files);
+  const git = (...args) => spawnSync('git', ['-c', 'user.email=e@x', '-c', 'user.name=e', ...args], { cwd: root, encoding: 'utf8' });
+  git('init', '-q');
+  git('add', '-A');
+  git('commit', '-qm', 'initial');
+  return { root, git };
+}
+
+const write = (root, rel, content = 'modifié\n') => {
+  fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+  fs.writeFileSync(path.join(root, rel), content);
+};
+
 const ok = 'node -e "process.exit(0)"';
 const ko = 'node -e "console.error(\'lint KO\'); process.exit(1)"';
 
@@ -47,7 +62,7 @@ describe('hooks Claude Code', () => {
 
   test('pre-tool-use : confirmation pour le contrat, les hooks et les permissions', () => {
     const root = project({ components: {} });
-    for (const rel of ['.harness/config.json', '.harness/hx.mjs', '.harness/hooks.mjs', '.claude/settings.json', '.claude/settings.local.json']) {
+    for (const rel of ['.harness/config.json', '.harness/hx.mjs', '.harness/hooks.mjs', '.harness/versions.json', '.claude/settings.json', '.claude/settings.local.json']) {
       assert.ok(asks(hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, rel) } })), rel);
     }
     assert.equal(hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, '.harness/project.md') } }).stdout, '');
@@ -118,34 +133,72 @@ describe('hooks Claude Code', () => {
     assert.equal(hook('post-tool-use', fresh, { tool_input: { file_path: path.join(fresh, 'src/a.js') } }).code, 0);
   });
 
-  test('stop : contrôles rapides du composant édité pendant la session, jamais deux fois de suite', () => {
-    const root = project({ components: { app: { path: '.', commands: { lint: ko } } } }, { 'src/a.js': 'x\n' });
+  test('stop : contrôles rapides du code modifié pendant la session, même par Bash ; jamais deux fois de suite', () => {
+    const { root } = gitProject({ components: { app: { path: '.', commands: { lint: ko } } } }, { 'src/a.js': 'x\n', 'src/old.js': 'x\n' });
+    write(root, 'src/old.js', 'modifié avant la session\n');
     const session = { session_id: `s-${Date.now()}` };
-    assert.equal(hook('stop', root, session).code, 0, 'rien édité dans cette session');
-    hook('post-tool-use', root, { ...session, tool_input: { file_path: path.join(root, 'src/a.js') } });
+    hook('session-start', root, session);
+    assert.equal(hook('stop', root, session).code, 0, 'rien modifié dans cette session');
+    write(root, 'src/a.js'); // écrit hors des outils Edit/Write, comme un « sed -i » : seul git le voit
     const r = hook('stop', root, session);
     assert.equal(r.code, 2);
     assert.match(r.stderr, /contrôles rapides/);
     assert.equal(hook('stop', root, { ...session, stop_hook_active: true }).code, 0);
-    assert.equal(hook('stop', root, { session_id: 'autre-session' }).code, 0, 'les éditions sont propres à la session');
   });
 
-  test('stop : seuls les composants touchés sont contrôlés, la liste est vidée au vert', () => {
+  test('stop : un fichier modifié puis commité pendant la session est contrôlé', () => {
+    const { root, git } = gitProject({ components: { app: { path: '.', commands: { lint: ko } } } }, { 'src/a.js': 'x\n' });
+    const session = { session_id: `s-${Date.now()}` };
+    hook('session-start', root, session);
+    write(root, 'src/a.js');
+    git('commit', '-qam', 'tâche');
+    assert.equal(hook('stop', root, session).code, 2);
+  });
+
+  test('stop : seuls les composants touchés sont contrôlés, et plus au tour suivant une fois au vert', () => {
     const marker = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-mark-')), 'web-ran');
     const config = { components: {
       api: { path: 'api', commands: { lint: ko } },
       web: { path: 'web', commands: { lint: `node -e "require('fs').writeFileSync(process.argv[1], '')" ${JSON.stringify(marker)}` } },
     } };
-    const root = project(config, { 'api/a.py': 'x\n', 'web/a.js': 'x\n', 'docs/notes.md': 'x\n' });
+    const { root } = gitProject(config, { 'api/a.py': 'x\n', 'web/a.js': 'x\n', 'docs/notes.md': 'x\n' });
     const session = { session_id: `s-${Date.now()}` };
-    for (const rel of ['web/a.js', 'docs/notes.md', 'README.md']) {
-      hook('post-tool-use', root, { ...session, tool_input: { file_path: path.join(root, rel) } });
-    }
+    hook('session-start', root, session);
+    for (const rel of ['web/a.js', 'docs/notes.md', 'README.md']) write(root, rel);
     assert.equal(hook('stop', root, session).code, 0, 'api, en échec, n\'a pas été touché');
     assert.ok(fs.existsSync(marker), 'le lint de web a tourné');
     fs.rmSync(marker);
     assert.equal(hook('stop', root, session).code, 0);
-    assert.ok(!fs.existsSync(marker), 'liste vidée après un passage au vert');
+    assert.ok(!fs.existsSync(marker), 'déjà contrôlé au vert, rien de nouveau');
+  });
+
+  test('stop : chemins protégés modifiés signalés à l\'utilisateur, une fois, même écrits par Bash', () => {
+    const { root } = gitProject({ components: { app: { path: '.', commands: { lint: ok } } } }, { 'src/a.js': 'x\n', '.harness/hooks.mjs': '// hooks\n' });
+    const session = { session_id: `s-${Date.now()}` };
+    hook('session-start', root, session);
+    write(root, '.harness/hooks.mjs', '// contourné par « cd .harness && sed -i »\n');
+    const r = hook('stop', root, session);
+    assert.equal(r.code, 0);
+    assert.match(JSON.parse(r.stdout).systemMessage, /\.harness\/hooks\.mjs/);
+    assert.equal(hook('stop', root, session).stdout, '', 'signalé une seule fois');
+  });
+
+  test('stop : une commande trop lente est arrêtée et signalée', () => {
+    const slow = 'node -e "setTimeout(() => {}, 60000)"';
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      import { execute } from ${JSON.stringify(path.resolve(here, '..', 'template', '.harness', 'hx.mjs'))};
+      const r = execute(${JSON.stringify(slow)}, process.cwd(), { capture: true, timeout: 300 });
+      console.log(JSON.stringify({ ok: r.ok, timedOut: r.timedOut, output: r.output }));
+    `], { encoding: 'utf8' });
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.ok, false);
+    assert.equal(out.timedOut, true);
+    assert.match(out.output, /délai/);
+  });
+
+  test('stop : hors d\'un dépôt git, aucun contrôle', () => {
+    const root = project({ components: { app: { path: '.', commands: { lint: ko } } } }, { 'src/a.js': 'x\n' });
+    assert.equal(hook('stop', root, { session_id: `s-${Date.now()}` }).code, 0);
   });
 
   test('session-start : changes en cours et projet à personnaliser', () => {

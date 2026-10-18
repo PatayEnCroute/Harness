@@ -242,7 +242,8 @@ export function openspecCommand(root, args) {
 
 const env = () => ({ ...process.env, OPENSPEC_TELEMETRY: '0' });
 
-export function execute(command, cwd, { capture }) {
+// timeout (ms) : au-delà, la commande est arrêtée et compte comme un échec (les hooks ont un délai imposé par Claude Code).
+export function execute(command, cwd, { capture, timeout } = {}) {
   const started = Date.now();
   const r = spawnSync(command, {
     cwd,
@@ -251,9 +252,12 @@ export function execute(command, cwd, { capture }) {
     stdio: capture ? 'pipe' : 'inherit',
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    ...(timeout ? { timeout, killSignal: 'SIGTERM' } : {}),
   });
-  const output = capture ? `${r.stdout ?? ''}${r.stderr ?? ''}` : '';
-  return { ok: r.status === 0, code: r.status ?? 1, ms: Date.now() - started, output };
+  const timedOut = r.error?.code === 'ETIMEDOUT';
+  const output = (capture ? `${r.stdout ?? ''}${r.stderr ?? ''}` : '')
+    + (timedOut ? `\nhx : délai de ${Math.round(timeout / 1000)} s dépassé, commande arrêtée` : '');
+  return { ok: r.status === 0 && !timedOut, code: r.status ?? 1, ms: Date.now() - started, output, timedOut };
 }
 
 export function tail(text, lines = TAIL_LINES) {
@@ -603,16 +607,25 @@ export function taskProgress(dir) {
 }
 
 // Scénarios attendus : tous ceux des specs principales, et les ADDED / MODIFIED des changes en cours.
+// empty : specs où aucun scénario n'a été lu alors qu'il en faut (format inattendu) ; sans cela, 0 scénario vaudrait 100 %.
 export function collectScenarios(root) {
   const id = (capability, scenario) => `${capability}/${slugify(scenario)}`;
-  const main = specFiles(path.join(root, 'openspec', 'specs')).flatMap(({ file, capability }) =>
-    parseScenarios(readText(file)).map((s) => ({ ...s, capability, id: id(capability, s.scenario) })));
+  const empty = [];
+  const main = specFiles(path.join(root, 'openspec', 'specs')).flatMap(({ file, capability }) => {
+    const found = parseScenarios(readText(file)).map((s) => ({ ...s, capability, id: id(capability, s.scenario) }));
+    if (!found.length) empty.push(toPosix(path.relative(root, file)));
+    return found;
+  });
   const changes = listChanges(root).flatMap((change) =>
-    specFiles(path.join(change.dir, 'specs')).flatMap(({ file, capability }) =>
-      parseScenarios(readText(file))
+    specFiles(path.join(change.dir, 'specs')).flatMap(({ file, capability }) => {
+      const text = readText(file);
+      const found = parseScenarios(text)
         .filter((s) => s.section === 'ADDED' || s.section === 'MODIFIED')
-        .map((s) => ({ ...s, capability, id: id(capability, s.scenario), change: change.name }))));
-  return { main, changes };
+        .map((s) => ({ ...s, capability, id: id(capability, s.scenario), change: change.name }));
+      if (!found.length && /^##\s+(ADDED|MODIFIED)\s+Requirements\b/im.test(text)) empty.push(toPosix(path.relative(root, file)));
+      return found;
+    }));
+  return { main, changes, empty };
 }
 
 // Tags « @scenario <capability>/<scénario> » : Map id → ["fichier:ligne"].
@@ -634,7 +647,7 @@ export function collectTags(root, { testPattern = DEFAULT_TEST_PATTERN } = {}) {
 }
 
 export function trace(root, config) {
-  const { main, changes } = collectScenarios(root);
+  const { main, changes, empty } = collectScenarios(root);
   const tags = collectTags(root, { testPattern: config?.trace?.test_pattern });
   const known = new Set([...main, ...changes].map((s) => s.id));
   const uncoveredMain = main.filter((s) => !tags.has(s.id));
@@ -643,9 +656,9 @@ export function trace(root, config) {
   const covered = main.length - uncoveredMain.length;
   const coverage = main.length ? Math.floor((covered / main.length) * 100) : 100;
   const min = config?.trace?.min_coverage ?? 100;
-  const ok = uncoveredChanges.length === 0 && orphans.length === 0 && coverage >= min;
+  const ok = uncoveredChanges.length === 0 && orphans.length === 0 && empty.length === 0 && coverage >= min;
   const outsideTests = [...tags.ignored].map(([id, where]) => ({ id, where }));
-  return { ok, scenarios: main.length, covered, coverage, min, uncoveredChanges, uncoveredMain, orphans, outsideTests };
+  return { ok, scenarios: main.length, covered, coverage, min, uncoveredChanges, uncoveredMain, orphans, outsideTests, empty };
 }
 
 export function formatTrace(report, { limit = 20 } = {}) {
@@ -655,6 +668,7 @@ export function formatTrace(report, { limit = 20 } = {}) {
     lines.push(`${title} :`, ...items.slice(0, limit).map((x) => `  - ${x}`));
     if (items.length > limit) lines.push(`  … ${items.length - limit} de plus`);
   };
+  list('Specs sans aucun scénario lu (format attendu : « #### Scenario: <nom> »)', report.empty ?? []);
   list('Scénarios de changes en cours sans test', report.uncoveredChanges.map((s) => `${s.id} (${s.change})`));
   if (report.coverage < report.min) list('Scénarios des specs sans test', report.uncoveredMain.map((s) => s.id));
   list('Tags @scenario orphelins', report.orphans.map((o) => `${o.id} → ${o.where.join(', ')}`));
@@ -756,15 +770,25 @@ function cmdRun(root, args) {
   const config = requireValidConfig(root, { structural: true });
   if (!config) return 1;
   if (unknownComponent(config, opts.component)) return 2;
+  if (opts.file && opts.component) {
+    console.error('hx : --file et --component sont exclusifs (le composant se déduit du fichier)');
+    return 2;
+  }
   const invocations = resolveInvocations(config, root, name, {
     component: opts.component,
     file: opts.file,
     fileOnly: Boolean(opts['file-only']),
   });
   if (invocations.length === 0) {
-    if (opts.file) {
-      console.error(`hx : rien à exécuter pour « ${name} » sur ${opts.file}`);
+    // --file-only (hooks) : pas de variante rapide, rien à faire. Sinon, rien exécuté n'est pas un succès :
+    // un test ciblé qui « passe » sans avoir tourné fausserait le rouge attendu par hx-tdd.
+    if (opts.file && opts['file-only']) {
+      console.error(`hx : pas de « ${name}-file » pour ${opts.file}, rien à exécuter`);
       return 0;
+    }
+    if (opts.file) {
+      console.error(`hx : ${opts.file} n'appartient à aucun composant qui définit « ${name} » : rien exécuté`);
+      return 3;
     }
     console.error(`hx : aucun composant ne définit « ${name} » (voir ${CONFIG_PATH})`);
     return 3;
@@ -1022,7 +1046,7 @@ const HELP = `hx : contrat de commandes du harness
   hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 
-Codes de sortie : 0 succès · 1 échec · 2 usage · 3 commande non définie`;
+Codes de sortie : 0 succès · 1 échec · 2 usage · 3 commande non définie (ou --file hors de tout composant qui la définit)`;
 
 export function main(argv = process.argv.slice(2), root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')) {
   const [command, ...rest] = argv;

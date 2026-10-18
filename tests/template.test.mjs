@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const template = path.resolve(here, '..', 'template');
@@ -106,6 +106,14 @@ describe('cohérence et budgets', () => {
       const m = /\$CLAUDE_PROJECT_DIR\/([^"]+)"/.exec(command);
       assert.ok(m && fs.existsSync(path.join(template, m[1])), command);
     }
+  });
+
+  test('les budgets internes des hooks restent sous les délais de settings.json', async () => {
+    const { LINT_FILE_TIMEOUT_MS, STOP_BUDGET_MS } = await import(pathToFileURL(path.join(template, '.harness', 'hooks.mjs')).href);
+    const settings = JSON.parse(read(path.join(claude, 'settings.json')));
+    const timeout = (event) => settings.hooks[event][0].hooks[0].timeout * 1000;
+    assert.ok(LINT_FILE_TIMEOUT_MS < timeout('PostToolUse'), 'PostToolUse');
+    assert.ok(STOP_BUDGET_MS < timeout('Stop'), 'Stop');
   });
 
   test('fichiers JSON du template valides', () => {
