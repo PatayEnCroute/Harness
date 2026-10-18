@@ -145,7 +145,7 @@ function readInput() {
   }
 }
 
-// Contexte injecté au démarrage : projet à personnaliser, changes en cours, CLI openspec en session cloud.
+// Contexte injecté au démarrage : projet à personnaliser, changes en cours, CLI openspec installée si besoin.
 export function sessionStart(root, input, env = process.env) {
   // Point de départ du hook Stop, posé une seule fois par session (pas à la reprise ni au compactage) :
   // ce qui est déjà modifié avant Claude ne déclenche rien.
@@ -163,11 +163,13 @@ export function sessionStart(root, input, env = process.env) {
   } catch (err) {
     lines.push(`- ${err.message} : CLI openspec non installée.`);
   }
-  if (env.CLAUDE_CODE_REMOTE === 'true' && pinned && installedOpenspecVersion() !== pinned) {
+  // En local, seulement si la CLI est absente : une autre version sert peut-être un autre projet (hx doctor le signale).
+  const installed = pinned && installedOpenspecVersion();
+  if (pinned && (env.CLAUDE_CODE_REMOTE === 'true' ? installed !== pinned : !installed)) {
     const r = spawnSync('npm', ['i', '-g', `@fission-ai/openspec@${pinned}`], { stdio: 'ignore', shell: process.platform === 'win32' });
     lines.push(r.status === 0
-      ? `- CLI openspec ${pinned} installée pour cette session.`
-      : `- Échec de l'installation de la CLI openspec ${pinned} : les commandes /opsx:* ne fonctionneront pas.`);
+      ? `- CLI openspec ${pinned} installée (npm i -g).`
+      : `- Échec de l'installation de la CLI openspec ${pinned} : les commandes /opsx:* ne fonctionneront pas. À lancer par l'utilisateur : npm i -g @fission-ai/openspec@${pinned}`);
   }
   for (const change of listChanges(root)) {
     const { done, total } = taskProgress(change.dir);

@@ -1,6 +1,6 @@
 # Harness — Plan directeur
 
-> **Statut** : v0.3.0 · 2026-10-18 · **phases 0 à 4 livrées, pas encore éprouvées sur un vrai projet** (voir §9). La v1.0 attend le pilote.
+> **Statut** : v0.4.0 · 2026-10-18 · **phases 0 à 5 livrées, pas encore éprouvées sur un vrai projet** (voir §9). La v1.0 attend le pilote.
 > **Nature** : un **template personnel**. On y garde sa configuration Claude Code, on l'applique à chaque projet (nouveau ou existant), puis on la met à jour depuis ce repo.
 > **Cadre** : Claude Code · projets solo · GitHub Actions · **agnostique de la stack** · OpenSpec 1.14.x (OPSX)
 > **État de l'art** → [`research/etat-de-l-art-2026-10.md`](research/etat-de-l-art-2026-10.md)
@@ -32,9 +32,8 @@ flowchart LR
 
 | Étape | Commande | Durée visée |
 |---|---|---|
-| 1. Installer | `uvx copier@9.19.1 copy --trust gh:PatayEnCroute/Harness .` (projet nouveau ou existant) | 1 min |
-| 2. Personnaliser pour la stack | `/hx-setup` dans Claude Code : il détecte, propose, **exécute chaque commande pour la vérifier**, établit le profil d'architecture, et tu valides | 10–20 min |
-| 3. Vérifier | `node .harness/hx.mjs doctor` | 1 min |
+| 1. Installer | `npx github:PatayEnCroute/Harness` (projet nouveau ou existant) : vérifie git, installe uv au besoin, lance Copier, ouvre Claude Code. Ou par un agent, qui suit [`INSTALL.md`](../INSTALL.md) | 1 min |
+| 2. Personnaliser pour la stack | `/hx-setup`, ouvert par le lanceur : il détecte, propose, **exécute chaque commande pour la vérifier**, établit le profil d'architecture, tu valides, et il finit par `hx doctor` | 10–20 min |
 | Mettre à jour plus tard | `uvx copier@9.19.1 update --trust` (tes personnalisations sont conservées) | 1 min |
 
 > `--trust` autorise les tâches post-génération : `openspec init` à l'installation, `openspec update` et `hx migrate` à chaque mise à jour. Python (via `uv`) n'est requis **qu'à l'installation et à la mise à jour**.
@@ -367,6 +366,9 @@ src/
 
 ```
 Harness/
+├── bin/harness.mjs     # lanceur npx
+├── INSTALL.md          # installation
+│                       # par un agent
 ├── copier.yml
 ├── template/             # ce qui atterrit
 │   │                     # dans le projet
@@ -440,6 +442,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | E2E multi-stack | `copier copy` → `hx detect` → `doctor` → `check` sur Node, Python, .NET, Go, mixte ; YAML CI valide | CI |
 | E2E cycle OpenSpec | Scénario sans test → rouge ; test tagué → vert ; hooks ; archive ; dérive → rouge | CI |
 | E2E `copier update` | L'amélioration générique arrive, les personnalisations restent | CI |
+| E2E lanceur | `npx` dans un dossier vide (réponses en `--data`, comme un agent), refus d'un arbre sale, d'une réinstallation et d'un terminal absent sans `--defaults`, projet existant avec `--overwrite` | CI |
 | Evals comportementales | Un agent headless sur un projet de démo, notation déterministe ; A/B `--without <skill>` pour l'élagage | `evals/run.sh`, en local avec la session Claude Code de l'utilisateur (`claude -p`, sans clé d'API) |
 
 ## 9. Roadmap
@@ -451,6 +454,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | **P2 Qualité** ✅ | `hx trace` ; agents `hx-verifier`, `hx-security-reviewer` ; skills `hx-clarify`, `hx-debug`, `hx-learn` ; evals headless + A/B ; lint du template ; contrat OpenSpec | Unitaires ; contrat OpenSpec ; 4/4 evals (une exécution chacune) | Traçabilité ≥ 80 % sur le projet pilote |
 | **P3 Extensions** ✅ | Skill `hx-discover` (brownfield) ; revue d'élagage ([`elagage.md`](elagage.md)) ; ADR 001 à 003 (Copier ; plugin utilisateur et multi-outils non retenus) ; ADR-004 (OpenSpec) en v0.2.0 | Lint du template | Première revue d'élagage après quelques semaines d'usage |
 | **P4 Fiabilité** ✅ (v0.3.0) | Correcteurs d'evals sans faux succès et testés ; plus de faux verts (`run --file`, trace vide, délais) ; hook `Stop` fondé sur git ; chemins protégés signalés quel que soit l'outil, `permissions.deny`, `CODEOWNERS` ; prompts sans contradiction ; leçons relues | Unitaires ; contrat OpenSpec ; e2e | Evals `--runs 10` en local sur cette version ; le pilote ci-dessus |
+| **P5 Démarrage** ✅ (v0.4.0) | Lanceur `npx github:PatayEnCroute/Harness` (git, uv, Copier, Claude Code sur `/hx-setup`) ; CLI OpenSpec installée au démarrage de session si absente ; `INSTALL.md` pour une installation par un agent | Unitaires ; e2e lanceur | Installation par un agent en session cloud ; lanceur sous Windows |
 
 **Constats faits pendant la réalisation**, désormais encodés dans le harness :
 

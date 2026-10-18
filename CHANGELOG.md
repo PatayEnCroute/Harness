@@ -4,9 +4,16 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
-Incohérences levées entre les prompts, `hx.mjs` et la doc.
+## [0.4.0] — 2026-10-18
+
+Démarrage en une commande, par une personne (`npx`) ou par un agent (`INSTALL.md`) ; incohérences levées entre les prompts, `hx.mjs` et la doc.
+
+### Ajouté
+- **Lanceur `npx github:PatayEnCroute/Harness`** (`bin/harness.mjs`) : installation en une commande. Il fait `git init` dans un dossier vide, refuse un arbre git sale ou un projet déjà installé, installe uv s'il manque (après accord), lance Copier puis ouvre Claude Code sur `/hx-setup`. Les autres options vont à Copier (`--vcs-ref`, `--defaults`). Sans terminal (agent, CI), il exige `--defaults` avant toute écriture. Testé par `tests/launcher.test.mjs` et `tests/e2e-launcher.sh`.
+- **`INSTALL.md`** : installation par un agent (Claude Code local ou cloud). Vérifications, questions de Copier posées à l'utilisateur, commande non interactive (`--defaults`, `--data`, `--overwrite` pour un projet existant), redémarrage de session puis `/hx-setup` tapé par l'utilisateur. Un test vérifie que chaque question de `copier.yml` y figure.
 
 ### Modifié
+- **Démarrage** : de 4 étapes à 1 commande. Le hook de démarrage de session installe la CLI OpenSpec aussi en local quand elle est absente (une autre version installée est laissée : elle sert peut-être un autre projet, `hx doctor` le signale). `hx doctor` n'est plus une étape à part : `/hx-setup` le lance.
 - **`hx check`, étape `pistes`** : un change en cours sans `x-track` est une erreur, plus un avertissement (sans piste, aucune règle de piste ne s'appliquait). `hx-triage` et `docs/PLAN.md` le disent.
 - **Seuil `arch`** : « au moins trois features dont les frontières comptent », dans `hx-setup` comme dans `arch-rules.md`.
 - **`hx-setup`** : `.claude/settings.json` reste hors de portée, sauf la fusion des réglages d'un projet existant (étape 1).
