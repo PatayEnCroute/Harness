@@ -54,7 +54,7 @@ Les actions GitHub sont épinglées par SHA de commit et tenues à jour par Depe
 npm test                # unitaires hx, hooks et correcteurs des evals, lint du template (hermétique ; CI : Linux, macOS, Windows)
 npm run test:contract   # contrat OpenSpec, sur la version épinglée (réseau)
 npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update
-npm run evals           # agents headless notés de façon déterministe (coût réel)
+npm run evals           # agents headless (claude -p, ta session Claude Code, sans clé d'API) notés de façon déterministe ; en local seulement
 ```
 
 | Document | Contenu |

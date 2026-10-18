@@ -13,7 +13,7 @@ Fiabilisation issue de la revue du 2026-10-18 : mesurer juste, plus de faux vert
 - **`hx trace`** échoue sur une spec dont aucun scénario n'est lu, au lieu d'afficher 100 %.
 - **Prompts** : contradictions levées (refactor de piste S et test de caractérisation, exceptions au test d'abord, tâches d'un change de base, `hx-implement` obligatoire, indexation des seuls fichiers de la tâche, revue non indépendante déclarée sans sous-agents, niveau 4 documenté). `CLAUDE.md` ne recopie plus les critères de piste de `hx-triage`.
 - **Evals** : `only_changed` compare au commit initial (un commit de l'agent ne cache plus rien) ; mutants vérifiés (tests verts avant, mutant qui se charge) et, pour `implement-m`, détectés par le test tagué du scénario seul ; `test-first` exige un lancement au rouge avant le premier vert ; la raison de chaque échec est enregistrée.
-- **CI des evals** : entrées `runs` (défaut 10), `scenarios`, `without` ; le job échoue sans `ANTHROPIC_API_KEY` au lieu d'un vert sans mesure ; le JSONL est affiché dans le journal.
+- **Evals retirées de la CI** : elles se lancent en local (`evals/run.sh`), avec la session Claude Code de l'utilisateur (`claude -p`), sans clé d'API. Le job manuel qui attendait `ANTHROPIC_API_KEY` est supprimé.
 
 ### Ajouté
 - **Chemins protégés** : liste unique, étendue à `.harness/versions.json` ; le hook `Stop` signale à l'utilisateur tout chemin protégé modifié pendant la session, quel que soit l'outil.
