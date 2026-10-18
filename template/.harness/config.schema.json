@@ -137,9 +137,10 @@
     },
     "tracks": {
       "type": "object",
-      "description": "Pistes de travail : S (correctif), M (feature), L (structurant)",
+      "description": "Pistes de travail, lues par le contrôle « pistes » de hx check. Défauts : S (correctif), M (feature), L (structurant) ; une clé ajoutée crée une piste. spec → au moins une delta spec ; design → design.md ; adr → design.md cite un ADR de docs/adr/.",
       "additionalProperties": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "spec": {
             "type": "boolean"
