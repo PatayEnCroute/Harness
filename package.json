@@ -2,13 +2,16 @@
   "name": "harness",
   "private": true,
   "description": "Template Copier : harness Claude Code + OpenSpec, agnostique de la stack",
+  "bin": {
+    "harness": "bin/harness.mjs"
+  },
   "engines": {
     "node": ">=20.19"
   },
   "scripts": {
-    "test": "node --test tests/hx.test.mjs tests/hooks.test.mjs tests/template.test.mjs tests/evals.test.mjs",
+    "test": "node --test tests/hx.test.mjs tests/hooks.test.mjs tests/template.test.mjs tests/evals.test.mjs tests/launcher.test.mjs",
     "test:contract": "node --test tests/openspec-contract.test.mjs",
-    "e2e": "for f in node python dotnet go mixed; do tests/e2e.sh $f || exit 1; done && tests/e2e-openspec.sh && tests/e2e-update.sh",
+    "e2e": "for f in node python dotnet go mixed; do tests/e2e.sh $f || exit 1; done && tests/e2e-openspec.sh && tests/e2e-update.sh && tests/e2e-launcher.sh",
     "evals": "evals/run.sh"
   }
 }

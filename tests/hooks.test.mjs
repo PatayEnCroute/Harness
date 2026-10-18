@@ -213,6 +213,25 @@ describe('hooks Claude Code', () => {
     assert.match(r.stdout, /add-mult \(piste M, 1\/2 tâches\)/);
   });
 
+  test('session-start : CLI openspec installée si absente ; en local, une autre version est laissée', { skip: process.platform === 'win32' }, () => {
+    const root = project({ components: {} }, { '.harness/versions.json': JSON.stringify({ openspec: '1.2.3' }) });
+    // PATH réduit à des faux npm et openspec : rien n'est installé pour de vrai.
+    const run = (openspec, remote) => {
+      const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-bin-'));
+      const log = path.join(bin, 'npm.log');
+      fs.writeFileSync(path.join(bin, 'npm'), `#!/bin/sh\necho "$*" >> ${JSON.stringify(log)}\n`, { mode: 0o755 });
+      if (openspec) fs.writeFileSync(path.join(bin, 'openspec'), `#!/bin/sh\necho ${openspec}\n`, { mode: 0o755 });
+      const r = hook('session-start', root, {}, { PATH: bin, CLAUDE_CODE_REMOTE: remote ? 'true' : '' });
+      return { stdout: r.stdout, npm: fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim() : '' };
+    };
+    const absent = run(null, false);
+    assert.equal(absent.npm, 'i -g @fission-ai/openspec@1.2.3');
+    assert.match(absent.stdout, /openspec 1\.2\.3 installée/);
+    assert.equal(run('9.9.9', false).npm, '', 'en local, la version d\'un autre projet est gardée');
+    assert.equal(run('1.2.3', false).npm, '');
+    assert.equal(run('9.9.9', true).npm, 'i -g @fission-ai/openspec@1.2.3', 'en session cloud, la version épinglée');
+  });
+
   test('événement inconnu ou entrée invalide : jamais bloquant', () => {
     const root = project({ components: {} });
     assert.equal(hook('nope', root).code, 0);

@@ -32,9 +32,8 @@ flowchart LR
 
 | Étape | Commande | Durée visée |
 |---|---|---|
-| 1. Installer | `uvx copier@9.19.1 copy --trust gh:PatayEnCroute/Harness .` (projet nouveau ou existant) | 1 min |
-| 2. Personnaliser pour la stack | `/hx-setup` dans Claude Code : il détecte, propose, **exécute chaque commande pour la vérifier**, établit le profil d'architecture, et tu valides | 10–20 min |
-| 3. Vérifier | `node .harness/hx.mjs doctor` | 1 min |
+| 1. Installer | `npx github:PatayEnCroute/Harness` (projet nouveau ou existant) : vérifie git, installe uv au besoin, lance Copier, ouvre Claude Code | 1 min |
+| 2. Personnaliser pour la stack | `/hx-setup`, ouvert par le lanceur : il détecte, propose, **exécute chaque commande pour la vérifier**, établit le profil d'architecture, tu valides, et il finit par `hx doctor` | 10–20 min |
 | Mettre à jour plus tard | `uvx copier@9.19.1 update --trust` (tes personnalisations sont conservées) | 1 min |
 
 > `--trust` autorise les tâches post-génération : `openspec init` à l'installation, `openspec update` et `hx migrate` à chaque mise à jour. Python (via `uv`) n'est requis **qu'à l'installation et à la mise à jour**.
@@ -367,6 +366,7 @@ src/
 
 ```
 Harness/
+├── bin/harness.mjs     # lanceur npx
 ├── copier.yml
 ├── template/             # ce qui atterrit
 │   │                     # dans le projet

@@ -1,0 +1,58 @@
+// Lanceur npx (bin/harness.mjs) : options, vérifications du dépôt avant installation, version de Copier.
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { COPIER_VERSION, findUvx, parseArgs, preflight } from '../bin/harness.mjs';
+
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'hx-launcher-'));
+const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.email=e@x', '-c', 'user.name=e', ...args], { cwd, encoding: 'utf8' });
+
+describe('lanceur npx', () => {
+  test('options : les siennes sont retirées, le reste va à copier', () => {
+    const opts = parseArgs(['--no-claude', '--vcs-ref', 'v0.4.0', '--template', '/tmp/h', '--defaults']);
+    assert.equal(opts.claude, false);
+    assert.equal(opts.template, '/tmp/h');
+    assert.deepEqual(opts.copier, ['--vcs-ref', 'v0.4.0', '--defaults']);
+    assert.equal(parseArgs([]).template, 'gh:PatayEnCroute/Harness');
+  });
+
+  test('dépôt : dossier vide → git init ; hors git, arbre sale ou déjà installé → refus', () => {
+    assert.deepEqual(preflight(tmp()), { init: true });
+
+    const loose = tmp();
+    fs.writeFileSync(path.join(loose, 'a.txt'), 'x');
+    assert.match(preflight(loose).error, /git init/);
+
+    git(loose, 'init', '-q');
+    git(loose, 'add', '-A');
+    git(loose, 'commit', '-qm', 'initial');
+    assert.deepEqual(preflight(loose), {});
+
+    fs.writeFileSync(path.join(loose, 'a.txt'), 'modifié');
+    assert.match(preflight(loose).error, /pas commités/);
+
+    git(loose, 'commit', '-qam', 'suite');
+    fs.writeFileSync(path.join(loose, '.copier-answers.yml'), '_src_path: gh:PatayEnCroute/Harness\n');
+    assert.match(preflight(loose).error, /déjà installé.*update --trust/s);
+  });
+
+  test('uvx : trouvé là où l\'installeur officiel le pose', () => {
+    const home = tmp();
+    const bin = path.join(home, '.local', 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    const exe = path.join(bin, process.platform === 'win32' ? 'uvx.exe' : 'uvx');
+    fs.writeFileSync(exe, '');
+    const r = findUvx(home);
+    assert.ok(r === 'uvx' || r === exe, `${r}`);
+  });
+
+  test('version de Copier : la même que copier.yml et la CI', () => {
+    assert.match(fs.readFileSync(path.join(repo, 'copier.yml'), 'utf8'), new RegExp(`_min_copier_version: "${COPIER_VERSION}"`));
+    assert.match(fs.readFileSync(path.join(repo, '.github', 'workflows', 'ci.yml'), 'utf8'), new RegExp(`COPIER_VERSION: "${COPIER_VERSION}"`));
+  });
+});

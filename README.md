@@ -4,19 +4,28 @@ Template personnel de *harness engineering* pour **Claude Code**, autour d'[Open
 
 ## Utiliser le template
 
-Prérequis : `git`, Node ≥ 20.19, [uv](https://docs.astral.sh/uv/) (pour lancer Copier).
+Prérequis : `git` et Node ≥ 20.19. Dans le dossier du projet (vide, ou dépôt git sans changement en cours) :
 
 ```bash
-uvx copier@9.19.1 copy --trust gh:PatayEnCroute/Harness .   # 1. installer (projet nouveau ou existant)
-npm i -g @fission-ai/openspec@$(node -p "require('./.harness/versions.json').openspec")   # 2. CLI des /opsx:*
-# 3. dans Claude Code : /hx-setup                       → personnalisation à la stack
-node .harness/hx.mjs doctor                           # 4. vérifier
-uvx copier@9.19.1 update --trust                     # plus tard : récupérer les améliorations
+npx github:PatayEnCroute/Harness
 ```
 
-`--trust` autorise les tâches post-installation : `openspec init` à l'installation, puis `openspec update` et `hx migrate` (clés nouvelles ajoutées à `.harness/config.json`) à chaque mise à jour. Copier prend le dernier tag du repo ; `hx doctor` signale un projet en retard. Questions : nom du projet, workflow CI (`ci`) et sa branche par défaut (`default_branch`, `main`), relecteurs obligatoires (`codeowners`, vide par défaut : sinon un `.github/CODEOWNERS` couvre `.harness/`, `.claude/settings.json`, `.github/` et `openspec/specs/`, à combiner avec la protection de branche « Require review from Code Owners »). Copier 9.19.1 est la version testée en CI (et le minimum exigé par `copier.yml`).
+| Le lanceur | Pourquoi |
+|---|---|
+| fait `git init` dans un dossier vide ; refuse un arbre git sale | `/hx-setup` retrouve dans git les fichiers que l'installation remplace |
+| installe [uv](https://docs.astral.sh/uv/) s'il manque, après accord | uv lance Copier, le moteur du template |
+| lance `uvx copier@9.19.1 copy --trust` | questions : nom du projet, workflow CI (`ci`), branche par défaut (`default_branch`), relecteurs obligatoires (`codeowners`) |
+| ouvre Claude Code sur `/hx-setup` | personnalisation à la stack, vérifiée à la fin par `hx doctor` |
 
-**Projet existant** : commite d'abord (git est requis), puis lance l'installation **sans** `--defaults` et accepte le remplacement de `CLAUDE.md`, `.claude/settings.json` et `openspec/config.yaml` s'ils existent. `/hx-setup` récupère ensuite leur contenu utile depuis git.
+La CLI OpenSpec (commandes `/opsx:*`) est installée au premier démarrage de session si elle est absente. Options : `--vcs-ref v0.4.0` (version précise du template), `--defaults` (sans questions), `--no-claude`, `--help`.
+
+**Projet existant** : accepte le remplacement de `CLAUDE.md`, `.claude/settings.json` et `openspec/config.yaml` s'ils existent. `/hx-setup` récupère ensuite leur contenu utile depuis git.
+
+**Sans le lanceur** : `uvx copier@9.19.1 copy --trust gh:PatayEnCroute/Harness .`, puis `/hx-setup` dans Claude Code.
+
+**Plus tard** : `uvx copier@9.19.1 update --trust` récupère les améliorations. Copier prend le dernier tag du repo ; `hx doctor` signale un projet en retard.
+
+`--trust` autorise les tâches post-installation : `openspec init` à l'installation, puis `openspec update` et `hx migrate` (clés nouvelles ajoutées à `.harness/config.json`) à chaque mise à jour. Avec `codeowners`, un `.github/CODEOWNERS` couvre `.harness/`, `.claude/settings.json`, `.github/` et `openspec/specs/`, à combiner avec la protection de branche « Require review from Code Owners ». Copier 9.19.1 est la version testée en CI (et le minimum exigé par `copier.yml`).
 
 ## Le workflow installé
 
@@ -54,7 +63,7 @@ Les actions GitHub sont épinglées par SHA de commit et tenues à jour par Depe
 ```bash
 npm test                # unitaires hx, hooks et correcteurs des evals, lint du template (hermétique ; CI : Linux, macOS, Windows)
 npm run test:contract   # contrat OpenSpec, sur la version épinglée (réseau)
-npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update
+npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update, lanceur npx
 npm run evals           # agents headless (claude -p, ta session Claude Code, sans clé d'API) notés de façon déterministe ; en local seulement
 ```
 
