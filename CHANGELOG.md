@@ -2,7 +2,7 @@
 
 Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les projets reçoivent une version par `uvx copier update --trust`.
 
-## [0.2.0] — non publiée
+## [0.2.0] — 2026-10-18
 
 Corrections issues de la revue du 2026-10-18. Passage en 0.x : rien n'est encore éprouvé sur un vrai projet.
 
