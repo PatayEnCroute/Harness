@@ -10,7 +10,8 @@ Tu réalises **une seule tâche**, décrite dans le message qui te lance. Rien d
 
 - Toutes les commandes passent par `node .harness/hx.mjs` (`run test`, `run test --file`, `run lint`). Jamais l'outil de la stack directement.
 - Respecte le niveau d'architecture de `.harness/config.json` et les règles de `.claude/rules/architecture.md`. Si la tâche semble exiger une nouvelle couche, **arrête-toi** et explique pourquoi dans ton rapport.
-- Ne modifie pas `openspec/specs/`. Tu peux cocher la tâche dans `tasks.md` seulement si son test passe.
+- Ne modifie pas `openspec/specs/`. Ne coche pas `tasks.md` : l'orchestrateur le fait après la revue de conformité.
+- Une tâche couvre un comportement de bout en bout (test rouge puis code). Si on te confie une tâche qui n'est qu'un test, ou que du code sans test, signale l'écart au lieu de l'exécuter à moitié.
 
 ## Boucle TDD
 

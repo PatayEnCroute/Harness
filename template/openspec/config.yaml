@@ -23,9 +23,9 @@ rules:
     - "Présenter les options, dont « ne rien changer » et la plus simple ; justifier toute abstraction par un besoin nommé."
     - "Une décision difficilement réversible (schéma de données, contrat d'API publique, découpage en services) fait l'objet d'un ADR dans docs/adr/."
   tasks:
-    - "Tâches de 2 à 5 minutes, chacune avec son critère de vérification."
-    - "Pour chaque comportement, l'écriture du test précède l'implémentation."
-    - "Dernière tâche : `node .harness/hx.mjs check` vert."
+    - "Une tâche = un comportement livré en TDD (test rouge puis code, dans la même tâche) ; jamais de tâche « écrire le test » séparée de son implémentation."
+    - "Tâches de 2 à 5 minutes, chacune avec son critère de vérification : le test qui passe."
+    - "Pas de tâche de vérification finale : hx-verify lance `node .harness/hx.mjs check` après la dernière tâche."
 
 operations:
   apply:
