@@ -1,0 +1,9 @@
+# Installé par le template Harness, puis propre au projet (jamais réécrit par copier update).
+# Met à jour les actions GitHub épinglées par SHA :
+# celles des workflows et celles de l'action d'outillage .harness/ci/setup/.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.harness/ci/setup"]
+    schedule:
+      interval: weekly

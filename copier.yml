@@ -10,11 +10,14 @@ _skip_if_exists:
   - .harness/config.json
   - .harness/project.md
   - .harness/ci/setup/action.yml
+  - .github/dependabot.yml   # le projet peut déjà avoir le sien
 
 _tasks:
   - command: node .harness/hx.mjs openspec init --tools claude .
     when: "{{ _copier_operation == 'copy' }}"
   - command: node .harness/hx.mjs openspec update .
+    when: "{{ _copier_operation == 'update' }}"
+  - command: node .harness/hx.mjs migrate   # config.json n'est jamais réécrit : on y ajoute les clés nouvelles
     when: "{{ _copier_operation == 'update' }}"
 
 _message_after_copy: |
@@ -33,7 +36,15 @@ ci:
   help: Ajouter le workflow GitHub Actions hx-check ?
   default: true
 
+default_branch:
+  type: str
+  help: Branche principale (déclenche hx-check au push)
+  default: main
+  when: "{{ ci }}"
+
+# Calculée, jamais posée : une question verrait sa réponse figée dans .copier-answers.yml,
+# et `copier update` n'apporterait jamais la nouvelle version épinglée aux projets existants.
 openspec_version:
   type: str
-  help: Version d'OpenSpec épinglée
   default: "1.14.3"
+  when: false

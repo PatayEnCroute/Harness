@@ -15,6 +15,12 @@ import {
   trace,
   findComponentForFile,
   main,
+  checkSettings,
+  mergeLeftovers,
+  migrateConfig,
+  nodeVersionOk,
+  templateStatus,
+  openspecCommand,
   parseFlags,
   resolveInvocations,
   shellQuote,
@@ -87,6 +93,16 @@ describe('detect', () => {
     );
   });
 
+  test('noms en collision : chaque composant est conservé', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-collide-')), {
+      'a/api/package.json': '{"scripts":{"test":"node --test"}}',
+      'b/api/package.json': '{"scripts":{"test":"node --test"}}',
+      'c/api/package.json': '{"scripts":{"test":"node --test"}}',
+    });
+    const result = detect(root, { python: 'python' });
+    assert.deepEqual(Object.entries(result.components).map(([name, c]) => `${name}=${c.path}`).sort(), ['api-node=b/api', 'api=a/api', 'c-api-node=c/api']);
+  });
+
   test('aucune stack reconnue : une remarque, aucun composant', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-empty-'));
     const result = detect(root, { python: 'python' });
@@ -108,6 +124,10 @@ describe('résolution des commandes', () => {
     const match = findComponentForFile(config, root, path.join(root, 'web', 'src', 'a.test.js'));
     assert.equal(match.component.name, 'web');
     assert.equal(match.relative, path.join('src', 'a.test.js'));
+  });
+
+  test('un dossier au nom voisin n\'est pas dans le composant (web2/ hors de web/)', () => {
+    assert.equal(findComponentForFile(config, root, path.join(root, 'web2', 'a.js')).component.name, 'app');
   });
 
   test('variante -file avec {file} relatif au composant', () => {
@@ -147,6 +167,39 @@ describe('validation du contrat', () => {
     assert.ok(errors.some((d) => d.includes('0 à 4')));
   });
 
+  test('contrat sans aucune commande test : erreur', () => {
+    const issues = validateConfig({ version: 1, components: { a: { path: '.', commands: { lint: 'x' } } } }, tempProject({}));
+    assert.ok(issues.some((i) => i.level === 'error' && i.label === 'Tests'));
+  });
+
+  test('types invalides : erreurs structurelles au lieu d\'un plantage', () => {
+    const issues = validateConfig({
+      version: 1,
+      components: { a: { path: 5, commands: { lint: ['eslint', '.'], test: 'x' } }, b: { path: '.', commands: 'npm test' } },
+      trace: { min_coverage: 150 },
+      tracks: { M: { design: 'souvent' } },
+    }, tempProject({}));
+    const structural = issues.filter((i) => i.structural).map((i) => i.detail);
+    assert.ok(structural.some((d) => d.includes('dossier introuvable')));
+    assert.ok(structural.some((d) => d.includes('« lint » vide ou invalide')));
+    assert.ok(structural.some((d) => d.includes('« commands » doit être un objet')));
+    assert.ok(issues.some((i) => i.label === 'Trace'));
+    assert.ok(issues.some((i) => i.label === 'Pistes' && i.detail.includes('M.design')));
+  });
+
+  test('migrateConfig : ajoute les clés manquantes sans rien remplacer', () => {
+    const old = { version: 1, components: { a: { path: '.', commands: { test: 'x' } } }, trace: { min_coverage: 80 }, architecture: { level: 2 } };
+    const { config, added } = migrateConfig(old);
+    assert.equal(config.trace.min_coverage, 80);
+    assert.equal(config.architecture.level, 2);
+    assert.equal(config.architecture.style, 'feature-first');
+    assert.deepEqual(config.tracks, defaultConfig().tracks);
+    assert.deepEqual(config.components, old.components);
+    assert.ok(added.includes('tracks') && added.includes('architecture.style') && !added.includes('trace.min_coverage'));
+    assert.deepEqual(migrateConfig(config).added, [], 'idempotent');
+    assert.equal(old.tracks, undefined, 'entrée non modifiée');
+  });
+
   test('aucun composant : erreur', () => {
     const issues = validateConfig(defaultConfig(), tempProject({}));
     assert.ok(issues.some((i) => i.level === 'error' && i.label === 'Composants'));
@@ -175,6 +228,64 @@ describe('CLI', () => {
     const red = tempProject({ version: 1, components: { a: { path: '.', commands: { lint: ok, test: ko } } } });
     assert.equal(await quiet(() => main(['check'], green)), 0);
     assert.equal(await quiet(() => main(['check'], red)), 1);
+  });
+
+  test('check : jamais vert sans test exécuté', async () => {
+    assert.equal(await quiet(() => main(['check'], tempProject(defaultConfig()))), 1, 'contrat par défaut, 0 composant');
+    const lintOnly = tempProject({ version: 1, components: { a: { path: '.', commands: { lint: ok } } } });
+    assert.equal(await quiet(() => main(['check'], lintOnly)), 1);
+    const two = tempProject({ version: 1, components: { a: { path: '.', commands: { lint: ok, test: ok } }, b: { path: '.', commands: { lint: ok } } } });
+    assert.equal(await quiet(() => main(['check', '--component', 'b'], two)), 1, 'composant sans test');
+  });
+
+  test('check --fast : lint et typecheck seulement', async () => {
+    const testKo = tempProject({ version: 1, components: { a: { path: '.', commands: { lint: ok, test: ko } } } });
+    const lintKo = tempProject({ version: 1, components: { a: { path: '.', commands: { lint: ko, test: ok } } } });
+    assert.equal(await quiet(() => main(['check', '--fast'], testKo)), 0);
+    assert.equal(await quiet(() => main(['check', '--fast'], lintKo)), 1);
+  });
+
+  test('check : contrat invalide refusé sans plantage, composant et options vérifiés', async () => {
+    const broken = tempProject({ version: 1, components: { a: { path: '.', commands: { lint: ['eslint', '.'], test: ok } } } });
+    assert.equal(await quiet(() => main(['check'], broken)), 1);
+    const root = tempProject({ version: 1, components: { a: { path: '.', commands: { test: ok } } } });
+    assert.equal(await quiet(() => main(['check', '--component', 'toString'], root)), 2);
+    assert.equal(await quiet(() => main(['check', '--component'], root)), 2);
+    assert.equal(await quiet(() => main(['run', 'test', '--file'], root)), 2);
+    assert.equal(await quiet(() => main(['run', 'test', '--file', '--verbose'], root)), 2);
+  });
+
+  test('run : code de sortie de la commande', async () => {
+    assert.equal(await quiet(() => main(['run', 'test'], tempProject({ version: 1, components: { a: { path: '.', commands: { test: ok } } } }))), 0);
+    assert.equal(await quiet(() => main(['run', 'test'], tempProject({ version: 1, components: { a: { path: '.', commands: { test: ko } } } }))), 1);
+  });
+
+  test('pistes : une erreur de piste fait échouer check', { skip: process.platform === 'win32' }, () => {
+    // Faux openspec à la version épinglée : check n'appelle pas le réseau.
+    const root = tempProject({ version: 1, components: { a: { path: '.', commands: { test: ok } } } });
+    fs.copyFileSync(path.join(repo, 'template', '.harness', 'hx.mjs'), path.join(root, '.harness', 'hx.mjs'));
+    fs.writeFileSync(path.join(root, '.harness', 'versions.json'), '{ "openspec": "0.0.0-test" }');
+    writeFiles(root, {
+      'bin/openspec': '#!/bin/sh\n[ "$1" = "--version" ] && echo 0.0.0-test\nexit 0\n',
+      'openspec/changes/big/.openspec.yaml': 'schema: spec-driven\nx-track: L\n',
+      'openspec/changes/big/specs/calc/spec.md': deltaSpec,
+      'test/mult.test.js': '// @scenario calc/multiply-two-numbers\n',
+    });
+    fs.chmodSync(path.join(root, 'bin', 'openspec'), 0o755);
+    const check = () => spawnSync(process.execPath, [path.join(root, '.harness', 'hx.mjs'), 'check'], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}` },
+    });
+    let r = check();
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /design\.md manquant/);
+    assert.match(r.stdout, /✓ trace/, 'seule la piste échoue');
+    writeFiles(root, {
+      'openspec/changes/big/design.md': 'Voir docs/adr/001-x.md\n',
+      'docs/adr/001-x.md': '# ADR\n',
+    });
+    r = check();
+    assert.equal(r.status, 0, r.stdout);
   });
 
   test('run : 3 si la commande n\'est définie nulle part, 0 si un --file ne concerne aucun composant', async () => {
@@ -207,6 +318,56 @@ describe('CLI', () => {
     assert.equal(await quiet(() => main(['doctor', '--no-run'], root)), 0);
     fs.writeFileSync(path.join(root, '.gitignore'), '.harness/\n');
     assert.equal(await quiet(() => main(['doctor', '--no-run'], root)), 1);
+  });
+
+  test('doctor : settings.json illisible ou restes de conflit de fusion → erreur', async () => {
+    const root = tempProject({ version: 1, components: { a: { path: '.', commands: { test: ok, lint: ok } } } });
+    const settings = fs.readFileSync(path.join(repo, 'template', '.claude', 'settings.json'), 'utf8');
+    writeFiles(root, { '.claude/settings.json': settings, 'openspec/config.yaml': 'schema: spec-driven\n' });
+    assert.equal(checkSettings(root).level, 'ok');
+    assert.deepEqual(mergeLeftovers(root), []);
+    assert.equal(await quiet(() => main(['doctor', '--no-run'], root)), 0);
+
+    writeFiles(root, { '.claude/settings.json': settings.replace('  "permissions"', '<<<<<<< before updating\n  "permissions"') });
+    assert.equal(checkSettings(root).level, 'error');
+    assert.deepEqual(mergeLeftovers(root), ['.claude/settings.json']);
+    assert.equal(await quiet(() => main(['doctor', '--no-run'], root)), 1);
+
+    writeFiles(root, { '.claude/settings.json': settings, '.claude/skills/hx-tdd/SKILL.md.rej': 'x', 'CLAUDE.md': 'a\n>>>>>>> after updating\n' });
+    assert.deepEqual(mergeLeftovers(root).sort(), ['.claude/skills/hx-tdd/SKILL.md.rej', 'CLAUDE.md']);
+  });
+
+  test('doctor : version du template comparée au dernier tag de la source', () => {
+    const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], { cwd, encoding: 'utf8' });
+    const src = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-src-'));
+    git(src, 'init', '-q');
+    git(src, 'commit', '-q', '--allow-empty', '-m', 'a');
+    const root = tempProject({});
+    const answers = (commit) => fs.writeFileSync(path.join(root, '.copier-answers.yml'), `_commit: ${commit}\n_src_path: ${src}\n`);
+    answers('abc1234');
+    assert.match(templateStatus(root).detail, /aucun tag/);
+    git(src, 'tag', 'v0.1.0');
+    git(src, 'tag', 'v0.10.0');
+    git(src, 'tag', 'v0.9.0');
+    answers('v0.9.0');
+    assert.deepEqual(templateStatus(root), { level: 'warn', detail: 'v0.9.0, dernière : v0.10.0 → uvx copier update --trust' });
+    answers('v0.10.0-2-gabc1234');
+    assert.equal(templateStatus(root).level, 'ok');
+    fs.rmSync(path.join(root, '.copier-answers.yml'));
+    assert.equal(templateStatus(root), null);
+  });
+
+  test('doctor : version minimale de Node', () => {
+    assert.equal(nodeVersionOk('20.18.3'), false);
+    assert.equal(nodeVersionOk('20.19.0'), true);
+    assert.equal(nodeVersionOk('21.0.0'), true);
+    assert.equal(nodeVersionOk('19.99.0'), false);
+  });
+
+  test('openspec : la version épinglée est respectée', () => {
+    const root = tempProject({});
+    fs.writeFileSync(path.join(root, '.harness', 'versions.json'), '{ "openspec": "0.0.0-pin" }');
+    assert.equal(openspecCommand(root, ['list', '--json']), 'npx -y @fission-ai/openspec@0.0.0-pin list --json');
   });
 
   test('parseFlags : valeurs, booléens et forme --clé=valeur', () => {
@@ -303,6 +464,21 @@ describe('OpenSpec : scénarios et traçabilité', () => {
     assert.equal(report.ok, false);
   });
 
+  test('trace : un tag dans le code de production ne couvre rien', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), {
+      'openspec/specs/calc/spec.md': mainSpec,
+      'src/add.js': '// @scenario calc/ajouter-deux-nombres\n',
+    });
+    let report = trace(root, {});
+    assert.equal(report.coverage, 0);
+    assert.deepEqual(report.outsideTests.map((o) => o.id), ['calc/ajouter-deux-nombres']);
+    assert.equal(report.ok, false);
+    assert.equal(trace(root, { trace: { test_pattern: '^src/' } }).ok, true, 'convention de test du projet');
+    writeFiles(root, { 'src/add.test.js': '// @scenario calc/ajouter-deux-nombres\n' });
+    report = trace(root, {});
+    assert.equal(report.ok, true);
+  });
+
   test('trace : couverture minimale configurable', () => {
     const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), { 'openspec/specs/calc/spec.md': mainSpec });
     assert.equal(trace(root, {}).ok, false);
@@ -312,6 +488,7 @@ describe('OpenSpec : scénarios et traçabilité', () => {
   test('checkPolicy : piste L exige design.md et un ADR existant', () => {
     const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-policy-')), {
       'openspec/changes/big/.openspec.yaml': 'schema: spec-driven\nx-track: L\n',
+      'openspec/changes/big/specs/calc/spec.md': deltaSpec,
       'openspec/changes/small/.openspec.yaml': 'schema: spec-driven\n',
     });
     const details = () => checkPolicy(root).map((i) => `${i.level} ${i.label} ${i.detail}`);
@@ -323,5 +500,18 @@ describe('OpenSpec : scénarios et traçabilité', () => {
     assert.ok(!details().some((d) => d.startsWith('error')));
     writeFiles(root, { 'openspec/changes/big/design.md': '## Besoin\nVoir [ADR](docs/adr/002-décision.md).\n' });
     assert.ok(details().some((d) => d.includes('ADR introuvable : docs/adr/002-décision.md')));
+  });
+
+  test('checkPolicy : règles lues dans « tracks » du contrat', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-tracks-')), {
+      'openspec/changes/feat/.openspec.yaml': 'schema: spec-driven\nx-track: M\n',
+      'openspec/changes/feat/specs/calc/spec.md': deltaSpec,
+      'openspec/changes/hotfix/.openspec.yaml': 'schema: spec-driven\nx-track: XS\n',
+      'openspec/changes/nospec/.openspec.yaml': 'schema: spec-driven\nx-track: M\n',
+    });
+    const errors = (config) => checkPolicy(root, config).filter((i) => i.level === 'error').map((i) => `${i.label} ${i.detail}`);
+    assert.deepEqual(errors({}).sort(), ['hotfix x-track invalide : XS (pistes : S, M, L)', 'nospec piste M : aucune delta spec (specs/<capability>/spec.md)']);
+    const strict = { tracks: { M: { design: 'required' }, XS: { spec: false } } };
+    assert.deepEqual(errors(strict).sort(), ['feat piste M : design.md manquant', 'nospec piste M : aucune delta spec (specs/<capability>/spec.md)', 'nospec piste M : design.md manquant']);
   });
 });

@@ -49,6 +49,25 @@ export function defaultConfig() {
   };
 }
 
+// Complète un contrat existant avec les clés ajoutées depuis par le template, sans jamais remplacer une valeur.
+// config.json est spécifique (_skip_if_exists) : sans cela, une clé nouvelle n'atteindrait jamais les projets existants.
+export function migrateConfig(config) {
+  const fill = (target, defaults) => {
+    const added = [];
+    for (const [key, value] of Object.entries(defaults)) {
+      if (!(key in target)) {
+        target[key] = structuredClone(value);
+        added.push(key);
+      } else if (isObject(value) && isObject(target[key]) && !['components', 'features'].includes(key)) {
+        added.push(...fill(target[key], value).map((k) => `${key}.${k}`));
+      }
+    }
+    return added;
+  };
+  const migrated = structuredClone(config);
+  return { config: migrated, added: fill(migrated, defaultConfig()) };
+}
+
 export function loadConfig(root) {
   const file = path.join(root, CONFIG_PATH);
   if (!fs.existsSync(file)) return { file, config: null, error: 'absent' };
@@ -84,13 +103,18 @@ export function components(config) {
 }
 
 const isLevel = (v) => Number.isInteger(v) && v >= 0 && v <= 4;
+const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+const REQUIREMENT = ['optional', 'required'];
 
+// Erreurs « structurelles » : les commandes du contrat ne peuvent pas s'exécuter correctement.
+// Les autres erreurs (aucun test, niveaux, pistes…) rendent le contrat incomplet sans empêcher `hx run`.
 export function validateConfig(config, root) {
   const issues = [];
   const add = (level, label, detail = '') => issues.push({ level, label, detail });
+  const broken = (label, detail) => issues.push({ level: 'error', label, detail, structural: true });
   if (config.version !== 1) add('warn', 'Version du contrat', `attendu 1, trouvé ${config.version}`);
-  if (typeof config.components !== 'object' || config.components === null || Array.isArray(config.components)) {
-    add('error', 'Contrat', '« components » doit être un objet');
+  if (!isObject(config.components)) {
+    broken('Contrat', '« components » doit être un objet');
     return issues;
   }
   const comps = components(config);
@@ -98,22 +122,63 @@ export function validateConfig(config, root) {
   for (const c of comps) {
     const label = `Composant ${c.name}`;
     if (typeof c.path !== 'string' || !fs.existsSync(path.resolve(root, c.path))) {
-      add('error', label, `dossier introuvable : ${c.path}`);
+      broken(label, `dossier introuvable : ${c.path}`);
+    }
+    if (!isObject(c.commands)) {
+      broken(label, '« commands » doit être un objet');
+      continue;
     }
     for (const [name, cmd] of Object.entries(c.commands)) {
-      if (typeof cmd !== 'string' || cmd.trim() === '') add('error', label, `commande « ${name} » vide ou invalide`);
-      else if (name.endsWith('-file') && !cmd.includes('{file}')) add('error', label, `« ${name} » doit contenir {file}`);
+      if (typeof cmd !== 'string' || cmd.trim() === '') broken(label, `commande « ${name} » vide ou invalide`);
+      else if (name.endsWith('-file') && !cmd.includes('{file}')) broken(label, `« ${name} » doit contenir {file}`);
     }
     if (!c.commands.test) add('warn', label, 'pas de commande « test »');
     if (!c.commands.lint) add('warn', label, 'pas de commande « lint »');
   }
-  if (comps.length > 0 && !comps.some((c) => c.commands.test)) add('error', 'Tests', 'aucun composant ne définit « test »');
+  if (comps.length > 0 && !comps.some((c) => isObject(c.commands) && c.commands.test)) {
+    add('error', 'Tests', 'aucun composant ne définit « test »');
+  }
   const arch = config.architecture ?? {};
   if (arch.level !== undefined && !isLevel(arch.level)) add('error', 'Architecture', 'level doit valoir 0 à 4');
   for (const [feature, level] of Object.entries(arch.features ?? {})) {
     if (!isLevel(level)) add('error', 'Architecture', `niveau de « ${feature} » : 0 à 4`);
   }
+  if (config.trace?.test_pattern !== undefined) {
+    try {
+      new RegExp(config.trace.test_pattern);
+    } catch {
+      add('error', 'Trace', 'test_pattern doit être une expression régulière valide');
+    }
+  }
+  const min = config.trace?.min_coverage;
+  if (min !== undefined && !(Number.isInteger(min) && min >= 0 && min <= 100)) {
+    add('error', 'Trace', 'min_coverage doit être un entier de 0 à 100');
+  }
+  for (const [name, rules] of Object.entries(config.tracks ?? {})) {
+    if (!isObject(rules)) add('error', 'Pistes', `« ${name} » doit être un objet`);
+    else {
+      if (rules.spec !== undefined && typeof rules.spec !== 'boolean') add('error', 'Pistes', `${name}.spec : true ou false`);
+      for (const key of ['design', 'adr']) {
+        if (rules[key] !== undefined && !REQUIREMENT.includes(rules[key])) add('error', 'Pistes', `${name}.${key} : optional ou required`);
+      }
+    }
+  }
   return issues;
+}
+
+// Contrat chargé puis validé : config null s'il est absent ou illisible.
+// errors : toutes les erreurs, ou seulement les structurelles avec { structural: true }.
+export function loadValidConfig(root, { structural = false } = {}) {
+  const { config, error } = loadConfig(root);
+  if (!config) return { config: null, errors: error === 'absent' ? [] : [`${CONFIG_PATH} : ${error}`] };
+  const errors = validateConfig(config, root)
+    .filter((i) => i.level === 'error' && (!structural || i.structural))
+    .map((i) => `${i.label} : ${i.detail}`);
+  return { config, errors };
+}
+
+export function isUnknownComponent(config, name) {
+  return Boolean(name) && !Object.hasOwn(isObject(config.components) ? config.components : {}, name);
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +284,7 @@ function printResults(title, results) {
   console.log(`\n${title}`);
   for (const r of results) {
     const icon = r.skipped ? '·' : r.ok ? '✓' : '✗';
-    const right = r.skipped ? r.reason : fmtMs(r.ms);
+    const right = r.reason ?? fmtMs(r.ms);
     console.log(`  ${icon} ${r.label.padEnd(12)} ${r.component.padEnd(16)} ${right}`);
   }
 }
@@ -464,6 +529,8 @@ export function detect(root, { maxDepth = 3, python = defaultPython() } = {}) {
 // ---------------------------------------------------------------------------
 
 const TRACE_EXTENSIONS = new Set([...SOURCE_EXTENSIONS, '.feature', '.robot']);
+// Fichiers de test reconnus par défaut (mêmes conventions que .claude/rules/testing.md) ; trace.test_pattern le remplace.
+export const DEFAULT_TEST_PATTERN = String.raw`(^|/)(tests?|__tests__|specs?|e2e)/|\.(test|spec)\.[^/]+$|_(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|Tests?\.(cs|fs|vb|java|kt|scala|swift)$|\.(feature|robot)$`;
 const SCENARIO_TAG = /@scenario\s+([a-z0-9](?:[a-z0-9/_-]*[a-z0-9])?)/g;
 const toPosix = (p) => p.split(path.sep).join('/');
 
@@ -548,24 +615,27 @@ export function collectScenarios(root) {
   return { main, changes };
 }
 
-// Tags « @scenario <capability>/<scénario> » dans les fichiers source : Map id → ["fichier:ligne"].
-export function collectTags(root) {
+// Tags « @scenario <capability>/<scénario> » : Map id → ["fichier:ligne"].
+// Seuls les fichiers de test couvrent un scénario ; un tag ailleurs (code de production) est rangé dans « ignored ».
+export function collectTags(root, { testPattern = DEFAULT_TEST_PATTERN } = {}) {
+  const isTest = new RegExp(testPattern);
   const tags = new Map();
+  const ignored = new Map();
   for (const file of walkFiles(root, (f) => TRACE_EXTENSIONS.has(path.extname(f).toLowerCase()))) {
     const text = readText(file);
     if (!text.includes('@scenario')) continue;
+    const rel = toPosix(path.relative(root, file));
+    const target = isTest.test(rel) ? tags : ignored;
     text.split('\n').forEach((line, i) => {
-      for (const m of line.matchAll(SCENARIO_TAG)) {
-        tags.set(m[1], [...(tags.get(m[1]) ?? []), `${toPosix(path.relative(root, file))}:${i + 1}`]);
-      }
+      for (const m of line.matchAll(SCENARIO_TAG)) target.set(m[1], [...(target.get(m[1]) ?? []), `${rel}:${i + 1}`]);
     });
   }
-  return tags;
+  return Object.assign(tags, { ignored });
 }
 
 export function trace(root, config) {
   const { main, changes } = collectScenarios(root);
-  const tags = collectTags(root);
+  const tags = collectTags(root, { testPattern: config?.trace?.test_pattern });
   const known = new Set([...main, ...changes].map((s) => s.id));
   const uncoveredMain = main.filter((s) => !tags.has(s.id));
   const uncoveredChanges = changes.filter((s) => !tags.has(s.id));
@@ -574,7 +644,8 @@ export function trace(root, config) {
   const coverage = main.length ? Math.floor((covered / main.length) * 100) : 100;
   const min = config?.trace?.min_coverage ?? 100;
   const ok = uncoveredChanges.length === 0 && orphans.length === 0 && coverage >= min;
-  return { ok, scenarios: main.length, covered, coverage, min, uncoveredChanges, uncoveredMain, orphans };
+  const outsideTests = [...tags.ignored].map(([id, where]) => ({ id, where }));
+  return { ok, scenarios: main.length, covered, coverage, min, uncoveredChanges, uncoveredMain, orphans, outsideTests };
 }
 
 export function formatTrace(report, { limit = 20 } = {}) {
@@ -587,33 +658,47 @@ export function formatTrace(report, { limit = 20 } = {}) {
   list('Scénarios de changes en cours sans test', report.uncoveredChanges.map((s) => `${s.id} (${s.change})`));
   if (report.coverage < report.min) list('Scénarios des specs sans test', report.uncoveredMain.map((s) => s.id));
   list('Tags @scenario orphelins', report.orphans.map((o) => `${o.id} → ${o.where.join(', ')}`));
+  list('Tags @scenario hors fichier de test (ignorés : seul un test couvre un scénario)', report.outsideTests.map((o) => `${o.id} → ${o.where.join(', ')}`));
   return lines.join('\n');
 }
 
-// Règles des pistes : x-track déclaré sur les changes en cours ; piste L → design.md qui cite un ADR existant.
-export function checkPolicy(root) {
+// Règles des pistes, lues dans « tracks » du contrat (défauts : S, M, L de defaultConfig) :
+// spec → au moins une delta spec ; design → design.md ; adr → design.md cite un ADR. Tout ADR cité doit exister.
+export function trackRules(config) {
+  const rules = { ...defaultConfig().tracks };
+  for (const [name, custom] of Object.entries(config?.tracks ?? {})) rules[name] = { ...rules[name], ...custom };
+  return rules;
+}
+
+export function checkPolicy(root, config = {}) {
   const issues = [];
+  const tracks = trackRules(config);
+  const names = Object.keys(tracks).join(', ');
   for (const change of listChanges(root, { archived: true })) {
     const label = change.archived ? `archive/${change.name}` : change.name;
+    const error = (detail) => issues.push({ level: 'error', label, detail });
     const track = readChangeMeta(change.dir)['x-track'];
     if (!track) {
-      if (!change.archived) issues.push({ level: 'warn', label, detail: 'piste non déclarée (x-track: M ou L dans .openspec.yaml)' });
+      if (!change.archived) issues.push({ level: 'warn', label, detail: `piste non déclarée (x-track: ${names} dans .openspec.yaml)` });
       continue;
     }
-    if (!['S', 'M', 'L'].includes(track)) {
-      issues.push({ level: 'error', label, detail: `x-track invalide : ${track}` });
+    const rules = Object.hasOwn(tracks, track) ? tracks[track] : null;
+    if (!rules) {
+      error(`x-track invalide : ${track} (pistes : ${names})`);
       continue;
     }
-    if (track !== 'L') continue;
+    if (rules.spec && !change.archived && specFiles(path.join(change.dir, 'specs')).length === 0) {
+      error(`piste ${track} : aucune delta spec (specs/<capability>/spec.md)`);
+    }
     const design = readText(path.join(change.dir, 'design.md'));
     if (!design) {
-      issues.push({ level: 'error', label, detail: 'piste L : design.md manquant' });
+      if (rules.design === 'required' || rules.adr === 'required') error(`piste ${track} : design.md manquant`);
       continue;
     }
     const adrs = [...new Set([...design.matchAll(/docs\/adr\/[^\s()[\]<>"'`]+?\.md/g)].map((m) => m[0]))];
-    if (!adrs.length) issues.push({ level: 'error', label, detail: 'piste L : design.md doit citer un ADR (docs/adr/…)' });
+    if (!adrs.length && rules.adr === 'required') error(`piste ${track} : design.md doit citer un ADR (docs/adr/…)`);
     for (const adr of adrs) {
-      if (!fs.existsSync(path.join(root, adr))) issues.push({ level: 'error', label, detail: `ADR introuvable : ${adr}` });
+      if (!fs.existsSync(path.join(root, adr))) error(`ADR introuvable : ${adr}`);
     }
   }
   return issues;
@@ -633,22 +718,29 @@ export function parseFlags(args) {
     }
     const [key, value] = arg.slice(2).split(/=(.*)/s);
     if (value !== undefined) out[key] = value;
-    else if (VALUE_FLAGS.has(key)) out[key] = args[++i];
+    else if (VALUE_FLAGS.has(key)) out[key] = args[i + 1]?.startsWith('--') ? undefined : args[++i];
     else out[key] = true;
   }
   return out;
 }
 
-function requireConfig(root) {
-  const { config, error } = loadConfig(root);
-  if (!config) {
-    console.error(`hx : ${CONFIG_PATH} ${error === 'absent' ? 'absent : lance /hx-setup ou « hx detect --write »' : error}`);
-  }
-  return config;
+// Contrat valide, ou null après avoir expliqué pourquoi : rien ne s'exécute sur un contrat invalide.
+function requireValidConfig(root, options) {
+  const { config, errors } = loadValidConfig(root, options);
+  if (!config && !errors.length) console.error(`hx : ${CONFIG_PATH} absent : lance /hx-setup ou « hx detect --write »`);
+  else if (errors.length) console.error(`hx : contrat invalide (${CONFIG_PATH}) :\n${errors.map((e) => `  ✗ ${e}`).join('\n')}`);
+  return errors.length ? null : config;
+}
+
+// Option à valeur donnée sans valeur (« --file » en dernier, ou suivie d'une autre option).
+function missingValue(opts) {
+  const flag = [...VALUE_FLAGS].find((key) => key in opts && opts[key] === undefined);
+  if (flag) console.error(`hx : --${flag} attend une valeur`);
+  return Boolean(flag);
 }
 
 function unknownComponent(config, name) {
-  if (!name || config.components?.[name]) return false;
+  if (!isUnknownComponent(config, name)) return false;
   console.error(`hx : composant inconnu « ${name} » (connus : ${Object.keys(config.components ?? {}).join(', ') || 'aucun'})`);
   return true;
 }
@@ -656,11 +748,12 @@ function unknownComponent(config, name) {
 function cmdRun(root, args) {
   const opts = parseFlags(args);
   const name = opts._[0];
+  if (missingValue(opts)) return 2;
   if (!name) {
     console.error('usage : hx run <commande> [--component <nom>] [--file <chemin>]');
     return 2;
   }
-  const config = requireConfig(root);
+  const config = requireValidConfig(root, { structural: true });
   if (!config) return 1;
   if (unknownComponent(config, opts.component)) return 2;
   const invocations = resolveInvocations(config, root, name, {
@@ -686,7 +779,8 @@ function cmdRun(root, args) {
 
 function cmdCheck(root, args) {
   const opts = parseFlags(args);
-  const config = requireConfig(root);
+  if (missingValue(opts)) return 2;
+  const config = requireValidConfig(root);
   if (!config) return 1;
   if (unknownComponent(config, opts.component)) return 2;
   const results = [];
@@ -696,7 +790,7 @@ function cmdCheck(root, args) {
     if (!opts.fast) {
       results.push(validate('archives', ['validate', '--archived', '--no-interactive']));
       results.push(inProcessStep('pistes', () => {
-        const issues = checkPolicy(root);
+        const issues = checkPolicy(root, config);
         const output = issues.map((i) => `${i.level === 'error' ? '✗' : '⚠'} ${i.label} : ${i.detail}`).join('\n');
         return { ok: !issues.some((i) => i.level === 'error'), output, notice: issues.length > 0 };
       }, opts));
@@ -710,7 +804,10 @@ function cmdCheck(root, args) {
   }
   for (const step of opts.fast ? FAST_STEPS : CHECK_STEPS) {
     const invocations = resolveInvocations(config, root, step, { component: opts.component });
-    if (invocations.length === 0) results.push({ label: step, component: '—', skipped: true, reason: 'non défini' });
+    // Pas de « vert » sans test exécuté : une étape test absente est un échec, pas un saut.
+    if (invocations.length === 0 && step === 'test') {
+      results.push({ label: step, component: opts.component ?? '—', ok: false, reason: 'non défini : aucun test exécuté' });
+    } else if (invocations.length === 0) results.push({ label: step, component: '—', skipped: true, reason: 'non défini' });
     for (const inv of invocations) results.push(runStep({ label: step, ...inv }, opts));
   }
   const failed = results.filter((r) => !r.skipped && !r.ok).length;
@@ -718,9 +815,73 @@ function cmdCheck(root, args) {
   return failed ? 1 : 0;
 }
 
-function nodeVersionOk() {
-  const [major, minor] = process.versions.node.split('.').map(Number);
+export function nodeVersionOk(version = process.versions.node) {
+  const [major, minor] = version.split('.').map(Number);
   return major > MIN_NODE[0] || (major === MIN_NODE[0] && minor >= MIN_NODE[1]);
+}
+
+const HOOK_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop'];
+
+// .claude/settings.json : JSON valide (un conflit de fusion le rend illisible, et Claude Code ignore alors les hooks)
+// et chaque événement du harness câblé sur .harness/hooks.mjs.
+export function checkSettings(root) {
+  const file = path.join(root, '.claude', 'settings.json');
+  if (!fs.existsSync(file)) return { level: 'warn', detail: '.claude/settings.json absent' };
+  let settings;
+  try {
+    settings = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    return { level: 'error', detail: `.claude/settings.json invalide, hooks inactifs : ${err.message}` };
+  }
+  const wired = (event) => (settings.hooks?.[event] ?? [])
+    .some((group) => (group.hooks ?? []).some((h) => String(h.command ?? '').includes('.harness/hooks.mjs')));
+  const missing = HOOK_EVENTS.filter((event) => !wired(event));
+  return missing.length
+    ? { level: 'warn', detail: `hooks non câblés : ${missing.join(', ')}` }
+    : { level: 'ok', detail: '.claude/settings.json' };
+}
+
+const CONFLICT_MARKER = /^(<{7}|>{7})( |$)/m;
+
+// Restes d'un `copier update` en conflit dans les fichiers du harness : marqueurs <<<<<<< / >>>>>>> ou fichiers .rej.
+export function mergeLeftovers(root) {
+  const files = ['CLAUDE.md', 'openspec/config.yaml', '.github/workflows/hx-check.yml']
+    .map((rel) => path.join(root, rel))
+    .filter((file) => fs.existsSync(file));
+  for (const dir of ['.claude', '.harness']) {
+    files.push(...walkFiles(path.join(root, dir), () => true, { skip: (name) => name === 'node_modules' }));
+  }
+  return files
+    .filter((file) => file.endsWith('.rej') || CONFLICT_MARKER.test(readText(file)))
+    .map((file) => toPosix(path.relative(root, file)));
+}
+
+// Version du template d'un projet (.copier-answers.yml) comparée au dernier tag de sa source.
+export function readAnswers(root) {
+  const answers = {};
+  for (const line of readText(path.join(root, '.copier-answers.yml')).split(/\r?\n/)) {
+    const m = /^([\w-]+):\s*(.*?)\s*$/.exec(line);
+    if (m) answers[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+  return answers;
+}
+
+const parseVersion = (text) => /^v?(\d+)\.(\d+)\.(\d+)/.exec(text ?? '')?.slice(1).map(Number) ?? null;
+const compareVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+export function templateStatus(root, { timeout = 15000 } = {}) {
+  const { _commit: commit, _src_path: src } = readAnswers(root);
+  if (!src) return null;
+  const url = src.replace(/^gh:/, 'https://github.com/');
+  const r = spawnSync('git', ['ls-remote', '--tags', '--refs', url], { encoding: 'utf8', timeout });
+  if (r.status !== 0) return { level: 'warn', detail: `dernière version inconnue (${src} injoignable)` };
+  const tags = r.stdout.split('\n').map((l) => l.split('refs/tags/')[1]).filter((t) => parseVersion(t));
+  if (!tags.length) return { level: 'warn', detail: `${src} n'a aucun tag de version : le projet suit sa branche par défaut` };
+  const latest = tags.sort((a, b) => compareVersions(parseVersion(b), parseVersion(a)))[0];
+  const current = parseVersion(commit);
+  // copier enregistre « git describe » : v0.2.0-3-gabc1234 est postérieur à v0.2.0, donc au moins à jour à ce tag près.
+  if (current && compareVersions(current, parseVersion(latest)) >= 0) return { level: 'ok', detail: `${commit} (dernière : ${latest})` };
+  return { level: 'warn', detail: `${commit ?? 'version inconnue'}, dernière : ${latest} → uvx copier update --trust` };
 }
 
 function cmdDoctor(root, args) {
@@ -731,9 +892,12 @@ function cmdDoctor(root, args) {
   add(nodeVersionOk() ? 'ok' : 'error', 'Node', `${process.versions.node} (minimum ${MIN_NODE.join('.')})`);
 
   const { config, error } = loadConfig(root);
+  let runnable = false;
   if (!config) add('error', 'Contrat', error === 'absent' ? `${CONFIG_PATH} absent : lance /hx-setup` : error);
   else {
     const issues = validateConfig(config, root);
+    // Les commandes s'exécutent dès que le contrat est structurellement sain, même incomplet (pendant /hx-setup).
+    runnable = !issues.some((i) => i.structural);
     if (!issues.some((i) => i.level === 'error')) add('ok', 'Contrat', `${components(config).length} composant(s)`);
     for (const i of issues) add(i.level, i.label, i.detail);
     if (!config.architecture?.profile?.size) add('warn', 'Architecture', 'profil non renseigné : lance /hx-setup');
@@ -746,8 +910,11 @@ function cmdDoctor(root, args) {
   else if (project.includes('hx:todo')) add('warn', 'Carte du projet', 'pas encore personnalisée : lance /hx-setup');
   else add('ok', 'Carte du projet', '.harness/project.md');
 
-  const settings = readText(path.join(root, '.claude', 'settings.json'));
-  add(settings.includes('.harness/hooks.mjs') ? 'ok' : 'warn', 'Hooks Claude Code', settings ? '.claude/settings.json' : '.claude/settings.json absent');
+  const settings = checkSettings(root);
+  add(settings.level, 'Hooks Claude Code', settings.detail);
+
+  const conflicts = mergeLeftovers(root);
+  if (conflicts.length) add('error', 'Fusion copier update', `conflits non résolus : ${conflicts.join(', ')}`);
 
   const tracked = ['.harness/hx.mjs', '.harness/hooks.mjs', CONFIG_PATH, '.harness/project.md', 'CLAUDE.md', '.claude/settings.json'];
   const ignored = spawnSync('git', ['check-ignore', ...tracked], { cwd: root, encoding: 'utf8' });
@@ -756,13 +923,15 @@ function cmdDoctor(root, args) {
   const pinned = readVersions(root).openspec;
   add(fs.existsSync(path.join(root, 'openspec', 'config.yaml')) ? 'ok' : 'error', 'OpenSpec', 'openspec/config.yaml');
   if (!opts['no-run']) {
+    const template = templateStatus(root);
+    if (template) add(template.level, 'Template Harness', template.detail);
     const installed = installedOpenspecVersion();
     if (!installed) add('warn', 'CLI openspec', `absente du PATH (requise par /opsx:*) : npm i -g @fission-ai/openspec@${pinned}`);
     else if (pinned && installed !== pinned) add('warn', 'CLI openspec', `${installed} installée, ${pinned} épinglée`);
     else add('ok', 'CLI openspec', installed);
   }
 
-  if (config && !opts['no-run']) {
+  if (runnable && !opts['no-run']) {
     for (const step of DOCTOR_STEPS) {
       for (const inv of resolveInvocations(config, root, step)) {
         const r = execute(inv.command, inv.cwd, { capture: true });
@@ -817,6 +986,23 @@ function cmdTrace(root, args) {
   return report.ok ? 0 : 1;
 }
 
+function cmdMigrate(root) {
+  const { config, error } = loadConfig(root);
+  if (!config) {
+    if (error === 'absent') return 0; // rien à migrer : /hx-setup créera le contrat
+    console.error(`hx : ${error}`);
+    return 1;
+  }
+  const { config: migrated, added } = migrateConfig(config);
+  if (!added.length) {
+    console.log('hx migrate : contrat à jour');
+    return 0;
+  }
+  writeConfig(root, migrated);
+  console.log(`hx migrate : clés ajoutées à ${CONFIG_PATH} : ${added.join(', ')}`);
+  return 0;
+}
+
 function cmdOpenspec(root, args) {
   return execute(openspecCommand(root, args), root, { capture: false }).code;
 }
@@ -833,6 +1019,7 @@ const HELP = `hx : contrat de commandes du harness
                       vérifie l'installation et exécute chaque commande
   hx detect [--json] [--write [--force]]
                       propose les composants à partir des manifestes
+  hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 
 Codes de sortie : 0 succès · 1 échec · 2 usage · 3 commande non définie`;
@@ -845,6 +1032,7 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
     case 'doctor': return cmdDoctor(root, rest);
     case 'detect': return cmdDetect(root, rest);
     case 'trace': return cmdTrace(root, rest);
+    case 'migrate': return cmdMigrate(root);
     case 'openspec': return cmdOpenspec(root, rest);
     case undefined: case 'help': case '--help': case '-h':
       console.log(HELP);

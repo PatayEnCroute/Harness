@@ -33,48 +33,105 @@ const ok = 'node -e "process.exit(0)"';
 const ko = 'node -e "console.error(\'lint KO\'); process.exit(1)"';
 
 describe('hooks Claude Code', () => {
-  test('pre-tool-use : demande confirmation pour openspec/specs, silence ailleurs', () => {
+  const asks = (r) => r.stdout !== '' && JSON.parse(r.stdout).hookSpecificOutput.permissionDecision === 'ask';
+
+  test('pre-tool-use : confirmation pour openspec/specs, silence ailleurs', () => {
     const root = project({ components: {} });
-    const asked = hook('pre-tool-use', root, { tool_input: { file_path: path.join(root, 'openspec/specs/calc/spec.md') } });
-    assert.equal(asked.code, 0);
-    assert.equal(JSON.parse(asked.stdout).hookSpecificOutput.permissionDecision, 'ask');
+    assert.ok(asks(hook('pre-tool-use', root, { tool_input: { file_path: path.join(root, 'openspec/specs/calc/spec.md') } })));
     const free = hook('pre-tool-use', root, { tool_input: { file_path: path.join(root, 'src/a.js') } });
+    assert.equal(free.code, 0);
     assert.equal(free.stdout, '');
+    const outside = path.join(path.dirname(root), 'ailleurs', 'openspec', 'specs', 'x', 'spec.md');
+    assert.equal(hook('pre-tool-use', root, { tool_input: { file_path: outside } }).stdout, '');
   });
 
-  test('post-tool-use : lint-file en échec → code 2 avec la sortie ; sans lint-file → rien', () => {
+  test('pre-tool-use : confirmation pour le contrat, les hooks et les permissions', () => {
+    const root = project({ components: {} });
+    for (const rel of ['.harness/config.json', '.harness/hx.mjs', '.harness/hooks.mjs', '.claude/settings.json', '.claude/settings.local.json']) {
+      assert.ok(asks(hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, rel) } })), rel);
+    }
+    assert.equal(hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, '.harness/project.md') } }).stdout, '');
+  });
+
+  test('pre-tool-use : une commande Bash qui écrit un fichier protégé demande confirmation, une lecture non', () => {
+    const root = project({ components: {} });
+    const bash = (command) => hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command } });
+    assert.ok(asks(bash(`echo '{}' > .harness/config.json`)));
+    assert.ok(asks(bash('sed -i s/a/b/ .claude/settings.json')));
+    assert.ok(asks(bash('cat x > openspec/specs/calc/spec.md')));
+    assert.equal(bash('cat .harness/config.json').stdout, '');
+    assert.equal(bash('grep -i test .harness/config.json').stdout, '');
+    assert.ok(asks(bash('perl -pi -e s/a/b/ .harness/hx.mjs')));
+    assert.equal(bash('node .harness/hx.mjs check 2>&1').stdout, '');
+    assert.ok(asks(bash('cp /tmp/x.json .harness/config.json')));
+  });
+
+  test('pre-tool-use : openspec-apply-change redirigé vers hx-implement, autres skills libres', () => {
+    const root = project({ components: {} });
+    const skill = (name) => hook('pre-tool-use', root, { tool_name: 'Skill', tool_input: { skill: name } });
+    assert.ok(asks(skill('openspec-apply-change')));
+    assert.match(skill('openspec-apply-change').stdout, /hx-implement/);
+    assert.equal(skill('hx-implement').stdout, '');
+    assert.equal(skill('openspec-propose').stdout, '');
+  });
+
+  test('pre-tool-use : un lien symbolique vers le projet ne contourne pas la protection', () => {
+    const root = project({ components: {} });
+    const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-link-')), 'proj');
+    fs.symlinkSync(root, link);
+    assert.ok(asks(hook('pre-tool-use', link, { tool_input: { file_path: path.join(root, 'openspec/specs/x/spec.md') } })));
+  });
+
+  test('post-tool-use : lint-file en échec → code 2 avec la sortie ; sans lint-file ou sur un .md → rien', () => {
     const withFile = project({ components: { app: { path: '.', commands: { lint: ok, 'lint-file': `${ko} {file}` } } } });
     const r = hook('post-tool-use', withFile, { tool_input: { file_path: path.join(withFile, 'src/a.js') } });
     assert.equal(r.code, 2);
     assert.match(r.stderr, /lint KO/);
+    assert.equal(hook('post-tool-use', withFile, { tool_input: { file_path: path.join(withFile, 'README.md') } }).code, 0);
     const without = project({ components: { app: { path: '.', commands: { lint: ko } } } });
     assert.equal(hook('post-tool-use', without, { tool_input: { file_path: path.join(without, 'src/a.js') } }).code, 0);
   });
 
-  test('stop : contrôles rapides sur du code modifié, jamais deux fois de suite', () => {
+  test('contrat illisible ou cassé : retour à Claude au lieu d\'un silence ; projet non personnalisé : rien', () => {
+    const broken = project({});
+    fs.writeFileSync(path.join(broken, '.harness/config.json'), '{ "components": {}, }');
+    const r = hook('post-tool-use', broken, { tool_input: { file_path: path.join(broken, 'src/a.js') } });
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /config\.json invalide/);
+    const wrongType = project({ components: { app: { path: '.', commands: { lint: ['eslint', '.'] } } } });
+    assert.equal(hook('stop', wrongType, { session_id: 's' }).code, 2);
+    const fresh = project({ components: {} });
+    assert.equal(hook('post-tool-use', fresh, { tool_input: { file_path: path.join(fresh, 'src/a.js') } }).code, 0);
+  });
+
+  test('stop : contrôles rapides du composant édité pendant la session, jamais deux fois de suite', () => {
     const root = project({ components: { app: { path: '.', commands: { lint: ko } } } }, { 'src/a.js': 'x\n' });
-    spawnSync('git', ['init', '-q'], { cwd: root });
-    const r = hook('stop', root, {});
+    const session = { session_id: `s-${Date.now()}` };
+    assert.equal(hook('stop', root, session).code, 0, 'rien édité dans cette session');
+    hook('post-tool-use', root, { ...session, tool_input: { file_path: path.join(root, 'src/a.js') } });
+    const r = hook('stop', root, session);
     assert.equal(r.code, 2);
     assert.match(r.stderr, /contrôles rapides/);
-    assert.equal(hook('stop', root, { stop_hook_active: true }).code, 0);
+    assert.equal(hook('stop', root, { ...session, stop_hook_active: true }).code, 0);
+    assert.equal(hook('stop', root, { session_id: 'autre-session' }).code, 0, 'les éditions sont propres à la session');
   });
 
-  test('stop : projet installé dans un sous-dossier du dépôt git', () => {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-mono-'));
-    spawnSync('git', ['init', '-q'], { cwd: repo });
-    const root = path.join(repo, 'apps', 'web');
-    fs.mkdirSync(path.join(root, '.harness'), { recursive: true });
-    fs.writeFileSync(path.join(root, '.harness/config.json'), JSON.stringify({ components: { web: { path: 'src', commands: { lint: ko } } } }));
-    fs.mkdirSync(path.join(root, 'src'));
-    fs.writeFileSync(path.join(root, 'src/a.js'), 'x\n');
-    assert.equal(hook('stop', root, {}).code, 2);
-  });
-
-  test('stop : seuls des fichiers non-code modifiés → rien', () => {
-    const root = project({ components: { app: { path: '.', commands: { lint: ko } } } }, { 'docs/notes.md': 'x\n' });
-    spawnSync('git', ['init', '-q'], { cwd: root });
-    assert.equal(hook('stop', root, {}).code, 0);
+  test('stop : seuls les composants touchés sont contrôlés, la liste est vidée au vert', () => {
+    const marker = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-mark-')), 'web-ran');
+    const config = { components: {
+      api: { path: 'api', commands: { lint: ko } },
+      web: { path: 'web', commands: { lint: `node -e "require('fs').writeFileSync(process.argv[1], '')" ${JSON.stringify(marker)}` } },
+    } };
+    const root = project(config, { 'api/a.py': 'x\n', 'web/a.js': 'x\n', 'docs/notes.md': 'x\n' });
+    const session = { session_id: `s-${Date.now()}` };
+    for (const rel of ['web/a.js', 'docs/notes.md', 'README.md']) {
+      hook('post-tool-use', root, { ...session, tool_input: { file_path: path.join(root, rel) } });
+    }
+    assert.equal(hook('stop', root, session).code, 0, 'api, en échec, n\'a pas été touché');
+    assert.ok(fs.existsSync(marker), 'le lint de web a tourné');
+    fs.rmSync(marker);
+    assert.equal(hook('stop', root, session).code, 0);
+    assert.ok(!fs.existsSync(marker), 'liste vidée après un passage au vert');
   });
 
   test('session-start : changes en cours et projet à personnaliser', () => {

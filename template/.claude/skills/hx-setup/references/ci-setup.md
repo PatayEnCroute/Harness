@@ -9,12 +9,14 @@ runs:
   using: composite
   steps:
     # Ajouter ici les étapes des stacks du projet, par exemple :
-    - uses: actions/setup-python@v7
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version-file: api/.python-version   # ou python-version: "3.12"
 ```
 
-| Stack | Étapes |
+**Épingle chaque `uses:` par SHA de commit**, avec le tag en commentaire : un tag peut être déplacé. SHA d'un tag : `git ls-remote https://github.com/actions/setup-python refs/tags/v7.0.0`. Dependabot (`.github/dependabot.yml`, répertoire `/.harness/ci/setup`) les tient à jour.
+
+| Stack | Étapes (tag de référence, à épingler par SHA) |
 |---|---|
 | Node (npm) | Rien : déjà installé par le workflow |
 | Node (pnpm, yarn) | `- run: corepack enable` avec `shell: bash` |

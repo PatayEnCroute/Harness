@@ -22,17 +22,18 @@ Si une commande manque ou échoue pour une raison d'outillage, signale-le au lie
 
 ## Workflow : proportionné au risque
 
-Commence toute demande de changement par **`hx-triage`**, qui choisit la piste.
+Commence toute demande de changement par **`hx-triage`**, qui choisit la piste (ses critères font foi).
 
 | Piste | Quand | Enchaînement |
 |---|---|---|
-| **S** | Diff descriptible en une phrase, aucun comportement spécifié ne change | `hx-tdd` (ou `hx-debug`) → `hx-verify` → commit |
-| **M** | Comportement nouveau ou modifié | `hx-clarify` → `/opsx:propose` → `hx-implement` → `hx-verify` → `hx-review` → `/hx-ship` |
+| **S** | Diff descriptible en une phrase, aucun comportement spécifié ne change, aucun contrat public | `hx-tdd` (ou `hx-debug`) ; refactor ou renommage : tests existants verts avant et après → `hx-verify` → commit |
+| **M** | Comportement nouveau ou modifié | `hx-clarify` si la demande est floue → `/opsx:propose` → `hx-implement` → `hx-verify` → `hx-review` → `/hx-ship` |
 | **L** | Contrat public, migration, changement de niveau d'architecture | M + `hx-architect` et `hx-adr`, design validé par l'utilisateur avant d'implémenter |
 
 - Le change OpenSpec porte sa piste : `x-track: M` ou `L` dans `.openspec.yaml`.
 - L'archive OpenSpec (`/opsx:archive`) est le **dernier commit de la PR**.
 - `openspec/specs/` ne change que par `/opsx:sync` ou `/opsx:archive`.
+- Pour implémenter un change : `hx-implement`, jamais le skill `openspec-apply-change` installé par OpenSpec.
 - Après une livraison ou un incident : `hx-learn`.
 
 ## Principes

@@ -2,11 +2,17 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# Un seul run par ref et par événement ; un nouveau push sur une PR annule le run en cours.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   COPIER_VERSION: "9.19.1"
@@ -14,39 +20,73 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
 
+# Actions épinglées par SHA de commit (tags mutables), tenues à jour par Dependabot (.github/dependabot.yml).
+# Mêmes SHA dans template/{% if ci %}.github{% endif %}/workflows/hx-check.yml.jinja (vérifié par tests/template.test.mjs).
 jobs:
   unit:
-    name: unit (hx, hooks, template, contrat OpenSpec)
-    runs-on: ubuntu-latest
+    name: unit (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ["22"]
+        include:
+          - os: ubuntu-latest
+            node: "20.19.0" # minimum de engines.node
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Fins de ligne LF (Windows)
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+
+  contract:
+    name: contrat OpenSpec (réseau)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - run: npm test
+      - run: npm run test:contract
+
+  lint:
+    name: lint (shellcheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # shellcheck est préinstallé sur ubuntu-latest. -s bash : les scripts d'evals sans shebang sont lancés par bash.
+      - run: git ls-files -z '*.sh' | xargs -0 shellcheck -s bash -S warning
 
   e2e:
     name: e2e (${{ matrix.fixture }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         fixture: [node, python, dotnet, go, mixed]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
       - if: matrix.fixture == 'dotnet'
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 8.0.x
       - if: matrix.fixture == 'go'
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
       - run: tests/e2e.sh ${{ matrix.fixture }}
@@ -54,39 +94,58 @@ jobs:
   openspec:
     name: e2e (cycle OpenSpec)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
       - run: tests/e2e-openspec.sh
 
   update:
     name: e2e (copier update)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
       - run: tests/e2e-update.sh
 
   evals:
     name: evals (manuel, coût réel)
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+      - name: Claude Code (version épinglée)
+        run: npm i -g @anthropic-ai/claude-code@2.1.302
+      # Le secret n'est visible que de cette étape, pas des installations qui la précèdent.
+      # TMPDIR : les dossiers de travail des evals en échec, gardés par run.sh, restent sous runner.temp pour l'artefact.
       - name: Evals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TMPDIR: ${{ runner.temp }}/evals
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then echo "::notice::secret ANTHROPIC_API_KEY absent : evals ignorées"; exit 0; fi
-          npm i -g @anthropic-ai/claude-code
+          mkdir -p "$TMPDIR"
           evals/run.sh
+      - name: Résultats des evals
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evals-results
+          path: |
+            evals/results/
+            ${{ runner.temp }}/evals/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14

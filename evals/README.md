@@ -4,19 +4,33 @@ Chaque scénario lance un agent Claude Code **headless** (`claude -p`) sur un pr
 
 | Scénario | Ce qui est évalué | Notation |
 |---|---|---|
-| `setup` | `/hx-setup` personnalise le projet sans intervention | carte remplie, profil d'architecture, `hx doctor` sans erreur |
-| `tdd-s` | Une petite demande reste en piste S, test d'abord | pas de change OpenSpec, test présent, `hx check` vert |
-| `implement-m` | `hx-implement` réalise un change OpenSpec | tâches cochées, scénarios tagués `@scenario`, `hx check` vert |
-| `architect` | `hx-architect` reste proportionné | niveau 0 ou 1 recommandé, aucun code écrit |
+| `setup` | `/hx-setup` personnalise le projet sans intervention | part du contrat vide ; carte remplie, profil d'architecture, commande test réelle (un test canari en échec doit la faire échouer), `hx doctor` sans erreur |
+| `tdd-s` | Une petite demande reste en piste S, test d'abord | pas de change OpenSpec ; dans le transcript, test écrit avant `src/mult.js` ; `mult` vérifié par la notation ; les tests échouent sur un `mult` faux ; `hx check` vert |
+| `implement-m` | `hx-implement` réalise un change OpenSpec | tâches cochées, scénarios tagués `@scenario`, `mult(2, 3)` et `mult(7, 0)` vérifiés par la notation, chaque scénario a un test qui échoue quand seul son comportement est faux, `hx check` vert |
+| `architect` | `hx-architect` reste proportionné | ligne finale unique `Niveau visé : 0` ou `1`, aucun fichier modifié hors `docs/` et `openspec/changes/` |
 
 ```bash
-evals/run.sh                          # tous les scénarios, une fois
-evals/run.sh --runs 3 implement-m     # variance
-evals/run.sh --without hx-tdd tdd-s   # A/B : le skill apporte-t-il quelque chose ?
+evals/run.sh                               # tous les scénarios, une fois
+evals/run.sh --runs 10 implement-m         # taux de réussite k/n
+evals/run.sh --runs 10 --without hx-tdd tdd-s   # A/B : le skill apporte-t-il quelque chose ?
+EVAL_MODEL=<id> evals/run.sh               # autre modèle que celui épinglé
 ```
 
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `EVAL_MODEL` | `claude-sonnet-5-5` | Modèle épinglé (`--model`), pour comparer des campagnes entre elles |
+| `EVAL_TIMEOUT` | `1200` | Délai maximal d'une exécution, en secondes |
+| `EVAL_MAX_TURNS` | `80` | Tours maximum de l'agent |
+| `COPIER_VERSION` | `9.19.1` | Version de copier qui installe le template |
+
 - **Coût réel** : chaque exécution consomme des tokens. La colonne coût l'affiche.
-- **Isolation** : chaque exécution a son propre dossier temporaire, conservé en cas d'échec pour l'inspecter.
+- **Statistique** : avec moins de 10 exécutions par scénario, impossible de distinguer 90 % de 70 % de réussite ; `run.sh` le rappelle. Une décision d'élagage se prend sur `--runs 10` au moins.
+- **Version évaluée** : le template du commit `HEAD` (`copier --vcs-ref HEAD`) ; les modifications non commitées ne sont pas évaluées.
+- **Isolation** : chaque exécution a son propre dossier temporaire (`setup.log`, `transcript.jsonl`, `result.txt`, `grade.log`), conservé en cas d'échec ; son chemin est affiché. Un échec de préparation (copier, `setup.sh`) donne le verdict `ERREUR` avec la fin du journal, sans interrompre la campagne.
+- **Préparation** : `setup.sh` du scénario, s'il existe. `lib/configure.sh` écrit le contrat (`hx detect --write`) et installe les dépendances ; le scénario `setup`, dont c'est l'objet, ne l'appelle pas.
+- **Intégrité de la notation** : avant de noter, `.harness/hx.mjs` et `.harness/hooks.mjs` sont restaurés depuis l'état initial, et toute modification de `.harness/config.json` fait échouer l'exécution. Seul un scénario qui contient un fichier `config-writable` (`setup`) peut écrire le contrat ; sa notation vérifie alors que les commandes exécutent vraiment les tests.
 - **Permissions** : l'agent tourne en `acceptEdits` avec une liste fermée de commandes (`node`, `npm`, `npx`, `git`, `openspec`, `ls`, `cat`).
-- **Élagage** (principe P9) : un skill dont le taux de réussite ne baisse pas quand on le retire (`--without`) est candidat au retrait.
+- **A/B (`--without`)** : retire le skill (ou l'agent) et supprime chaque ligne qui le cite dans `CLAUDE.md`, `.claude/rules/*.md`, `openspec/config.yaml`, les autres `SKILL.md` et les agents. Limite : la suppression est ligne à ligne ; une phrase ou une ligne de tableau qui citait aussi d'autres skills disparaît entière, et un prompt de scénario qui nomme le composant (`architect` et `hx-architect`) le cite toujours.
+- **Résultats** (principe P9) : chaque campagne écrit `evals/results/<date>-<variante>.jsonl`, une ligne JSON par exécution (date, sha, scénario, variante, exécution, verdict, durée, coût, version de `claude`, modèle). Ces fichiers ne sont pas commités automatiquement : commite ceux qui servent de mesure, pour construire l'historique utilisé par la [revue d'élagage](../docs/elagage.md).
+- **Élagage** : un skill dont le taux de réussite ne baisse pas quand on le retire (`--without`) est candidat au retrait.
 - En CI : workflow manuel `evals`, actif seulement si le secret `ANTHROPIC_API_KEY` est défini.

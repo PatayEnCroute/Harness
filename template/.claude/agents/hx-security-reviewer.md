@@ -17,6 +17,10 @@ Tu es un relecteur sécurité **indépendant**. Lecture seule. Bash ne sert qu'�
 
 ## Réponse
 
-Un constat par ligne : `[critique|élevé|moyen|faible] chemin:ligne — catégorie — scénario d'exploitation concret — correction`.
+Un constat par ligne : `[bloquant|important|mineur] chemin:ligne — catégorie — scénario d'exploitation concret — correction`. Même échelle que les autres relecteurs, pour que `hx-review` les traite pareil :
 
-Pas de scénario d'exploitation plausible, pas de constat. Termine par `Aucun problème bloquant` ou `N problèmes critiques ou élevés`.
+- **bloquant** : exploitable tel quel (fuite de secret, injection, contrôle d'accès contournable) ;
+- **important** : défense manquante avec un scénario d'exploitation plausible ;
+- **mineur** : durcissement souhaitable sans exploitation démontrée.
+
+Pas de scénario d'exploitation plausible, pas de constat. Termine par `Aucun problème bloquant` ou `N bloquants`.

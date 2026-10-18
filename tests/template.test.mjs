@@ -118,3 +118,32 @@ describe('cohérence et budgets', () => {
     assert.deepEqual(offenders, []);
   });
 });
+
+describe('CI : actions épinglées par SHA de commit', () => {
+  const repo = path.resolve(here, '..');
+  const shipped = path.join(template, '{% if ci %}.github{% endif %}');
+  const yamls = [path.join(repo, '.github'), shipped, path.join(template, '.harness', '{% if ci %}ci{% endif %}')]
+    .flatMap((dir) => walk(dir))
+    .filter((f) => /\.ya?ml(\.jinja)?$/.test(f));
+  const pins = (file) => [...read(file).matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)(.*)$/gm)].filter((m) => !m[1].startsWith('./'));
+
+  for (const file of yamls) {
+    test(path.relative(repo, file), () => {
+      for (const [, ref, comment] of pins(file)) {
+        assert.match(`${ref}${comment}`, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/, 'uses: owner/repo@<sha> # vX.Y.Z');
+      }
+    });
+  }
+
+  test('le workflow livré épingle les mêmes SHA que la CI du repo (seule celle-ci est vue par Dependabot)', () => {
+    const shas = (file) => new Map(pins(file).map(([, ref]) => ref.split('@')));
+    const ci = shas(path.join(repo, '.github', 'workflows', 'ci.yml'));
+    for (const [action, sha] of shas(path.join(shipped, 'workflows', 'hx-check.yml.jinja'))) assert.equal(sha, ci.get(action), action);
+  });
+
+  test('Dependabot met à jour les actions, dans le repo et dans les projets générés', () => {
+    for (const file of [path.join(repo, '.github', 'dependabot.yml'), path.join(shipped, 'dependabot.yml')]) {
+      assert.match(read(file), /package-ecosystem: github-actions/, file);
+    }
+  });
+});

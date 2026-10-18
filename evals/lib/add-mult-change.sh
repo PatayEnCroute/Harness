@@ -1,5 +1,5 @@
 # Prépare un change OpenSpec de piste M (multiplication) dans le projet courant.
-node .harness/hx.mjs openspec new change add-mult > /dev/null 2>&1
+node .harness/hx.mjs openspec new change add-mult
 change=openspec/changes/add-mult
 echo 'x-track: M' >> "$change/.openspec.yaml"
 cat > "$change/proposal.md" <<'MD'
@@ -37,4 +37,4 @@ The system SHALL multiply two integers with `mult(a, b)` exported by `src/mult.j
 - **WHEN** multiplying 7 and 0
 - **THEN** the result is 0
 MD
-printf '## 1. Multiplication\n\n- [ ] 1.1 Write the tests for both scenarios\n- [ ] 1.2 Implement mult in src/mult.js\n' > "$change/tasks.md"
+printf '## 1. Multiplication\n\n- [ ] 1.1 mult(2, 3) returns 6 (test then code in src/mult.js)\n- [ ] 1.2 mult(7, 0) returns 0 (test then code)\n' > "$change/tasks.md"

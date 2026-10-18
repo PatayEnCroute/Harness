@@ -1,0 +1,12 @@
+# Mises à jour des actions épinglées par SHA dans .github/workflows/.
+# Le workflow livré par le template (template/{% if ci %}.github{% endif %}/) n'est pas vu par Dependabot :
+# tests/template.test.mjs impose qu'il épingle les mêmes SHA, donc une PR Dependabot le signale en échec.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

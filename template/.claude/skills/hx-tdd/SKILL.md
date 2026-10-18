@@ -29,6 +29,10 @@ Dans ta réponse, montre un extrait de la sortie rouge puis de la sortie verte. 
 | « Le test passe déjà » | Il ne prouve rien tant qu'on ne l'a pas vu échouer : enquête |
 | « Je simule cette classe interne » | Doublures seulement aux frontières d'I/O |
 
+## Sans changement de comportement
+
+Renommage, déplacement, refactor : pas de nouveau test. Lance les tests du composant **avant** et **après**, et montre les deux sorties vertes. Si aucun test ne couvre le code touché, écris d'abord un test de caractérisation : il doit passer tout de suite, et c'est attendu.
+
 ## Exceptions
 
 Seulement avec l'accord explicite de l'utilisateur : prototype jetable (niveau 0), code généré, configuration pure.

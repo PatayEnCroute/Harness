@@ -41,7 +41,16 @@ node .harness/hx.mjs detect --json
 
 Lis aussi `.harness/config.json`, `.harness/project.md`, le README, les manifestes, la CI existante (`.github/workflows/`, `Makefile`, `justfile`, `scripts/`).
 
-Si un `CLAUDE.md` existait avant l'installation du template (voir `git diff HEAD -- CLAUDE.md` ou l'historique git), récupère son contenu utile pour la carte du projet ou les rules de stack.
+**Projet existant** : l'installation a pu remplacer des fichiers du projet. Pour chacun, compare avec la version d'avant l'installation (`git diff HEAD -- <fichier>` tant qu'elle n'est pas commitée, sinon `git show HEAD~1:<fichier>`) et récupère ce qui compte :
+
+| Fichier remplacé | Ce qu'il faut récupérer | Où le remettre |
+|---|---|---|
+| `CLAUDE.md` | Consignes propres au projet | `.harness/project.md` ou `.claude/rules/stack-*.md` |
+| `.claude/settings.json` | `permissions`, `model`, `env`, hooks du projet | Fusion dans `.claude/settings.json` (les hooks du harness restent) ; ce qui est personnel va dans `.claude/settings.local.json` |
+| `openspec/config.yaml` | `context` métier, `rules` propres au projet | `.harness/project.md` (le `context` du template y renvoie) |
+| `.github/workflows/hx-check.yml` | — (nouveau fichier) | — |
+
+Montre chaque récupération à l'utilisateur avant de l'écrire.
 
 ### 2. Compléter la détection
 

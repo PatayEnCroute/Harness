@@ -132,14 +132,19 @@
           "minimum": 0,
           "maximum": 100,
           "description": "Couverture minimale des scénarios des specs principales par des tests tagués @scenario (défaut 100)"
+        },
+        "test_pattern": {
+          "type": "string",
+          "description": "Expression régulière (chemins en « / ») des fichiers de test dont les tags @scenario comptent. Par défaut : dossiers test/, tests/, __tests__/, spec/, e2e/ et fichiers *.test.*, *_test.*, test_*.py, *Tests.cs…"
         }
       }
     },
     "tracks": {
       "type": "object",
-      "description": "Pistes de travail : S (correctif), M (feature), L (structurant)",
+      "description": "Pistes de travail, lues par le contrôle « pistes » de hx check. Défauts : S (correctif), M (feature), L (structurant) ; une clé ajoutée crée une piste. spec → au moins une delta spec ; design → design.md ; adr → design.md cite un ADR de docs/adr/.",
       "additionalProperties": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "spec": {
             "type": "boolean"

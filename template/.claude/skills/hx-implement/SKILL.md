@@ -1,6 +1,6 @@
 ---
 name: hx-implement
-description: Implémente un change OpenSpec tâche par tâche, avec un sous-agent neuf par tâche, une revue de conformité à la spec après chacune et une preuve avant de cocher. À utiliser pour réaliser les tâches d'un change déjà proposé, à la place de /opsx:apply.
+description: Implémente un change OpenSpec tâche par tâche, avec un sous-agent neuf par tâche, une revue de conformité à la spec après chacune et une preuve avant de cocher. À utiliser pour réaliser les tâches d'un change déjà proposé, à la place de /opsx:apply et du skill openspec-apply-change.
 argument-hint: "[nom du change]"
 ---
 
@@ -24,7 +24,7 @@ argument-hint: "[nom du change]"
    - l'extrait utile du design ;
    - la consigne : une seule tâche, TDD, rapport avec preuve.
 2. Lis son rapport. S'il n'y a pas de preuve d'exécution, renvoie-le la chercher.
-3. Lance **`hx-spec-reviewer`** sur le diff de la tâche (`git diff`) et les scénarios concernés.
+3. Indexe le travail de la tâche (`git add -A`), puis lance **`hx-spec-reviewer`** sur `git diff --cached` (les fichiers nouveaux y figurent, contrairement à `git diff`) et les scénarios concernés.
 4. En cas de constat bloquant, relance `hx-implementer` avec les constats. **Au plus 3 tours** : au troisième échec, arrête-toi et expose le blocage à l'utilisateur.
 5. Coche la tâche dans `tasks.md` (`- [ ]` devient `- [x]`).
 6. Commit : `git add -A && git commit -m "<change> : <tâche>"`.
