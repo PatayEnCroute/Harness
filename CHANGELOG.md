@@ -6,6 +6,7 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ### Modifié
 - Fichiers CI conditionnels : `template/.github/` et `template/.harness/ci/` remplacent les dossiers nommés `{% if ci %}…{% endif %}`. La condition vit dans `_exclude` (`copier.yml`). Le rendu ne change pas ; l'e2e vérifie maintenant `ci=false`.
+- Hook `PreToolUse` : `HX_ALLOW_CONFIG_EDITS=1` lève la confirmation sur `.harness/config.json` seulement, pour les exécutions sans humain. En headless, elle valait refus et faisait échouer l'eval `setup` (0/6) ; `evals/run.sh` l'exporte pour ce scénario.
 - `_min_copier_version` passe à 9.19.1, la version testée en CI (`_exclude` templaté).
 
 ## [0.2.0] — 2026-10-18

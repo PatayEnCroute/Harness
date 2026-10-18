@@ -53,6 +53,14 @@ describe('hooks Claude Code', () => {
     assert.equal(hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, '.harness/project.md') } }).stdout, '');
   });
 
+  test('pre-tool-use : HX_ALLOW_CONFIG_EDITS=1 lève la confirmation sur config.json seulement', () => {
+    const root = project({ components: {} });
+    const edit = (rel) => hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, rel) } }, { HX_ALLOW_CONFIG_EDITS: '1' });
+    assert.equal(edit('.harness/config.json').stdout, '');
+    assert.equal(hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command: `echo '{}' > .harness/config.json` } }, { HX_ALLOW_CONFIG_EDITS: '1' }).stdout, '');
+    for (const rel of ['.harness/hooks.mjs', '.harness/hx.mjs', '.claude/settings.json', 'openspec/specs/x/spec.md']) assert.ok(asks(edit(rel)), rel);
+  });
+
   test('pre-tool-use : une commande Bash qui écrit un fichier protégé demande confirmation, une lecture non', () => {
     const root = project({ components: {} });
     const bash = (command) => hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command } });

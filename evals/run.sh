@@ -135,7 +135,10 @@ for scenario in "${scenarios[@]}"; do
     else
       cd "$work/proj"
       rc=0
-      timeout "$timeout_s" claude -p "$(cat "$dir/prompt.md")" --model "$model" \
+      # Scénario dont la tâche est d'écrire le contrat (setup) : personne ne peut confirmer en headless.
+      unattended=()
+      [ ! -f "$dir/config-writable" ] || unattended=(HX_ALLOW_CONFIG_EDITS=1)
+      env "${unattended[@]}" timeout "$timeout_s" claude -p "$(cat "$dir/prompt.md")" --model "$model" \
         --output-format stream-json --verbose --permission-mode acceptEdits \
         --max-turns "$max_turns" --allowedTools "${tools[@]}" \
         > "$work/transcript.jsonl" 2> "$work/stderr.log" < /dev/null || rc=$?
