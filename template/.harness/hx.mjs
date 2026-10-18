@@ -745,8 +745,10 @@ export function createWorktree(root, change, { target, branch = change } = {}) {
   if (!/^[a-z0-9][a-z0-9._-]*$/i.test(change) || change === 'archive') return { error: `nom de change invalide : ${change}` };
   if (!fs.existsSync(path.join(root, rel))) return { error: `change introuvable : ${rel}` };
   if (!readChangeMeta(path.join(root, rel))['x-validated']) return { error: `${change} : cadrage non validé (x-validated absent de .openspec.yaml) : passe d'abord la porte de cadrage` };
-  const top = git(['rev-parse', '--show-toplevel']).stdout.trim();
-  if (!top || fs.realpathSync(top) !== fs.realpathSync(root)) return { error: 'le projet doit être la racine de son dépôt git' };
+  // Préfixe vide = racine du dépôt. Pas de comparaison de chemins : sous Windows, git rend le nom long (runneradmin)
+  // d'un dossier que Node voit sous son nom court 8.3 (RUNNER~1).
+  const prefix = git(['rev-parse', '--show-prefix']);
+  if (prefix.status !== 0 || prefix.stdout.trim() !== '') return { error: 'le projet doit être la racine de son dépôt git' };
   if (git(['rev-parse', '--verify', '--quiet', 'HEAD']).status !== 0) return { error: 'aucun commit : le worktree part de HEAD' };
   for (const file of ['.harness/hx.mjs', CONFIG_PATH]) {
     if (git(['cat-file', '-e', `HEAD:${file}`]).status !== 0) return { error: `${file} n'est pas commité : le worktree part de HEAD` };
