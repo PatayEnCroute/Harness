@@ -14,6 +14,12 @@ Incohérences levées entre les prompts, `hx.mjs` et la doc.
 - **Archive** : `openspec/config.yaml` et `hx-ship` disent la même chose : `hx check` après l'archive, commit seulement s'il est vert.
 - **Prompts** : `hx-security-reviewer` cite la CI parmi ses déclencheurs, comme `hx-review` ; la description de `hx-learn` cite la forme « Note » (`docs/learnings/`).
 - Commentaire de `DEFAULT_TEST_PATTERN` : il dit en quoi il diffère de `.claude/rules/testing.md` (`specs?/`, `e2e/`, `.feature`, `.robot`).
+- **Documentation remise à jour** après un audit des incohérences entre docs et code :
+  - `docs/PLAN.md` : statut v0.3.0, workflow conforme à `CLAUDE.md` (piste S sans revue ni ship, archive faite par `/hx-ship`), `hx trace` et `hx migrate` documentés, `hx-explorer` en `haiku`, chemins protégés et `permissions.deny`, arborescences complètes, contrat OpenSpec dans `npm run test:contract` ;
+  - README : schéma du workflow, permissions, conflits vus par `hx doctor`, désinstallation complète ;
+  - `docs/elagage.md` : réserve sur les mesures étendue aux 4 scénarios, coût réel, ligne de base non archivée ; candidat « template de PR » retiré (déjà dans `hx-ship`) ;
+  - `evals/README.md` : version évaluée (correcteurs pris dans l'arbre de travail), champs du JSONL ;
+  - ADR-003 et ADR-004 : section Conséquences ; ADR-004 : procédure de montée avec `npm run test:contract`.
 
 ### Corrigé
 - **`hx doctor`** voit aussi `CLAUDE.md.rej`, `openspec/config.yaml.rej` et `.github/workflows/hx-check.yml.rej`.

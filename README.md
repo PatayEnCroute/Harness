@@ -21,11 +21,12 @@ uvx copier@9.19.1 update --trust                     # plus tard : récupérer l
 ## Le workflow installé
 
 ```
-hx-triage ─┬─ S : hx-tdd ─────────────────────────────────────────┐
-           └─ M/L : hx-clarify → /opsx:propose → hx-implement ──┤
-                     (L : hx-architect + hx-adr)                  ▼
-                       hx-learn ◄── /hx-ship ◄── hx-review ◄── hx-verify
+hx-triage ─┬─ S   : hx-tdd (ou hx-debug) → hx-verify → commit
+           └─ M/L : [hx-clarify] → /opsx:propose → hx-implement → hx-verify → hx-review → /hx-ship → hx-learn
+                    L : + hx-architect et hx-adr, design validé avant d'implémenter
 ```
+
+`[hx-clarify]` : seulement si la demande est floue. `/hx-ship` fait de l'archive OpenSpec le dernier commit de la PR.
 
 | | Contenu |
 |---|---|
@@ -33,7 +34,7 @@ hx-triage ─┬─ S : hx-tdd ────────────────�
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **3 rules** | `openspec`, `testing`, `architecture` (feature-first, proportionnée au besoin) |
 | **4 hooks** | contexte de session ; confirmation avant d'écrire une spec principale ou un fichier qui décide de ce qui s'exécute (contrat, hooks, permissions, version d'OpenSpec) ; lint du fichier édité ; avant de rendre la main, d'après git : contrôles rapides des composants modifiés et signalement des chemins protégés modifiés, quel que soit l'outil |
-| **Permissions** | `node .harness/hx.mjs` et `openspec` sans confirmation ; Claude n'édite jamais `hx.mjs`, `hooks.mjs` ni `versions.json` (gérés par Copier) |
+| **Permissions** | `node .harness/hx.mjs` et `openspec` sans confirmation ; Edit refusé sur `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier), toute autre écriture de ces fichiers demande confirmation |
 | **`hx check`** | contrat · openspec · archives · pistes · trace `@scenario` · lint · typecheck · arch · test (jamais vert sans test), mêmes commandes en local et en CI |
 
 | Générique (mis à jour par `copier update`) | Spécifique (rempli par `/hx-setup`, jamais écrasé) |
@@ -46,7 +47,7 @@ Les actions GitHub sont épinglées par SHA de commit et tenues à jour par Depe
 
 - **Mettre à jour** : `uvx copier@9.19.1 update --trust` sur un arbre git propre, puis `node .harness/hx.mjs doctor`. Les fichiers spécifiques ne sont jamais réécrits ; `hx migrate` ajoute à `config.json` les clés nouvelles.
 - **Conflit** : quand le template et le projet ont changé la même zone d'un fichier générique, Copier y laisse des marqueurs `<<<<<<<` / `>>>>>>>` ou un fichier `.rej`, que `hx doctor` liste. Garde la version du template sauf personnalisation voulue (un fichier générique s'améliore dans Harness, pas dans le projet), supprime les marqueurs et les `.rej`, relance `hx doctor`, puis commite.
-- **Désinstaller** : supprime `.harness/`, `.copier-answers.yml`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing` et `architecture` de `.claude/rules/`, `.github/workflows/hx-check.yml` (et `.github/CODEOWNERS` s'il vient du template). Retire de `.claude/settings.json` les hooks qui appellent `.harness/hooks.mjs` et les permissions `hx.mjs`, et de `CLAUDE.md` les sections du harness. `openspec/` reste utilisable sans le harness : garde-le si les specs servent encore.
+- **Désinstaller** : supprime `.harness/`, `.copier-answers.yml`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing` et `architecture` de `.claude/rules/`, `.github/workflows/hx-check.yml` (et `.github/CODEOWNERS`, `.github/dependabot.yml` s'ils viennent du template). Retire de `.claude/settings.json` les hooks qui appellent `.harness/hooks.mjs`, les permissions `hx.mjs` et `openspec` et la variable `OPENSPEC_TELEMETRY`, et de `CLAUDE.md` les sections du harness. `openspec/` reste utilisable sans le harness : garde-le si les specs servent encore.
 
 ## Développer le template
 
@@ -74,4 +75,4 @@ Les projets suivent les **tags** du template (`copier update` prend le dernier).
 git tag v0.3.0 && git push origin v0.3.0
 ```
 
-**Statut** : v0.3.0, phases 0 à 3 livrées et fiabilisées (P4), **pas encore éprouvées sur un vrai projet**. La v1.0 attend le pilote : 3 changes M de bout en bout et une traçabilité ≥ 80 %. Historique : [`CHANGELOG.md`](CHANGELOG.md).
+**Statut** : v0.3.0, phases 0 à 4 livrées (P4 : fiabilisation), **pas encore éprouvées sur un vrai projet**. La v1.0 attend le pilote : 3 changes M de bout en bout et une traçabilité ≥ 80 %. Historique : [`CHANGELOG.md`](CHANGELOG.md).

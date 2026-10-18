@@ -43,7 +43,6 @@ Trous possibles du workflow, **non construits** : on n'ajoute un composant que s
 | Rollback et migration de données en piste L (`hx-ship`, `hx-adr`) | Une migration livrée sans plan de retour arrière |
 | Revue de performance (`hx-code-reviewer` ou relecteur dédié) | Une régression de performance passée en revue |
 | Étape docs / CHANGELOG dans la piste M | Une PR mergée avec une doc utilisateur périmée |
-| Template de PR dans `hx-ship` | Une PR refusée ou reprise pour sa description |
 
 ## Journal
 
@@ -51,5 +50,5 @@ Trous possibles du workflow, **non construits** : on n'ajoute un composant que s
 |---|---|---|---|
 | 2026-10-18 | Plugin utilisateur | Non construit ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)) | Besoin non observé |
 | 2026-10-18 | Génération multi-outils | Non construite ([ADR-002](adr/002-claude-code-seul-standards-gratuits.md)) | Un seul outil utilisé |
-| 2026-10-18 | Ligne de base | 4/4 evals vertes, une exécution chacune (`architect`, `setup`, `tdd-s`, `implement-m`), environ 1,10 $ au total | Première mesure ; à répéter avec `--runs 10` et en A/B, résultats dans `evals/results/` |
-| 2026-10-18 | Ligne de base `--runs 10` (variante complète, `claude-sonnet-5-5`) | Mesures brutes : `architect` 10/10 · `implement-m` 10/10 (a8ef3b2) · `setup` 10/10 (416decb) · `tdd-s` 8/10 (bcf700c ; 2 échecs attribués au correcteur `test-first`, corrigé depuis, **sans nouvelle mesure**). `architect` et `implement-m` ont été mesurés avant le durcissement de leurs correcteurs (cf88fda, 2d52145) : ces chiffres ne valent pas pour la version suivante. Environ 11 $ en tout, échecs et relances compris | `evals/results/20261018T2029*` (a8ef3b2), `…2054*` (bcf700c), `…2108*` (416decb). Les campagnes ont révélé et fait corriger 2 défauts du hook `PreToolUse` (`setup` 0/6 puis 9/10) et 2 du correcteur `test-first`. Prochaine étape : A/B `--without` par composant |
+| 2026-10-18 | Ligne de base | 4/4 evals vertes, une exécution chacune (`architect`, `setup`, `tdd-s`, `implement-m`), environ 1,10 $ au total | Première mesure, **non archivée** (antérieure à `evals/results/`) ; à répéter avec `--runs 10` et en A/B |
+| 2026-10-18 | Ligne de base `--runs 10` (variante complète, `claude-sonnet-5-5`) | Mesures brutes : `architect` 10/10 · `implement-m` 10/10 (a8ef3b2) · `setup` 10/10 (416decb) · `tdd-s` 8/10 (bcf700c ; 2 échecs attribués au correcteur `test-first`, corrigé depuis, **sans nouvelle mesure**). **Les 4 scénarios ont été mesurés avant le durcissement des correcteurs** (`architect` : cf88fda ; `tdd-s` : 2d52145 ; tous : 79f8dd7, 464328c) : ces chiffres ne valent pas pour v0.3.0, et les échecs n'ont pas de `reason` enregistrée. 11,74 $ en tout, échecs et relances compris | `evals/results/20261018T2029*` (a8ef3b2), `…205427*` et `…205546*` (bcf700c, `architect` 1/1 de contrôle), `…2108*` (416decb). Les campagnes ont révélé et fait corriger 2 défauts du hook `PreToolUse` (`setup` 0/6 puis 9/10) et 2 du correcteur `test-first`. Prochaine étape : A/B `--without` par composant |
