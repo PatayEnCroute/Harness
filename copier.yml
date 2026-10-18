@@ -1,9 +1,14 @@
 # Template Harness : couche de harness Claude Code + OpenSpec, agnostique de la stack.
 # Usage : uvx copier copy --trust gh:PatayEnCroute/Harness .   puis /hx-setup dans Claude Code.
 
-_min_copier_version: "9.10.0"
+_min_copier_version: "9.19.1"
 _subdirectory: template
 _answers_file: .copier-answers.yml
+
+# Sans CI (ci=false) : ni workflow, ni Dependabot, ni action d'outillage.
+_exclude:
+  - "{% if not ci %}.github{% endif %}"
+  - "{% if not ci %}.harness/ci{% endif %}"
 
 # Fichiers spécifiques au projet : créés une fois, jamais réécrits par `copier update`.
 _skip_if_exists:

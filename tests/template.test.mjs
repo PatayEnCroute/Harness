@@ -121,8 +121,8 @@ describe('cohérence et budgets', () => {
 
 describe('CI : actions épinglées par SHA de commit', () => {
   const repo = path.resolve(here, '..');
-  const shipped = path.join(template, '{% if ci %}.github{% endif %}');
-  const yamls = [path.join(repo, '.github'), shipped, path.join(template, '.harness', '{% if ci %}ci{% endif %}')]
+  const shipped = path.join(template, '.github');
+  const yamls = [path.join(repo, '.github'), shipped, path.join(template, '.harness', 'ci')]
     .flatMap((dir) => walk(dir))
     .filter((f) => /\.ya?ml(\.jinja)?$/.test(f));
   const pins = (file) => [...read(file).matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)(.*)$/gm)].filter((m) => !m[1].startsWith('./'));

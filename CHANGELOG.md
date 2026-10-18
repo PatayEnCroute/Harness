@@ -2,6 +2,12 @@
 
 Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les projets reçoivent une version par `uvx copier update --trust`.
 
+## [Non publié]
+
+### Modifié
+- Fichiers CI conditionnels : `template/.github/` et `template/.harness/ci/` remplacent les dossiers nommés `{% if ci %}…{% endif %}`. La condition vit dans `_exclude` (`copier.yml`). Le rendu ne change pas ; l'e2e vérifie maintenant `ci=false`.
+- `_min_copier_version` passe à 9.19.1, la version testée en CI (`_exclude` templaté).
+
 ## [0.2.0] — 2026-10-18
 
 Corrections issues de la revue du 2026-10-18. Passage en 0.x : rien n'est encore éprouvé sur un vrai projet.
