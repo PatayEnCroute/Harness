@@ -26,6 +26,7 @@ git_commit "fixture"
 hx detect --write
 printf '# Projet démo\n\nCarte personnalisée.\n' > .harness/project.md
 sed -i '1a\\nConsigne locale ajoutée à la main.' CLAUDE.md   # modifie une autre zone que le template
+sed -i 's#"Bash(openspec \*)"#"Bash(openspec *)",\n      "Bash(npm test)"#' .claude/settings.json   # zone que v3 modifiera aussi
 git_commit "personnalisation"
 
 # 3. Template v2 : un fichier générique et un fichier spécifique évoluent.
@@ -49,4 +50,21 @@ grep -q '^_commit: v2$' .copier-answers.yml || fail "version du template non enr
 if grep -rIl --exclude-dir=.git '^<<<<<<< ' . ; then fail "conflit de fusion"; fi
 if [ -n "$(find . -name '*.rej' -not -path './.git/*')" ]; then fail "fichiers .rej"; fi
 hx doctor --no-run
+
+# 6. Template v3 : la version épinglée d'OpenSpec monte, et settings.json change dans la zone personnalisée.
+git_commit "après update v2" || true
+cd "$work/tmpl"
+sed -i 's/^  default: "[0-9.]*"$/  default: "9.9.9"/' copier.yml
+sed -i 's#"Bash(openspec \*)"#"Bash(openspec *)",\n      "Bash(git status)"#' template/.claude/settings.json
+git_commit "v3"
+git tag v3
+cd "$work/proj"
+"${copier[@]}" update --trust --defaults --skip-tasks --vcs-ref v3 || true   # 9.9.9 n'existe pas : tâches ignorées
+
+node -e "if (require('./.harness/versions.json').openspec !== '9.9.9') process.exit(1)" \
+  || fail "la nouvelle version épinglée d'OpenSpec n'est pas arrivée"
+grep -q '^<<<<<<< ' .claude/settings.json || fail "scénario de conflit non reproduit"
+if out="$(hx doctor --no-run)"; then fail "doctor ne signale pas le conflit de fusion"; fi
+grep -q 'conflits non résolus : .claude/settings.json' <<<"$out" || fail "doctor ne nomme pas le fichier en conflit"
+grep -q 'settings.json invalide' <<<"$out" || fail "doctor ne signale pas settings.json illisible"
 echo "e2e update : OK"

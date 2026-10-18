@@ -33,7 +33,9 @@ ci:
   help: Ajouter le workflow GitHub Actions hx-check ?
   default: true
 
+# Calculée, jamais posée : une question verrait sa réponse figée dans .copier-answers.yml,
+# et `copier update` n'apporterait jamais la nouvelle version épinglée aux projets existants.
 openspec_version:
   type: str
-  help: Version d'OpenSpec épinglée
   default: "1.14.3"
+  when: false
