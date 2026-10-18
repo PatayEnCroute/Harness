@@ -59,6 +59,10 @@ describe('hooks Claude Code', () => {
     assert.equal(edit('.harness/config.json').stdout, '');
     assert.equal(hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command: `echo '{}' > .harness/config.json` } }, { HX_ALLOW_CONFIG_EDITS: '1' }).stdout, '');
     for (const rel of ['.harness/hooks.mjs', '.harness/hx.mjs', '.claude/settings.json', 'openspec/specs/x/spec.md']) assert.ok(asks(edit(rel)), rel);
+    // Commande vue dans l'eval setup : lancer hx.mjs ne l'écrit pas, seul config.json est écrit.
+    const setupCommand = `node .harness/hx.mjs detect --write && python3 -c "open('.harness/config.json','w')"`;
+    assert.equal(hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command: setupCommand } }, { HX_ALLOW_CONFIG_EDITS: '1' }).stdout, '');
+    assert.ok(asks(hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command: setupCommand } })), 'sans la variable, confirmation');
   });
 
   test('pre-tool-use : une commande Bash qui écrit un fichier protégé demande confirmation, une lecture non', () => {
@@ -70,6 +74,8 @@ describe('hooks Claude Code', () => {
     assert.equal(bash('cat .harness/config.json').stdout, '');
     assert.equal(bash('grep -i test .harness/config.json').stdout, '');
     assert.ok(asks(bash('perl -pi -e s/a/b/ .harness/hx.mjs')));
+    assert.equal(bash('node .harness/hx.mjs check > /tmp/out.txt').stdout, '', 'lancer hx.mjs ne l\'écrit pas');
+    assert.ok(asks(bash('node .harness/hx.mjs detect --json > x.json && cp x.json .harness/config.json')), 'tous les chemins cités comptent');
     assert.equal(bash('node .harness/hx.mjs check 2>&1').stdout, '');
     assert.ok(asks(bash('cp /tmp/x.json .harness/config.json')));
   });
