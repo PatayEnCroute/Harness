@@ -16,6 +16,9 @@ Un change M ou L se fait désormais en trois temps : cadrage avec l'utilisateur,
 - **Permissions** : git local (`status`, `diff`, `log`, `show`, `grep`, `add`, `commit`) sans confirmation. Un commit par tâche et le `git diff` des relecteurs ne demandent plus d'accord à chaque fois. `git push` reste confirmé.
 - L'eval `implement-m` part d'un change validé (`x-validated`).
 
+### Mise à jour
+- Un change en cours créé avant cette version n'a pas `x-validated` : `hx-implement` refusera de le reprendre. Passe la porte de cadrage, ou ajoute la clé si la proposition a déjà été relue.
+
 ## [0.4.0] — 2026-10-18
 
 Démarrage en une commande, par une personne (`npx`) ou par un agent (`INSTALL.md`) ; incohérences levées entre les prompts, `hx.mjs` et la doc.

@@ -1,6 +1,6 @@
 # Harness — Plan directeur
 
-> **Statut** : v0.4.0 · 2026-10-18 · **phases 0 à 5 livrées, pas encore éprouvées sur un vrai projet** (voir §9). La v1.0 attend le pilote.
+> **Statut** : v0.4.0 · 2026-10-18 · **phases 0 à 5 livrées, P6 en cours (non publiée), pas encore éprouvées sur un vrai projet** (voir §9). La v1.0 attend le pilote.
 > **Nature** : un **template personnel**. On y garde sa configuration Claude Code, on l'applique à chaque projet (nouveau ou existant), puis on la met à jour depuis ce repo.
 > **Cadre** : Claude Code · projets solo · GitHub Actions · **agnostique de la stack** · OpenSpec 1.14.x (OPSX)
 > **État de l'art** → [`research/etat-de-l-art-2026-10.md`](research/etat-de-l-art-2026-10.md)
@@ -174,7 +174,7 @@ openspec_version: { type: str, default: "1.14.3", when: false }   # calculée : 
 | `config.yaml › context` | Renvoi vers `CLAUDE.md` et le contrat de commandes |
 | `config.yaml › rules.<artefact>` | Règles d'écriture : proposal (piste, non-objectifs), specs (scénarios testables), design (besoin d'abord, niveau visé, options : §5), tasks (2–5 min, test d'abord) |
 | `operations.apply.guidance` | Renvoie vers `hx-implement` / `hx-tdd` |
-| `.openspec.yaml › x-*` | `x-track: M` |
+| `.openspec.yaml › x-*` | `x-track: M` (piste), `x-validated: AAAA-MM-JJ` (porte de cadrage passée) |
 | Markdown d'OpenSpec (specs, deltas, `tasks.md`, `.openspec.yaml`) | Lu directement par `hx trace`, le contrôle des pistes et les hooks : rapide, hors ligne |
 | CLI `--json` (`list`, `instructions apply`, `validate`) | Utilisée par les skills ; chaque hypothèse est vérifiée par `tests/openspec-contract.test.mjs` |
 | Schéma custom | **Pas en v1** : pas d'héritage de schéma (#778), un fork serait à maintenir |
@@ -304,11 +304,11 @@ src/
 | Skill | Rôle | Prio |
 |---|---|---|
 | `hx-setup` | Personnalisation assistée à la stack (§3.3) | **MVP (P0)** |
-| `hx-triage` | Classer la demande en S/M/L et l'orienter | MVP |
+| `hx-triage` | Classer la demande en S/M/L et l'orienter ; porte de cadrage (M/L) | MVP |
 | `hx-tdd` | Rouge → vert → refactor, avec preuve | MVP |
-| `hx-implement` | Boucle sur `tasks.md` : une tâche = un sous-agent, puis review de conformité | MVP |
+| `hx-implement` | Boucle sur `tasks.md` : une tâche = un sous-agent, puis review de conformité ; exige `x-validated`, enchaîne le run sans rendre la main | MVP |
 | `hx-verify` | Aucune déclaration de fin sans preuve fraîche | MVP |
-| `hx-review` | Reviewers en parallèle, filtre des faux positifs | MVP |
+| `hx-review` | Reviewers en parallèle, filtre des faux positifs, rapport de fin de run | MVP |
 | `hx-ship` | PR liée au change, suivi de la CI | MVP |
 | `hx-clarify` | Entretien ciblé (≤ 5 questions) avant la proposition | v1 |
 | `hx-debug` | Reproduire → isoler → corriger → test de non-régression | v1 |
@@ -342,7 +342,7 @@ src/
 
 | Événement | Action |
 |---|---|
-| `SessionStart` | Changes en cours (piste, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
+| `SessionStart` | Changes en cours (piste, état du cadrage, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
 | `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `versions.json`, `.claude/settings*.json` (en plus, `permissions.deny` refuse Edit sur `hx.mjs`, `hooks.mjs` et `versions.json`). Couvre Edit/Write et les commandes Bash qui écrivent ces chemins. Confirmation aussi avant le skill `openspec-apply-change`, avec renvoi vers `hx-implement` |
 | `PostToolUse` (édition) | `lint-file` si défini, pour rester rapide (arrêté au-delà de 100 s). Contrat cassé → retour à Claude, jamais un silence |
 | `Stop` | D'après **git** (donc aussi les écritures faites par Bash, et les fichiers commités pendant la session) : lint + typecheck des seuls composants dont le code a changé depuis le dernier vert de la session (ce qui était modifié au démarrage est ignoré) ; budget de 570 s ; une seule relance (`stop_hook_active`). Signale aussi à l'utilisateur les chemins protégés modifiés, quel que soit l'outil |
@@ -444,7 +444,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | Lint du template | Standard `SKILL.md`, agents en lecture seule sans Edit/Write, rules ciblées, budgets (`CLAUDE.md` ≤ 100 lignes, skills < 500), références `hx-*` existantes, aucun Unicode invisible | `npm test`, CI |
 | Contrat OpenSpec | Chaque hypothèse sur la version épinglée : `init`, `.openspec.yaml`, `list` et `instructions apply --json`, archive, `Purpose`, chaque `/opsx:*` cité existe | `npm run test:contract` (réseau), CI |
 | E2E multi-stack | `copier copy` → `hx detect` → `doctor` → `check` sur Node, Python, .NET, Go, mixte ; YAML CI valide | CI |
-| E2E cycle OpenSpec | Scénario sans test → rouge ; test tagué → vert ; hooks ; archive ; dérive → rouge | CI |
+| E2E cycle OpenSpec | Scénario sans test → rouge ; test tagué → vert ; hooks ; archive ; change validé parti dans son worktree, dossier principal vert ; dérive → rouge | CI |
 | E2E `copier update` | L'amélioration générique arrive, les personnalisations restent | CI |
 | E2E lanceur | `npx` dans un dossier vide (réponses en `--data`, comme un agent), refus d'un arbre sale, d'une réinstallation et d'un terminal absent sans `--defaults`, projet existant avec `--overwrite` | CI |
 | Evals comportementales | Un agent headless sur un projet de démo, notation déterministe ; A/B `--without <skill>` pour l'élagage | `evals/run.sh`, en local avec la session Claude Code de l'utilisateur (`claude -p`, sans clé d'API) |
@@ -458,6 +458,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | **P2 Qualité** ✅ | `hx trace` ; agents `hx-verifier`, `hx-security-reviewer` ; skills `hx-clarify`, `hx-debug`, `hx-learn` ; evals headless + A/B ; lint du template ; contrat OpenSpec | Unitaires ; contrat OpenSpec ; 4/4 evals (une exécution chacune) | Traçabilité ≥ 80 % sur le projet pilote |
 | **P3 Extensions** ✅ | Skill `hx-discover` (brownfield) ; revue d'élagage ([`elagage.md`](elagage.md)) ; ADR 001 à 003 (Copier ; plugin utilisateur et multi-outils non retenus) ; ADR-004 (OpenSpec) en v0.2.0 | Lint du template | Première revue d'élagage après quelques semaines d'usage |
 | **P4 Fiabilité** ✅ (v0.3.0) | Correcteurs d'evals sans faux succès et testés ; plus de faux verts (`run --file`, trace vide, délais) ; hook `Stop` fondé sur git ; chemins protégés signalés quel que soit l'outil, `permissions.deny`, `CODEOWNERS` ; prompts sans contradiction ; leçons relues | Unitaires ; contrat OpenSpec ; e2e | Evals `--runs 10` en local sur cette version ; le pilote ci-dessus |
+| **P6 Runs sans interruption** (non publié) | Porte de cadrage (`x-validated`) ; `hx worktree` ; run enchaîné jusqu'au rapport de fin de run (hypothèses à confirmer) ; git local sans confirmation | Unitaires ; contrat OpenSpec ; e2e cycle OpenSpec | Nombre d'interruptions par run et corrections à la porte, sur le pilote |
 | **P5 Démarrage** ✅ (v0.4.0) | Lanceur `npx github:PatayEnCroute/Harness` (git, uv, Copier, Claude Code sur `/hx-setup`) ; CLI OpenSpec installée au démarrage de session si absente ; `INSTALL.md` pour une installation par un agent | Unitaires ; e2e lanceur | Installation par un agent en session cloud ; lanceur sous Windows |
 
 **Constats faits pendant la réalisation**, désormais encodés dans le harness :
@@ -481,6 +482,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | Besoin futur d'un autre outil IA | Skills au standard `SKILL.md` ; ajouter une cible = générer des copies avec un outil de synchronisation (rulesync, APM : voir l'état de l'art) |
 | L'architecte sur-conçoit | Besoin d'abord, option la plus simple obligatoire, niveau par feature ; `hx-code-reviewer` signale toute abstraction sans besoin cité |
 | Lourdeur | Pistes S/M/L ; élaguer ce qui ne sert pas |
+| Le run, sans humain, s'écarte de l'intention | Porte de cadrage : la spec est validée avant tout code ; le run suit la spec ; les choix qu'elle ne tranchait pas remontent en hypothèses dans le rapport de fin de run |
 
 ---
 
@@ -499,3 +501,4 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | 9 | Hook sur `openspec/specs/` | ✅ **Confirmation** (`ask`) plutôt que blocage : l'archive y écrit légitimement |
 | 10 | Modèle des agents | ✅ **Hérité de la session**, sauf `hx-explorer` (`haiku`) ; réglable par projet via le champ `model` |
 | 11 | OpenSpec | ✅ **Dépendance centrale assumée**, épinglée, contrat testé, critères de sortie écrits ([ADR-004](adr/004-openspec-dependance-centrale.md)) |
+| 12 | Place de l'humain en M/L | ✅ **Une porte, au cadrage** (`x-validated`), puis un run sans interruption dans le worktree du change, et la livraison (`/hx-ship`) par l'utilisateur. Le but n'est pas un agent sans humain : l'utilisateur cadre le change suivant pendant le run |

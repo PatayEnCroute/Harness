@@ -34,7 +34,7 @@ Commence toute demande de changement par **`hx-triage`** : les critères de choi
 **M et L : cadrage, puis run sans interruption.** L'utilisateur cadre, puis l'agent travaille seul pendant que l'utilisateur cadre le change suivant.
 
 1. **Cadrage** (avec l'utilisateur) : `hx-clarify`, `/opsx:propose`, design en L. Il se termine par **la porte** décrite dans `hx-triage` : validation explicite, `x-validated`, puis `hx worktree <change>`.
-2. **Run** (dans le worktree, sans l'utilisateur) : `hx-implement` → `hx-verify` → `hx-review` → rapport de fin de run. **Ne rends pas la main entre ces étapes** et ne pose pas de question en cours de route ; arrête-toi seulement sur les blocages listés dans `hx-implement`.
+2. **Run** (dans le worktree du change, ou dans la session si l'utilisateur le préfère ; sans lui) : `hx-implement` → `hx-verify` → `hx-review` → rapport de fin de run. **Ne rends pas la main entre ces étapes** et ne pose pas de question en cours de route ; arrête-toi seulement sur les blocages listés dans `hx-implement`.
 3. **Livraison** (l'utilisateur) : relecture du rapport, puis `/hx-ship`.
 
 - Le change OpenSpec porte sa piste : `x-track: M` ou `L` dans `.openspec.yaml`.
