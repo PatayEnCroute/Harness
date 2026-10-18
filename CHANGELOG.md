@@ -2,10 +2,33 @@
 
 Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les projets reçoivent une version par `uvx copier update --trust`.
 
-## [Non publié]
+## [0.3.0] — 2026-10-18
+
+Fiabilisation issue de la revue du 2026-10-18 : mesurer juste, plus de faux verts, protections vues par git.
+
+### Modifié
+- **`hx run <cmd> --file`** hors de tout composant qui définit la commande : code 3 au lieu de 0 (un test ciblé qui « passe » sans avoir tourné faussait le rouge de `hx-tdd`). `--file-only` (hooks) garde 0. `--file` et `--component` sont exclusifs.
+- **Hook `Stop` fondé sur git** : il voit les écritures faites par Bash et les fichiers commités pendant la session ; ce qui était modifié avant la session est ignoré. L'état n'est plus écrit par `PostToolUse` (plus de lecture-écriture concurrente). Hors d'un dépôt git, aucun contrôle.
+- **Délais** : `lint-file` arrêté à 100 s, contrôles du hook `Stop` limités à 570 s, sous les délais de `settings.json` (vérifié par un test).
+- **`hx trace`** échoue sur une spec dont aucun scénario n'est lu, au lieu d'afficher 100 %.
+- **Prompts** : contradictions levées (refactor de piste S et test de caractérisation, exceptions au test d'abord, tâches d'un change de base, `hx-implement` obligatoire, indexation des seuls fichiers de la tâche, revue non indépendante déclarée sans sous-agents, niveau 4 documenté). `CLAUDE.md` ne recopie plus les critères de piste de `hx-triage`.
+- **Evals** : `only_changed` compare au commit initial (un commit de l'agent ne cache plus rien) ; mutants vérifiés (tests verts avant, mutant qui se charge) et, pour `implement-m`, détectés par le test tagué du scénario seul ; `test-first` exige un lancement au rouge avant le premier vert ; la raison de chaque échec est enregistrée.
+- **CI des evals** : entrées `runs` (défaut 10), `scenarios`, `without` ; le job échoue sans `ANTHROPIC_API_KEY` au lieu d'un vert sans mesure ; le JSONL est affiché dans le journal.
 
 ### Ajouté
-- Première ligne de base des evals en `--runs 10` (`evals/results/`, synthèse dans `docs/elagage.md`) : 4 scénarios à 10/10.
+- **Chemins protégés** : liste unique, étendue à `.harness/versions.json` ; le hook `Stop` signale à l'utilisateur tout chemin protégé modifié pendant la session, quel que soit l'outil.
+- **`permissions.deny`** : Claude n'édite jamais `hx.mjs`, `hooks.mjs` ni `versions.json`.
+- **Question `codeowners`** : `.github/CODEOWNERS` sur les fichiers qui décident de ce qui s'exécute et sur les specs, pour qu'une PR n'assouplisse pas seule ses propres contrôles.
+- **Version d'OpenSpec validée** avant d'être passée à `npx` ; `hx doctor` la signale.
+- **Leçons relues** : `hx-triage` et `hx-clarify` cherchent dans `docs/learnings/`.
+- `hx-explorer` en `model: haiku`.
+- Tests : correcteurs des evals (`tests/evals.test.mjs`), contrat « chaque `/opsx:*` cité existe », tests anti-dérive des prompts.
+- README : mise à jour, résolution de conflit, désinstallation ; Copier épinglé. `docs/elagage.md` : candidats non construits en attente du pilote.
+
+## [0.2.1] — 2026-10-18
+
+### Ajouté
+- Première ligne de base des evals en `--runs 10` (`evals/results/`, synthèse dans `docs/elagage.md`). Mesures brutes : `architect` 10/10, `implement-m` 10/10, `setup` 10/10, `tdd-s` 8/10 (2 échecs attribués au correcteur, corrigé sans nouvelle mesure). `architect` et `implement-m` ont été mesurés avant le durcissement de leurs correcteurs.
 
 ### Modifié
 - Fichiers CI conditionnels : `template/.github/` et `template/.harness/ci/` remplacent les dossiers nommés `{% if ci %}…{% endif %}`. La condition vit dans `_exclude` (`copier.yml`). Le rendu ne change pas ; l'e2e vérifie maintenant `ci=false`.
@@ -32,7 +55,7 @@ Corrections issues de la revue du 2026-10-18. Passage en 0.x : rien n'est encore
 - **Hook `PreToolUse`** : confirmation avant d'écrire `.harness/config.json`, `hx.mjs`, `hooks.mjs` ou `.claude/settings*.json`, via Edit/Write ou par une commande Bash ; chemins résolus (liens symboliques).
 - Contrat cassé : les hooks le signalent à Claude au lieu de se désactiver en silence.
 - ADR-004 : OpenSpec comme dépendance centrale, procédure de montée de version et critères de sortie.
-- Tests : 0 mutation survivante sur 26 dans `hx.mjs` et `hooks.mjs` (14 sur 14 survivaient avant) ; e2e `copier update` avec conflit dans la même zone et montée de version d'OpenSpec.
+- Tests : 0 mutation survivante sur 26 dans `hx.mjs` et `hooks.mjs` (14 sur 14 survivaient avant ; campagne ponctuelle, aucun outil de mutation versionné pour la rejouer) ; e2e `copier update` avec conflit dans la même zone et montée de version d'OpenSpec.
 
 ### Ajouté (suite de la revue, points importants)
 - **Trace** : seul un tag `@scenario` dans un fichier de test couvre un scénario (`trace.test_pattern` pour une autre convention) ; les tags du code de production sont listés à part.
