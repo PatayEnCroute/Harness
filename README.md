@@ -14,7 +14,9 @@ node .harness/hx.mjs doctor                           # 4. vérifier
 uvx copier update --trust                             # plus tard : récupérer les améliorations
 ```
 
-`--trust` autorise la tâche post-installation qui lance `openspec init`. Copier prend le dernier tag du repo, ou à défaut la branche par défaut.
+`--trust` autorise les tâches post-installation : `openspec init` à l'installation, puis `openspec update` et `hx migrate` (clés nouvelles ajoutées à `.harness/config.json`) à chaque mise à jour. Copier prend le dernier tag du repo ; `hx doctor` signale un projet en retard. Questions : nom du projet, workflow CI (`ci`) et sa branche par défaut (`default_branch`, `main`).
+
+**Projet existant** : commite d'abord (git est requis), puis lance l'installation **sans** `--defaults` et accepte le remplacement de `CLAUDE.md`, `.claude/settings.json` et `openspec/config.yaml` s'ils existent. `/hx-setup` récupère ensuite leur contenu utile depuis git.
 
 ## Le workflow installé
 
@@ -35,12 +37,15 @@ hx-triage ─┬─ S : hx-tdd ────────────────�
 
 | Générique (mis à jour par `copier update`) | Spécifique (rempli par `/hx-setup`, jamais écrasé) |
 |---|---|
-| `CLAUDE.md`, `.claude/`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json`, `.harness/project.md`, `.harness/ci/setup/action.yml`, `.claude/rules/stack-*.md` |
+| `CLAUDE.md`, `.claude/`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json`, `.harness/project.md`, `.harness/ci/setup/action.yml`, `.github/dependabot.yml`, `.claude/rules/stack-*.md` |
+
+Les actions GitHub sont épinglées par SHA de commit et tenues à jour par Dependabot. Dans ce repo, les SHA de `hx-check.yml.jinja` suivent ceux de `ci.yml` (un test le vérifie).
 
 ## Développer le template
 
 ```bash
-npm test                # unitaires hx et hooks, lint du template, contrat OpenSpec
+npm test                # unitaires hx et hooks, lint du template (hermétique ; CI : Linux, macOS, Windows)
+npm run test:contract   # contrat OpenSpec, sur la version épinglée (réseau)
 npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update
 npm run evals           # agents headless notés de façon déterministe (coût réel)
 ```

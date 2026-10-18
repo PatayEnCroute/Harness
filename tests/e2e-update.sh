@@ -24,6 +24,7 @@ git init -q
 git_commit "fixture"
 "${copier[@]}" copy --trust --defaults --vcs-ref v1 "$work/tmpl" .
 hx detect --write
+node -e "const f='.harness/config.json',c=JSON.parse(require('fs').readFileSync(f));delete c.tracks;require('fs').writeFileSync(f,JSON.stringify(c,null,2))"   # contrat d'une version antérieure
 printf '# Projet démo\n\nCarte personnalisée.\n' > .harness/project.md
 sed -i '1a\\nConsigne locale ajoutée à la main.' CLAUDE.md   # modifie une autre zone que le template
 sed -i 's#"Bash(openspec \*)"#"Bash(openspec *)",\n      "Bash(npm test)"#' .claude/settings.json   # zone que v3 modifiera aussi
@@ -46,6 +47,7 @@ grep -q 'Consigne locale ajoutée' CLAUDE.md || fail "la modification locale de 
 grep -q 'Carte personnalisée' .harness/project.md || fail ".harness/project.md a été écrasé"
 node -e "const c=require('./.harness/config.json'); if (!c.components['fixture-node'] || c.components.x) process.exit(1)" \
   || fail ".harness/config.json a été écrasé"
+node -e "if (!require('./.harness/config.json').tracks) process.exit(1)" || fail "hx migrate n'a pas complété le contrat"
 grep -q '^_commit: v2$' .copier-answers.yml || fail "version du template non enregistrée"
 if grep -rIl --exclude-dir=.git '^<<<<<<< ' . ; then fail "conflit de fusion"; fi
 if [ -n "$(find . -name '*.rej' -not -path './.git/*')" ]; then fail "fichiers .rej"; fi
