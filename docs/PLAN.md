@@ -1,6 +1,6 @@
 # Harness — Plan directeur
 
-> **Statut** : v1.0 · 2026-10-18 · **phases 0 à 3 livrées** (voir §9 pour ce qui reste à confirmer sur un vrai projet)
+> **Statut** : v0.2.0 · 2026-10-18 · **phases 0 à 3 livrées, pas encore éprouvées sur un vrai projet** (voir §9). La v1.0 attend le pilote.
 > **Nature** : un **template personnel**. On y garde sa configuration Claude Code, on l'applique à chaque projet (nouveau ou existant), puis on la met à jour depuis ce repo.
 > **Cadre** : Claude Code · projets solo · GitHub Actions · **agnostique de la stack** · OpenSpec 1.14.x (OPSX)
 > **État de l'art** → [`research/etat-de-l-art-2026-10.md`](research/etat-de-l-art-2026-10.md)
@@ -123,8 +123,8 @@ C'est la seule interface entre le harness et la stack. Il gère aussi les projet
 | `hx detect [--write]` | Propose les composants et commandes à partir des manifestes (point de départ déterministe de `/hx-setup`) |
 | `hx run test` | Lance `test` sur tous les composants |
 | `hx run lint --file web/src/app.ts` | Choisit le composant d'après le chemin du fichier |
-| `hx check [--fast]` | validate OpenSpec + lint + typecheck + arch + test (`--fast` : lint + typecheck) |
-| `hx doctor` | Installation saine (fichiers, versions, rien d'ignoré par git) et chaque commande **passe** |
+| `hx check [--fast]` | Contrat validé, puis validate OpenSpec + archives + pistes + trace + lint + typecheck + arch + test (`--fast` : validate OpenSpec + lint + typecheck). **Jamais vert sans test exécuté** |
+| `hx doctor` | Installation saine (fichiers, versions, `settings.json` lisible et hooks câblés, aucun reste de conflit de fusion, rien d'ignoré par git) et chaque commande **passe** |
 | `hx openspec <args>` | Appelle la version épinglée d'OpenSpec, télémétrie coupée |
 
 ### 3.3 `/hx-setup` : la personnalisation assistée
@@ -161,7 +161,7 @@ _tasks:                                   # OpenSpec épinglé, télémétrie co
     when: "{{ _copier_operation == 'update' }}"
 project_name: { type: str, default: "{{ _folder_name }}" }
 ci: { type: bool, default: true }         # workflow GitHub Actions hx-check
-openspec_version: { type: str, default: "1.14.3" }
+openspec_version: { type: str, default: "1.14.3", when: false }   # calculée : copier update la propage (ADR-004)
 ```
 
 ### 3.5 Points d'accroche OpenSpec
@@ -337,9 +337,9 @@ src/
 | Événement | Action |
 |---|---|
 | `SessionStart` | Changes en cours (piste, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
-| `PreToolUse` (écriture) | **Demande confirmation** pour `openspec/specs/**` : seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement (bloquer les casserait) |
-| `PostToolUse` (édition) | `hx run lint --file <fichier> --file-only` : seulement si `lint-file` est défini, pour rester rapide |
-| `Stop` | Si du code d'un composant a changé : lint + typecheck ; une seule relance (`stop_hook_active`) |
+| `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `.claude/settings*.json`. Couvre Edit/Write et les commandes Bash qui écrivent ces chemins |
+| `PostToolUse` (édition) | Note le fichier pour `Stop`, puis `lint-file` si défini, pour rester rapide. Contrat cassé → retour à Claude, jamais un silence |
+| `Stop` | Lint + typecheck des seuls composants dont Claude a édité du code **pendant la session** (modifications antérieures ignorées) ; liste vidée au vert ; une seule relance (`stop_hook_active`) |
 
 > Le niveau de modèle des agents n'est pas fixé dans le template (champ `model` absent : modèle de la session). Il se règle par projet si besoin.
 
@@ -349,7 +349,7 @@ src/
 |---|---|
 | `openspec` | `openspec validate --all --strict` : structure des specs et des changes |
 | `archives` | `openspec validate --archived` : toutes les tâches d'un change archivé sont faites |
-| `pistes` | `x-track` déclaré sur les changes en cours ; piste L → `design.md` qui cite un ADR existant |
+| `pistes` | `x-track` déclaré sur les changes en cours, parmi les pistes de `tracks` ; règles de `tracks` (`spec` → delta spec, `design` → `design.md`, `adr` → ADR cité) ; tout ADR cité existe |
 | `trace` | Chaque scénario ADDED/MODIFIED d'un change en cours a un test tagué `@scenario` ; couverture des specs principales ≥ `trace.min_coverage` (100 % par défaut) ; aucun tag orphelin |
 | `lint` · `typecheck` · `arch` · `test` | Contrat de commandes, par composant |
 
@@ -455,11 +455,11 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 
 | Risque | Mitigation |
 |---|---|
-| OpenSpec évolue vite (une release par semaine, commandes remplacées par des skills, #2022) | Version épinglée, tests de contrat `--json` ; nos skills appellent la CLI et pas les commandes `/opsx:*` |
+| OpenSpec évolue vite (une release par semaine, commandes remplacées par des skills, #2022) | Version épinglée et propagée par `copier update`, tests de contrat, critères de sortie ([ADR-004](adr/004-openspec-dependance-centrale.md)) |
 | `/hx-setup` se trompe de commande | Il **exécute** chaque commande avant de l'écrire, puis tu relis le diff ; `hx doctor` revérifie |
 | Stack exotique ou monorepo complexe | Le contrat accepte n'importe quelle commande shell ; les composants couvrent le multi-stack |
-| Conflits lors de `copier update` | Le spécifique vit dans des fichiers hors template (§3.1) |
-| Projets qui ne se mettent plus à jour | Version visible dans `.copier-answers.yml` ; `hx doctor` signale un template en retard |
+| Conflits lors de `copier update` | Le spécifique vit dans des fichiers hors template (§3.1) ; `hx doctor` détecte marqueurs de conflit et `settings.json` illisible |
+| Projets qui ne se mettent plus à jour | Version visible dans `.copier-answers.yml` (`_commit`), comparée au dernier tag du template à la main |
 | Besoin futur d'un autre outil IA | Skills au standard `SKILL.md` ; ajouter une cible = générer des copies (réintroduire `sync`) |
 | L'architecte sur-conçoit | Besoin d'abord, option la plus simple obligatoire, niveau par feature ; `hx-code-reviewer` signale toute abstraction sans besoin cité |
 | Lourdeur | Pistes S/M/L ; élaguer ce qui ne sert pas |
@@ -480,3 +480,4 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | 8 | Plugin utilisateur en complément ? | ✅ **Non retenu** : les skills dépendent des fichiers du projet ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)) |
 | 9 | Hook sur `openspec/specs/` | ✅ **Confirmation** (`ask`) plutôt que blocage : l'archive y écrit légitimement |
 | 10 | Modèle des agents | ✅ **Hérité de la session** ; réglable par projet via le champ `model` |
+| 11 | OpenSpec | ✅ **Dépendance centrale assumée**, épinglée, contrat testé, critères de sortie écrits ([ADR-004](adr/004-openspec-dependance-centrale.md)) |
