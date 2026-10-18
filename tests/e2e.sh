@@ -61,4 +61,11 @@ if [ -z "$pinned" ] || ! grep -qxF "i -g @fission-ai/openspec@$pinned" "$work/np
 fi
 
 hx doctor
+
+# Sans CI (ci=false) : _exclude de copier.yml retire workflow, Dependabot et action d'outillage, rien d'autre.
+"${copier[@]}" copy --trust --defaults --skip-tasks -d ci=false --vcs-ref HEAD "$repo" "$work/sans-ci" > /dev/null
+for absent in .github .harness/ci; do
+  [ ! -e "$work/sans-ci/$absent" ] || { echo "ÉCHEC : $absent livré avec ci=false" >&2; exit 1; }
+done
+[ -f "$work/sans-ci/.harness/hx.mjs" ] || { echo "ÉCHEC : ci=false a retiré le harness" >&2; exit 1; }
 echo "e2e $fixture : OK"

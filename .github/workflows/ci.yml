@@ -21,7 +21,7 @@ env:
   DOTNET_NOLOGO: "1"
 
 # Actions épinglées par SHA de commit (tags mutables), tenues à jour par Dependabot (.github/dependabot.yml).
-# Mêmes SHA dans template/{% if ci %}.github{% endif %}/workflows/hx-check.yml.jinja (vérifié par tests/template.test.mjs).
+# Mêmes SHA dans template/.github/workflows/hx-check.yml.jinja (vérifié par tests/template.test.mjs).
 jobs:
   unit:
     name: unit (${{ matrix.os }}, node ${{ matrix.node }})
