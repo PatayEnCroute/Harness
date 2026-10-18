@@ -132,6 +132,10 @@
           "minimum": 0,
           "maximum": 100,
           "description": "Couverture minimale des scénarios des specs principales par des tests tagués @scenario (défaut 100)"
+        },
+        "test_pattern": {
+          "type": "string",
+          "description": "Expression régulière (chemins en « / ») des fichiers de test dont les tags @scenario comptent. Par défaut : dossiers test/, tests/, __tests__/, spec/, e2e/ et fichiers *.test.*, *_test.*, test_*.py, *Tests.cs…"
         }
       }
     },

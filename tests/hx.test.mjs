@@ -17,7 +17,9 @@ import {
   main,
   checkSettings,
   mergeLeftovers,
+  migrateConfig,
   nodeVersionOk,
+  templateStatus,
   openspecCommand,
   parseFlags,
   resolveInvocations,
@@ -185,6 +187,19 @@ describe('validation du contrat', () => {
     assert.ok(issues.some((i) => i.label === 'Pistes' && i.detail.includes('M.design')));
   });
 
+  test('migrateConfig : ajoute les clés manquantes sans rien remplacer', () => {
+    const old = { version: 1, components: { a: { path: '.', commands: { test: 'x' } } }, trace: { min_coverage: 80 }, architecture: { level: 2 } };
+    const { config, added } = migrateConfig(old);
+    assert.equal(config.trace.min_coverage, 80);
+    assert.equal(config.architecture.level, 2);
+    assert.equal(config.architecture.style, 'feature-first');
+    assert.deepEqual(config.tracks, defaultConfig().tracks);
+    assert.deepEqual(config.components, old.components);
+    assert.ok(added.includes('tracks') && added.includes('architecture.style') && !added.includes('trace.min_coverage'));
+    assert.deepEqual(migrateConfig(config).added, [], 'idempotent');
+    assert.equal(old.tracks, undefined, 'entrée non modifiée');
+  });
+
   test('aucun composant : erreur', () => {
     const issues = validateConfig(defaultConfig(), tempProject({}));
     assert.ok(issues.some((i) => i.level === 'error' && i.label === 'Composants'));
@@ -322,6 +337,26 @@ describe('CLI', () => {
     assert.deepEqual(mergeLeftovers(root).sort(), ['.claude/skills/hx-tdd/SKILL.md.rej', 'CLAUDE.md']);
   });
 
+  test('doctor : version du template comparée au dernier tag de la source', () => {
+    const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], { cwd, encoding: 'utf8' });
+    const src = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-src-'));
+    git(src, 'init', '-q');
+    git(src, 'commit', '-q', '--allow-empty', '-m', 'a');
+    const root = tempProject({});
+    const answers = (commit) => fs.writeFileSync(path.join(root, '.copier-answers.yml'), `_commit: ${commit}\n_src_path: ${src}\n`);
+    answers('abc1234');
+    assert.match(templateStatus(root).detail, /aucun tag/);
+    git(src, 'tag', 'v0.1.0');
+    git(src, 'tag', 'v0.10.0');
+    git(src, 'tag', 'v0.9.0');
+    answers('v0.9.0');
+    assert.deepEqual(templateStatus(root), { level: 'warn', detail: 'v0.9.0, dernière : v0.10.0 → uvx copier update --trust' });
+    answers('v0.10.0-2-gabc1234');
+    assert.equal(templateStatus(root).level, 'ok');
+    fs.rmSync(path.join(root, '.copier-answers.yml'));
+    assert.equal(templateStatus(root), null);
+  });
+
   test('doctor : version minimale de Node', () => {
     assert.equal(nodeVersionOk('20.18.3'), false);
     assert.equal(nodeVersionOk('20.19.0'), true);
@@ -427,6 +462,21 @@ describe('OpenSpec : scénarios et traçabilité', () => {
     report = trace(root, {});
     assert.deepEqual(report.orphans.map((o) => [o.id, o.where]), [['calc/supprime', ['test/old.test.js:1']]]);
     assert.equal(report.ok, false);
+  });
+
+  test('trace : un tag dans le code de production ne couvre rien', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), {
+      'openspec/specs/calc/spec.md': mainSpec,
+      'src/add.js': '// @scenario calc/ajouter-deux-nombres\n',
+    });
+    let report = trace(root, {});
+    assert.equal(report.coverage, 0);
+    assert.deepEqual(report.outsideTests.map((o) => o.id), ['calc/ajouter-deux-nombres']);
+    assert.equal(report.ok, false);
+    assert.equal(trace(root, { trace: { test_pattern: '^src/' } }).ok, true, 'convention de test du projet');
+    writeFiles(root, { 'src/add.test.js': '// @scenario calc/ajouter-deux-nombres\n' });
+    report = trace(root, {});
+    assert.equal(report.ok, true);
   });
 
   test('trace : couverture minimale configurable', () => {

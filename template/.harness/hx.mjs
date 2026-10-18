@@ -49,6 +49,25 @@ export function defaultConfig() {
   };
 }
 
+// Complète un contrat existant avec les clés ajoutées depuis par le template, sans jamais remplacer une valeur.
+// config.json est spécifique (_skip_if_exists) : sans cela, une clé nouvelle n'atteindrait jamais les projets existants.
+export function migrateConfig(config) {
+  const fill = (target, defaults) => {
+    const added = [];
+    for (const [key, value] of Object.entries(defaults)) {
+      if (!(key in target)) {
+        target[key] = structuredClone(value);
+        added.push(key);
+      } else if (isObject(value) && isObject(target[key]) && !['components', 'features'].includes(key)) {
+        added.push(...fill(target[key], value).map((k) => `${key}.${k}`));
+      }
+    }
+    return added;
+  };
+  const migrated = structuredClone(config);
+  return { config: migrated, added: fill(migrated, defaultConfig()) };
+}
+
 export function loadConfig(root) {
   const file = path.join(root, CONFIG_PATH);
   if (!fs.existsSync(file)) return { file, config: null, error: 'absent' };
@@ -123,6 +142,13 @@ export function validateConfig(config, root) {
   if (arch.level !== undefined && !isLevel(arch.level)) add('error', 'Architecture', 'level doit valoir 0 à 4');
   for (const [feature, level] of Object.entries(arch.features ?? {})) {
     if (!isLevel(level)) add('error', 'Architecture', `niveau de « ${feature} » : 0 à 4`);
+  }
+  if (config.trace?.test_pattern !== undefined) {
+    try {
+      new RegExp(config.trace.test_pattern);
+    } catch {
+      add('error', 'Trace', 'test_pattern doit être une expression régulière valide');
+    }
   }
   const min = config.trace?.min_coverage;
   if (min !== undefined && !(Number.isInteger(min) && min >= 0 && min <= 100)) {
@@ -503,6 +529,8 @@ export function detect(root, { maxDepth = 3, python = defaultPython() } = {}) {
 // ---------------------------------------------------------------------------
 
 const TRACE_EXTENSIONS = new Set([...SOURCE_EXTENSIONS, '.feature', '.robot']);
+// Fichiers de test reconnus par défaut (mêmes conventions que .claude/rules/testing.md) ; trace.test_pattern le remplace.
+export const DEFAULT_TEST_PATTERN = String.raw`(^|/)(tests?|__tests__|specs?|e2e)/|\.(test|spec)\.[^/]+$|_(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|Tests?\.(cs|fs|vb|java|kt|scala|swift)$|\.(feature|robot)$`;
 const SCENARIO_TAG = /@scenario\s+([a-z0-9](?:[a-z0-9/_-]*[a-z0-9])?)/g;
 const toPosix = (p) => p.split(path.sep).join('/');
 
@@ -587,24 +615,27 @@ export function collectScenarios(root) {
   return { main, changes };
 }
 
-// Tags « @scenario <capability>/<scénario> » dans les fichiers source : Map id → ["fichier:ligne"].
-export function collectTags(root) {
+// Tags « @scenario <capability>/<scénario> » : Map id → ["fichier:ligne"].
+// Seuls les fichiers de test couvrent un scénario ; un tag ailleurs (code de production) est rangé dans « ignored ».
+export function collectTags(root, { testPattern = DEFAULT_TEST_PATTERN } = {}) {
+  const isTest = new RegExp(testPattern);
   const tags = new Map();
+  const ignored = new Map();
   for (const file of walkFiles(root, (f) => TRACE_EXTENSIONS.has(path.extname(f).toLowerCase()))) {
     const text = readText(file);
     if (!text.includes('@scenario')) continue;
+    const rel = toPosix(path.relative(root, file));
+    const target = isTest.test(rel) ? tags : ignored;
     text.split('\n').forEach((line, i) => {
-      for (const m of line.matchAll(SCENARIO_TAG)) {
-        tags.set(m[1], [...(tags.get(m[1]) ?? []), `${toPosix(path.relative(root, file))}:${i + 1}`]);
-      }
+      for (const m of line.matchAll(SCENARIO_TAG)) target.set(m[1], [...(target.get(m[1]) ?? []), `${rel}:${i + 1}`]);
     });
   }
-  return tags;
+  return Object.assign(tags, { ignored });
 }
 
 export function trace(root, config) {
   const { main, changes } = collectScenarios(root);
-  const tags = collectTags(root);
+  const tags = collectTags(root, { testPattern: config?.trace?.test_pattern });
   const known = new Set([...main, ...changes].map((s) => s.id));
   const uncoveredMain = main.filter((s) => !tags.has(s.id));
   const uncoveredChanges = changes.filter((s) => !tags.has(s.id));
@@ -613,7 +644,8 @@ export function trace(root, config) {
   const coverage = main.length ? Math.floor((covered / main.length) * 100) : 100;
   const min = config?.trace?.min_coverage ?? 100;
   const ok = uncoveredChanges.length === 0 && orphans.length === 0 && coverage >= min;
-  return { ok, scenarios: main.length, covered, coverage, min, uncoveredChanges, uncoveredMain, orphans };
+  const outsideTests = [...tags.ignored].map(([id, where]) => ({ id, where }));
+  return { ok, scenarios: main.length, covered, coverage, min, uncoveredChanges, uncoveredMain, orphans, outsideTests };
 }
 
 export function formatTrace(report, { limit = 20 } = {}) {
@@ -626,6 +658,7 @@ export function formatTrace(report, { limit = 20 } = {}) {
   list('Scénarios de changes en cours sans test', report.uncoveredChanges.map((s) => `${s.id} (${s.change})`));
   if (report.coverage < report.min) list('Scénarios des specs sans test', report.uncoveredMain.map((s) => s.id));
   list('Tags @scenario orphelins', report.orphans.map((o) => `${o.id} → ${o.where.join(', ')}`));
+  list('Tags @scenario hors fichier de test (ignorés : seul un test couvre un scénario)', report.outsideTests.map((o) => `${o.id} → ${o.where.join(', ')}`));
   return lines.join('\n');
 }
 
@@ -823,6 +856,34 @@ export function mergeLeftovers(root) {
     .map((file) => toPosix(path.relative(root, file)));
 }
 
+// Version du template d'un projet (.copier-answers.yml) comparée au dernier tag de sa source.
+export function readAnswers(root) {
+  const answers = {};
+  for (const line of readText(path.join(root, '.copier-answers.yml')).split(/\r?\n/)) {
+    const m = /^([\w-]+):\s*(.*?)\s*$/.exec(line);
+    if (m) answers[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+  return answers;
+}
+
+const parseVersion = (text) => /^v?(\d+)\.(\d+)\.(\d+)/.exec(text ?? '')?.slice(1).map(Number) ?? null;
+const compareVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+export function templateStatus(root, { timeout = 15000 } = {}) {
+  const { _commit: commit, _src_path: src } = readAnswers(root);
+  if (!src) return null;
+  const url = src.replace(/^gh:/, 'https://github.com/');
+  const r = spawnSync('git', ['ls-remote', '--tags', '--refs', url], { encoding: 'utf8', timeout });
+  if (r.status !== 0) return { level: 'warn', detail: `dernière version inconnue (${src} injoignable)` };
+  const tags = r.stdout.split('\n').map((l) => l.split('refs/tags/')[1]).filter((t) => parseVersion(t));
+  if (!tags.length) return { level: 'warn', detail: `${src} n'a aucun tag de version : le projet suit sa branche par défaut` };
+  const latest = tags.sort((a, b) => compareVersions(parseVersion(b), parseVersion(a)))[0];
+  const current = parseVersion(commit);
+  // copier enregistre « git describe » : v0.2.0-3-gabc1234 est postérieur à v0.2.0, donc au moins à jour à ce tag près.
+  if (current && compareVersions(current, parseVersion(latest)) >= 0) return { level: 'ok', detail: `${commit} (dernière : ${latest})` };
+  return { level: 'warn', detail: `${commit ?? 'version inconnue'}, dernière : ${latest} → uvx copier update --trust` };
+}
+
 function cmdDoctor(root, args) {
   const opts = parseFlags(args);
   const checks = [];
@@ -862,6 +923,8 @@ function cmdDoctor(root, args) {
   const pinned = readVersions(root).openspec;
   add(fs.existsSync(path.join(root, 'openspec', 'config.yaml')) ? 'ok' : 'error', 'OpenSpec', 'openspec/config.yaml');
   if (!opts['no-run']) {
+    const template = templateStatus(root);
+    if (template) add(template.level, 'Template Harness', template.detail);
     const installed = installedOpenspecVersion();
     if (!installed) add('warn', 'CLI openspec', `absente du PATH (requise par /opsx:*) : npm i -g @fission-ai/openspec@${pinned}`);
     else if (pinned && installed !== pinned) add('warn', 'CLI openspec', `${installed} installée, ${pinned} épinglée`);
@@ -923,6 +986,23 @@ function cmdTrace(root, args) {
   return report.ok ? 0 : 1;
 }
 
+function cmdMigrate(root) {
+  const { config, error } = loadConfig(root);
+  if (!config) {
+    if (error === 'absent') return 0; // rien à migrer : /hx-setup créera le contrat
+    console.error(`hx : ${error}`);
+    return 1;
+  }
+  const { config: migrated, added } = migrateConfig(config);
+  if (!added.length) {
+    console.log('hx migrate : contrat à jour');
+    return 0;
+  }
+  writeConfig(root, migrated);
+  console.log(`hx migrate : clés ajoutées à ${CONFIG_PATH} : ${added.join(', ')}`);
+  return 0;
+}
+
 function cmdOpenspec(root, args) {
   return execute(openspecCommand(root, args), root, { capture: false }).code;
 }
@@ -939,6 +1019,7 @@ const HELP = `hx : contrat de commandes du harness
                       vérifie l'installation et exécute chaque commande
   hx detect [--json] [--write [--force]]
                       propose les composants à partir des manifestes
+  hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 
 Codes de sortie : 0 succès · 1 échec · 2 usage · 3 commande non définie`;
@@ -951,6 +1032,7 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
     case 'doctor': return cmdDoctor(root, rest);
     case 'detect': return cmdDetect(root, rest);
     case 'trace': return cmdTrace(root, rest);
+    case 'migrate': return cmdMigrate(root);
     case 'openspec': return cmdOpenspec(root, rest);
     case undefined: case 'help': case '--help': case '-h':
       console.log(HELP);
