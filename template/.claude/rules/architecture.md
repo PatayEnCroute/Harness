@@ -31,6 +31,7 @@ Le niveau du projet et les écarts par feature sont dans `.harness/config.json` 
 | 1 · Feature-first *(défaut)* | Un dossier par feature avec sa tranche verticale complète (entrée, logique, données, tests). Pas d'abstraction. |
 | 2 · Feature + domaine isolé | Dans la feature : `domain/` pur, et des ports/adaptateurs seulement aux frontières qui en ont besoin |
 | 3 · Monolithe modulaire | Modules à contrats publics explicites, règles de dépendance testées |
+| 4 · Distribué | Services déployés séparément, contrats réseau versionnés. Seulement si un besoin l'impose déjà (équipes, déploiement, montée en charge indépendants), avec un ADR |
 
 ## Règles de dépendance
 

@@ -98,6 +98,17 @@ describe('cohérence et budgets', () => {
     assert.deepEqual(missing, []);
   });
 
+  test('CLAUDE.md ne recopie pas les critères de piste de hx-triage (une seule source, pas de dérive)', () => {
+    assert.doesNotMatch(read(path.join(template, 'CLAUDE.md')), /\| Quand \|/);
+    assert.match(read(path.join(claude, 'skills', 'hx-triage', 'SKILL.md')), /\| Piste \| Critères \|/);
+  });
+
+  test('les relecteurs rendent leurs constats au même format, que hx-review consolide', () => {
+    for (const name of agents.filter((n) => n.endsWith('-reviewer'))) {
+      assert.match(read(path.join(claude, 'agents', `${name}.md`)), /`\[bloquant\|important\|mineur\] chemin:ligne — /, name);
+    }
+  });
+
   test('settings.json : JSON valide, hooks vers des fichiers du template', () => {
     const settings = JSON.parse(read(path.join(claude, 'settings.json')));
     const commands = Object.values(settings.hooks).flat().flatMap((h) => h.hooks.map((x) => x.command));

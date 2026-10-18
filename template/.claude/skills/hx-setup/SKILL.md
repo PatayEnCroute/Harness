@@ -110,6 +110,7 @@ Renseigne `architecture` dans `.harness/config.json`. Le **besoin** décide, pas
 | 1 · Feature-first *(défaut)* | Cas général : un dossier par feature, tranche verticale complète, pas d'abstraction |
 | 2 · Feature + domaine isolé | Feature aux règles métier riches, ou I/O externe à isoler pour tester |
 | 3 · Monolithe modulaire clean | Plusieurs sous-domaines, longue durée de vie, changements fréquents et indépendants |
+| 4 · Distribué | Déjà imposé : services déployés séparément (équipes, déploiement ou charge indépendants). Jamais par anticipation |
 
 - `profile.size` : pars de `stats.sizeHint` de la détection, ajuste avec l'utilisateur.
 - `level` : niveau par défaut du projet ; `features` : seulement les écarts justifiés (ex. `"facturation": 2`).

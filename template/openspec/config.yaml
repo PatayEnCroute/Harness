@@ -19,18 +19,18 @@ rules:
     - "Pour une nouvelle capability, le delta commence par ## Purpose (au moins 50 caractères) : sans lui, l'archive laisse un texte provisoire refusé par validate --strict."
   design:
     - "Commencer par le besoin (problème, attribut qualité visé) avant toute solution."
-    - "Indiquer le niveau d'architecture visé (0 à 3) pour chaque feature touchée, et pourquoi."
+    - "Indiquer le niveau d'architecture visé (0 à 4) pour chaque feature touchée, et pourquoi."
     - "Présenter les options, dont « ne rien changer » et la plus simple ; justifier toute abstraction par un besoin nommé."
     - "Une décision difficilement réversible (schéma de données, contrat d'API publique, découpage en services) fait l'objet d'un ADR dans docs/adr/."
   tasks:
-    - "Une tâche = un comportement livré en TDD (test rouge puis code, dans la même tâche) ; jamais de tâche « écrire le test » séparée de son implémentation."
+    - "Une tâche = un comportement livré en TDD (test rouge puis code, dans la même tâche) ; jamais de tâche « écrire le test » séparée de son implémentation. Seule exception : un change de base (hx-discover), qui ne code rien, a une tâche par scénario « relier ou écrire le test de caractérisation »."
     - "Tâches de 2 à 5 minutes, chacune avec son critère de vérification : le test qui passe."
     - "Pas de tâche de vérification finale : hx-verify lance `node .harness/hx.mjs check` après la dernière tâche."
 
 operations:
   apply:
     guidance:
-      - "Préférer le skill hx-implement : un sous-agent neuf par tâche, test d'abord (hx-tdd), revue de conformité après chaque tâche."
+      - "Utiliser le skill hx-implement, jamais openspec-apply-change : un sous-agent neuf par tâche, test d'abord (hx-tdd), revue de conformité après chaque tâche."
       - "Lancer les tests via `node .harness/hx.mjs run test` (ou `--file <chemin>` pour un test ciblé)."
       - "Taguer chaque test qui couvre un scénario : `@scenario <capability>/<scénario>`."
       - "Ne cocher une tâche qu'après avoir vu son test passer."
