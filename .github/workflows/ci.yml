@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # shellcheck est préinstallé sur ubuntu-latest. -s bash : les scripts d'evals sans shebang sont lancés par bash.
-      - run: git ls-files -z '*.sh' | xargs -0 shellcheck -s bash -S error
+      - run: git ls-files -z '*.sh' | xargs -0 shellcheck -s bash -S warning
 
   e2e:
     name: e2e (${{ matrix.fixture }})

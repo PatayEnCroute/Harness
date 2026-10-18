@@ -337,7 +337,7 @@ src/
 | Événement | Action |
 |---|---|
 | `SessionStart` | Changes en cours (piste, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
-| `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `.claude/settings*.json`. Couvre Edit/Write et les commandes Bash qui écrivent ces chemins |
+| `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `.claude/settings*.json`. Couvre Edit/Write et les commandes Bash qui écrivent ces chemins. Confirmation aussi avant le skill `openspec-apply-change`, avec renvoi vers `hx-implement` |
 | `PostToolUse` (édition) | Note le fichier pour `Stop`, puis `lint-file` si défini, pour rester rapide. Contrat cassé → retour à Claude, jamais un silence |
 | `Stop` | Lint + typecheck des seuls composants dont Claude a édité du code **pendant la session** (modifications antérieures ignorées) ; liste vidée au vert ; une seule relance (`stop_hook_active`) |
 
@@ -350,7 +350,7 @@ src/
 | `openspec` | `openspec validate --all --strict` : structure des specs et des changes |
 | `archives` | `openspec validate --archived` : toutes les tâches d'un change archivé sont faites |
 | `pistes` | `x-track` déclaré sur les changes en cours, parmi les pistes de `tracks` ; règles de `tracks` (`spec` → delta spec, `design` → `design.md`, `adr` → ADR cité) ; tout ADR cité existe |
-| `trace` | Chaque scénario ADDED/MODIFIED d'un change en cours a un test tagué `@scenario` ; couverture des specs principales ≥ `trace.min_coverage` (100 % par défaut) ; aucun tag orphelin |
+| `trace` | Chaque scénario ADDED/MODIFIED d'un change en cours a un test tagué `@scenario` (seuls les fichiers de test comptent : `trace.test_pattern`) ; couverture des specs principales ≥ `trace.min_coverage` (100 % par défaut) ; aucun tag orphelin |
 | `lint` · `typecheck` · `arch` · `test` | Contrat de commandes, par composant |
 
 ---
@@ -459,7 +459,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | `/hx-setup` se trompe de commande | Il **exécute** chaque commande avant de l'écrire, puis tu relis le diff ; `hx doctor` revérifie |
 | Stack exotique ou monorepo complexe | Le contrat accepte n'importe quelle commande shell ; les composants couvrent le multi-stack |
 | Conflits lors de `copier update` | Le spécifique vit dans des fichiers hors template (§3.1) ; `hx doctor` détecte marqueurs de conflit et `settings.json` illisible |
-| Projets qui ne se mettent plus à jour | Version visible dans `.copier-answers.yml` (`_commit`), comparée au dernier tag du template à la main |
+| Projets qui ne se mettent plus à jour | `hx doctor` compare `_commit` (`.copier-answers.yml`) au dernier tag du template ; `hx migrate` complète le contrat à chaque update |
 | Besoin futur d'un autre outil IA | Skills au standard `SKILL.md` ; ajouter une cible = générer des copies (réintroduire `sync`) |
 | L'architecte sur-conçoit | Besoin d'abord, option la plus simple obligatoire, niveau par feature ; `hx-code-reviewer` signale toute abstraction sans besoin cité |
 | Lourdeur | Pistes S/M/L ; élaguer ce qui ne sert pas |

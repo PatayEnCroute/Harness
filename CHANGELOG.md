@@ -21,6 +21,28 @@ Corrections issues de la revue du 2026-10-18. Passage en 0.x : rien n'est encore
 - ADR-004 : OpenSpec comme dépendance centrale, procédure de montée de version et critères de sortie.
 - Tests : 0 mutation survivante sur 26 dans `hx.mjs` et `hooks.mjs` (14 sur 14 survivaient avant) ; e2e `copier update` avec conflit dans la même zone et montée de version d'OpenSpec.
 
+### Ajouté (suite de la revue, points importants)
+- **Trace** : seul un tag `@scenario` dans un fichier de test couvre un scénario (`trace.test_pattern` pour une autre convention) ; les tags du code de production sont listés à part.
+- **`hx doctor`** signale un projet en retard sur le dernier tag du template.
+- **`hx migrate`**, lancé à chaque `copier update` : ajoute à `.harness/config.json` les clés nouvelles du template, sans rien remplacer.
+- **Projet existant** : marche à suivre dans le README ; `/hx-setup` récupère depuis git `CLAUDE.md`, `.claude/settings.json` et `openspec/config.yaml` remplacés.
+- **Workflow** :
+  - piste S sans test rouge artificiel pour un refactor ou un renommage (tests existants verts avant et après), critères S harmonisés entre `CLAUDE.md` et `hx-triage` ;
+  - `hx-security-reviewer` emploie la même échelle que les autres relecteurs ;
+  - le skill `openspec-apply-change` demande confirmation et renvoie vers `hx-implement`.
+- **CI du template** :
+  - actions épinglées par SHA et Dependabot ;
+  - `ANTHROPIC_API_KEY` limité à l'étape evals, claude-code épinglé ;
+  - unitaires sur Linux, macOS, Windows et Node 20.19 ; `npm test` hermétique, contrat OpenSpec dans `npm run test:contract` ;
+  - shellcheck, `concurrency`, `timeout-minutes`, push sur `main` seulement.
+- **CI livrée** (`hx-check.yml`) : SHA, branche par défaut configurable (`default_branch`), `concurrency`, timeout, Dependabot ; ses étapes `run:` sont exécutées par l'e2e.
+- **Evals** :
+  - graders durcis : niveau d'architecture sur une ligne imposée, comportement vérifié par mutants, test écrit avant le code d'après le transcript, `hx.mjs` restauré et `config.json` figé avant notation ;
+  - `setup` n'est plus pré-résolu ;
+  - `--runs N` avec taux k/n, modèle épinglé (`EVAL_MODEL`), timeout par exécution ;
+  - A/B `--without` qui retire aussi les lignes citant le composant ;
+  - résultats en JSONL dans `evals/results/`.
+
 ### Corrigé
 - `--component toString` (et tout nom hérité du prototype) accepté comme composant.
 - `--file` sans valeur lançait toute la suite.
