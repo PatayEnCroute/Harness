@@ -47,14 +47,18 @@ export function relative(root, file) {
 
 // Fichiers qui décident de ce qui s'exécute sans confirmation (commandes du contrat, hooks, permissions),
 // et specs principales, qui ne changent que par /opsx:sync ou /opsx:archive.
+const EXECUTION_REASON = 'Ce fichier décide des commandes exécutées sans confirmation (contrat hx, hooks ou permissions). Vérifie la modification avant de l\'accepter.';
 const PROTECTED = [
   { test: (rel) => rel.startsWith('openspec/specs/'), reason: 'openspec/specs/ ne change que pendant /opsx:sync ou /opsx:archive. Confirme seulement dans ce cadre.' },
-  {
-    test: (rel) => ['.harness/config.json', '.harness/hx.mjs', '.harness/hooks.mjs'].includes(rel) || /^\.claude\/settings(\.local)?\.json$/.test(rel),
-    reason: 'Ce fichier décide des commandes exécutées sans confirmation (contrat hx, hooks ou permissions). Vérifie la modification avant de l\'accepter.',
-  },
+  { test: (rel) => rel === '.harness/config.json', reason: EXECUTION_REASON, contract: true },
+  { test: (rel) => ['.harness/hx.mjs', '.harness/hooks.mjs'].includes(rel) || /^\.claude\/settings(\.local)?\.json$/.test(rel), reason: EXECUTION_REASON },
 ];
-const PROTECTED_IN_COMMAND = /(?:^|[\s'"=/])(\.harness\/(?:config\.json|hx\.mjs|hooks\.mjs)|\.claude\/settings(?:\.local)?\.json|openspec\/specs\/)/;
+// Exécution sans humain (evals de /hx-setup) : une confirmation y vaut refus, alors qu'écrire le contrat est la tâche.
+// HX_ALLOW_CONFIG_EDITS=1 lève la confirmation sur .harness/config.json seulement ; hooks, permissions et specs restent protégés.
+const protectedFor = (env) => PROTECTED.filter((p) => !(p.contract && env.HX_ALLOW_CONFIG_EDITS === '1'));
+const PROTECTED_IN_COMMAND = /(?:^|[\s'"=/])(\.harness\/(?:config\.json|hx\.mjs|hooks\.mjs)|\.claude\/settings(?:\.local)?\.json|openspec\/specs\/)/g;
+// Lancer un script du harness (node .harness/hx.mjs …) ne l'écrit pas : ce chemin-là ne compte pas.
+const RUNS_HARNESS_SCRIPT = /\bnode\s+["']?(?:\$CLAUDE_PROJECT_DIR\/)?\.harness\/(?:hx|hooks)\.mjs["']?/g;
 // Écritures probables dans une commande shell (redirections vers /dev/null ou entre descripteurs exclues).
 const WRITES = /\btee\b|\b(sed|perl)\b[^|;&]*\s-\w*i|--in-place|\b(mv|cp|rm|truncate|dd|ln)\s|writeFile|\bopen\(|>/;
 const writes = (command) => WRITES.test(command.replace(/\d*>&\d|\d*>\s*\/dev\/null/g, ''));
@@ -129,21 +133,23 @@ const REDIRECTED_SKILLS = {
 
 // Fichiers protégés : confirmation demandée, qu'ils soient édités par Edit/Write ou par une commande Bash qui écrit.
 // Skills qui court-circuitent le workflow : confirmation aussi, avec l'alternative.
-export function preToolUse(root, input) {
+export function preToolUse(root, input, env = process.env) {
+  const guarded = protectedFor(env);
   let reason;
   if (input.tool_name === 'Skill') {
     const skill = String(input.tool_input?.skill ?? '').replace(/^.*:/, '');
     reason = Object.hasOwn(REDIRECTED_SKILLS, skill) ? REDIRECTED_SKILLS[skill] : undefined;
   } else if (input.tool_name === 'Bash') {
     const command = String(input.tool_input?.command ?? '');
-    const target = PROTECTED_IN_COMMAND.exec(command);
-    if (target && writes(command)) {
-      reason = PROTECTED.find((p) => p.test(target[1]))?.reason;
+    if (writes(command)) {
+      // Tous les chemins protégés cités, pas seulement le premier.
+      const targets = [...command.replace(RUNS_HARNESS_SCRIPT, 'node').matchAll(PROTECTED_IN_COMMAND)].map((m) => m[1]);
+      reason = targets.map((t) => guarded.find((p) => p.test(t))?.reason).find(Boolean);
     }
   } else {
     const file = input.tool_input?.file_path;
     const rel = file && relative(root, file);
-    if (rel) reason = PROTECTED.find((p) => p.test(CASE_INSENSITIVE_FS ? rel.toLowerCase() : rel))?.reason;
+    if (rel) reason = guarded.find((p) => p.test(CASE_INSENSITIVE_FS ? rel.toLowerCase() : rel))?.reason;
   }
   if (!reason) return 0;
   console.log(JSON.stringify({
