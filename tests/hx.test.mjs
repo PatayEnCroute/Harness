@@ -7,8 +7,12 @@ import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  checkPolicy,
   defaultConfig,
   detect,
+  parseScenarios,
+  slugify,
+  trace,
   findComponentForFile,
   main,
   parseFlags,
@@ -218,5 +222,106 @@ describe('CLI', () => {
     assert.equal(shellQuote('src/a.js', 'linux'), 'src/a.js');
     assert.equal(shellQuote("a b'c", 'linux'), `'a b'\\''c'`);
     assert.equal(shellQuote('a b', 'win32'), '"a b"');
+  });
+});
+
+function writeFiles(root, files) {
+  for (const [rel, content] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), content);
+  }
+  return root;
+}
+
+const mainSpec = `# Calc Specification
+
+## Purpose
+Arithmétique.
+
+## Requirements
+
+### Requirement: Addition
+The system SHALL add two integers.
+
+#### Scenario: Ajouter deux nombres
+- **WHEN** adding 2 and 3
+- **THEN** the result is 5
+`;
+
+const deltaSpec = `## ADDED Requirements
+
+### Requirement: Multiplication
+The system SHALL multiply two integers.
+
+#### Scenario: Multiply two numbers
+- **WHEN** multiplying 2 and 3
+- **THEN** the result is 6
+
+## REMOVED Requirements
+
+### Requirement: Old
+**Reason**: obsolete
+**Migration**: none
+
+#### Scenario: Old behaviour
+- **WHEN** x
+- **THEN** y
+`;
+
+describe('OpenSpec : scénarios et traçabilité', () => {
+  test('slugify : accents, ponctuation, casse', () => {
+    assert.equal(slugify('Ajouter deux nombres, vite !'), 'ajouter-deux-nombres-vite');
+    assert.equal(slugify('Élément été'), 'element-ete');
+  });
+
+  test('parseScenarios : section du delta et exigence parente', () => {
+    const scenarios = parseScenarios(deltaSpec);
+    assert.deepEqual(scenarios.map((s) => [s.section, s.requirement, s.scenario]), [
+      ['ADDED', 'Multiplication', 'Multiply two numbers'],
+      ['REMOVED', 'Old', 'Old behaviour'],
+    ]);
+    assert.equal(parseScenarios(mainSpec)[0].section, null);
+  });
+
+  test('trace : couverture, scénarios de change sans test, tags orphelins', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), {
+      'openspec/specs/calc/spec.md': mainSpec,
+      'openspec/changes/add-mult/specs/calc/spec.md': deltaSpec,
+      'test/add.test.js': '// @scenario calc/ajouter-deux-nombres\n',
+    });
+    let report = trace(root, {});
+    assert.equal(report.coverage, 100);
+    assert.deepEqual(report.uncoveredChanges.map((s) => s.id), ['calc/multiply-two-numbers']);
+    assert.equal(report.ok, false);
+
+    writeFiles(root, { 'test/mult.test.js': "test('x', () => {}); // @scenario calc/multiply-two-numbers\n" });
+    assert.equal(trace(root, {}).ok, true);
+
+    writeFiles(root, { 'test/old.test.js': '# @scenario calc/supprime\n' });
+    report = trace(root, {});
+    assert.deepEqual(report.orphans.map((o) => [o.id, o.where]), [['calc/supprime', ['test/old.test.js:1']]]);
+    assert.equal(report.ok, false);
+  });
+
+  test('trace : couverture minimale configurable', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), { 'openspec/specs/calc/spec.md': mainSpec });
+    assert.equal(trace(root, {}).ok, false);
+    assert.equal(trace(root, { trace: { min_coverage: 0 } }).ok, true);
+  });
+
+  test('checkPolicy : piste L exige design.md et un ADR existant', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-policy-')), {
+      'openspec/changes/big/.openspec.yaml': 'schema: spec-driven\nx-track: L\n',
+      'openspec/changes/small/.openspec.yaml': 'schema: spec-driven\n',
+    });
+    const details = () => checkPolicy(root).map((i) => `${i.level} ${i.label} ${i.detail}`);
+    assert.ok(details().some((d) => d.startsWith('error big') && d.includes('design.md manquant')));
+    assert.ok(details().some((d) => d.startsWith('warn small') && d.includes('piste non déclarée')));
+    writeFiles(root, { 'openspec/changes/big/design.md': '## Besoin\nVoir docs/adr/001-cache.md\n' });
+    assert.ok(details().some((d) => d.includes('ADR introuvable : docs/adr/001-cache.md')));
+    writeFiles(root, { 'docs/adr/001-cache.md': '# ADR-001\n' });
+    assert.ok(!details().some((d) => d.startsWith('error')));
+    writeFiles(root, { 'openspec/changes/big/design.md': '## Besoin\nVoir [ADR](docs/adr/002-décision.md).\n' });
+    assert.ok(details().some((d) => d.includes('ADR introuvable : docs/adr/002-décision.md')));
   });
 });

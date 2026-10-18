@@ -12,6 +12,9 @@
       "domain_complexity": null
     }
   },
+  "trace": {
+    "min_coverage": 100
+  },
   "tracks": {
     "S": {
       "spec": false

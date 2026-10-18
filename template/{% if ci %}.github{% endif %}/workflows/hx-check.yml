@@ -1,0 +1,30 @@
+# Géré par le template Harness (copier update). L'outillage propre à la stack est dans .harness/ci/setup/.
+name: hx-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  OPENSPEC_TELEMETRY: "0"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Outillage de la stack
+        uses: ./.harness/ci/setup
+      - name: CLI OpenSpec (version épinglée)
+        run: npm i -g "@fission-ai/openspec@$(node -p "require('./.harness/versions.json').openspec")"
+      - name: Dépendances
+        run: node .harness/hx.mjs run setup || [ $? -eq 3 ]
+      - name: hx check
+        run: node .harness/hx.mjs check --verbose

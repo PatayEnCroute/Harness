@@ -1,6 +1,6 @@
 # Harness — Plan directeur
 
-> **Statut** : v0.5 · 2026-10-17 · **phase 0 livrée** (template, `hx`, `/hx-setup` v0, CI)
+> **Statut** : v1.0 · 2026-10-18 · **phases 0 à 3 livrées** (voir §9 pour ce qui reste à confirmer sur un vrai projet)
 > **Nature** : un **template personnel**. On y garde sa configuration Claude Code, on l'applique à chaque projet (nouveau ou existant), puis on la met à jour depuis ce repo.
 > **Cadre** : Claude Code · projets solo · GitHub Actions · **agnostique de la stack** · OpenSpec 1.14.x (OPSX)
 > **État de l'art** → [`research/etat-de-l-art-2026-10.md`](research/etat-de-l-art-2026-10.md)
@@ -74,7 +74,7 @@ C'est le cœur de l'agnosticité.
 
 | | **Générique** (vient du template, mis à jour par `copier update`) | **Spécifique** (personnalisé à l'intégration par `/hx-setup`) |
 |---|---|---|
-| Fichiers | `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.harness/`, `.harness/hooks/`, `openspec/config.yaml`, `.claude/rules/openspec.md`, `testing.md` et `architecture.md` | `.harness/config.json` (commandes, profil d'architecture), `.claude/rules/stack-*.md`, section « Carte » de `CLAUDE.md`, étape *setup* du workflow CI, permissions shell |
+| Fichiers | `CLAUDE.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.claude/rules/{openspec,testing,architecture}.md`, `.claude/settings.json`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json` (commandes, profil d'architecture, trace), `.harness/project.md` (carte, importée par `CLAUDE.md`), `.claude/rules/stack-*.md`, `.harness/ci/setup/action.yml` (outillage CI), configuration `arch` |
 | Change… | quand le Harness s'améliore | une seule fois par projet, puis rarement |
 | Conflits `copier update` | gérés par la fusion à 3 voies | **aucun** : fichiers créés par `/hx-setup`, absents du template ou marqués `_skip_if_exists` |
 
@@ -153,12 +153,15 @@ flowchart LR
 
 ```yaml
 _subdirectory: template
-_min_copier_version: "9.10"
-project_name: { type: str }
-ci: { type: bool, default: true }          # workflow GitHub Actions
-openspec_version: { default: "1.14.3" }    # épinglée
-_tasks:
-  - npx -y @fission-ai/openspec@{{ openspec_version }} init --tools claude   # update en mise à jour
+_skip_if_exists: [.harness/config.json, .harness/project.md, .harness/ci/setup/action.yml]
+_tasks:                                   # OpenSpec épinglé, télémétrie coupée
+  - command: node .harness/hx.mjs openspec init --tools claude .
+    when: "{{ _copier_operation == 'copy' }}"
+  - command: node .harness/hx.mjs openspec update .
+    when: "{{ _copier_operation == 'update' }}"
+project_name: { type: str, default: "{{ _folder_name }}" }
+ci: { type: bool, default: true }         # workflow GitHub Actions hx-check
+openspec_version: { type: str, default: "1.14.3" }
 ```
 
 ### 3.5 Points d'accroche OpenSpec
@@ -169,7 +172,8 @@ _tasks:
 | `config.yaml › rules.<artefact>` | Règles d'écriture : proposal (piste, non-objectifs), specs (scénarios testables), design (besoin d'abord, niveau visé, options : §5), tasks (2–5 min, test d'abord) |
 | `operations.apply.guidance` | Renvoie vers `hx-implement` / `hx-tdd` |
 | `.openspec.yaml › x-*` | `x-track: M` |
-| CLI `--json` (`status`, `instructions`, `validate`) | Seule interface utilisée par les scripts `hx` |
+| Markdown d'OpenSpec (specs, deltas, `tasks.md`, `.openspec.yaml`) | Lu directement par `hx trace`, le contrôle des pistes et les hooks : rapide, hors ligne |
+| CLI `--json` (`list`, `instructions apply`, `validate`) | Utilisée par les skills ; chaque hypothèse est vérifiée par `tests/openspec-contract.test.mjs` |
 | Schéma custom | **Pas en v1** : pas d'héritage de schéma (#778), un fork serait à maintenir |
 
 ---
@@ -287,7 +291,7 @@ src/
 
 ## 6. Catalogue
 
-**MVP** = phases 0–1 · **v1** = phase 2 · **v2** = phase 3.
+**MVP** = phases 0–1 · **v1** = phase 2 · **v2** = phase 3. **Tout le catalogue est livré.**
 
 ### Skills (`.claude/skills/hx-*`)
 
@@ -308,7 +312,7 @@ src/
 
 ### Agents (`.claude/agents/hx-*.md`)
 
-| Agent | Rôle | Outils | Modèle |
+| Agent | Rôle | Outils | Niveau de modèle conseillé |
 |---|---|---|---|
 | `hx-explorer` | Cartographier le code et l'impact | lecture seule | rapide |
 | `hx-implementer` | Réaliser **une** tâche en TDD | lecture, écriture, shell | standard |
@@ -328,25 +332,26 @@ src/
 | `.claude/rules/architecture.md` | fichiers source | template (globs par `/hx-setup`) | Forme feature-first, règle de dépendance, « pas de besoin, pas de couche » |
 | `.claude/rules/stack-*.md` | globs de la stack | **`/hx-setup`** | Idiomes, pièges, conventions observées |
 
-### Hooks (`.claude/settings.json` → `.harness/hooks/*.mjs`)
+### Hooks (`.claude/settings.json` → `.harness/hooks.mjs`)
 
 | Événement | Action |
 |---|---|
-| `SessionStart` | Résumé `openspec status --json` (le change actif est dans le contexte) |
-| `PreToolUse` (écriture) | **Bloque** les écritures dans `openspec/specs/**` : les specs ne changent que par archive |
-| `PostToolUse` (édition) | `hx run lint --file <fichier>` : agnostique grâce au contrat |
-| `Stop` | `hx check --fast` si un change est actif |
+| `SessionStart` | Changes en cours (piste, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
+| `PreToolUse` (écriture) | **Demande confirmation** pour `openspec/specs/**` : seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement (bloquer les casserait) |
+| `PostToolUse` (édition) | `hx run lint --file <fichier> --file-only` : seulement si `lint-file` est défini, pour rester rapide |
+| `Stop` | Si du code d'un composant a changé : lint + typecheck ; une seule relance (`stop_hook_active`) |
+
+> Le niveau de modèle des agents n'est pas fixé dans le template (champ `model` absent : modèle de la session). Il se règle par projet si besoin.
 
 ### Contrôles (`hx check`, identiques en local et en GitHub Actions)
 
-| Contrôle | Vérifie |
+| Étape | Vérifie |
 |---|---|
-| `openspec validate --all --strict` | Structure des specs et des changes |
-| `hx run test / lint / typecheck` | Contrat de commandes |
-| `hx trace` (v1) | Chaque scénario ADDED/MODIFIED a ≥ 1 test tagué `@scenario` ; aucun tag orphelin |
-| `hx run arch` (v1) | Règles de dépendance (§5.3) |
-| `tasks-complete` | `tasks.md` complet avant l'archive |
-| `track-policy` | Piste L → `design.md` et ADR présents |
+| `openspec` | `openspec validate --all --strict` : structure des specs et des changes |
+| `archives` | `openspec validate --archived` : toutes les tâches d'un change archivé sont faites |
+| `pistes` | `x-track` déclaré sur les changes en cours ; piste L → `design.md` qui cite un ADR existant |
+| `trace` | Chaque scénario ADDED/MODIFIED d'un change en cours a un test tagué `@scenario` ; couverture des specs principales ≥ `trace.min_coverage` (100 % par défaut) ; aucun tag orphelin |
+| `lint` · `typecheck` · `arch` · `test` | Contrat de commandes, par composant |
 
 ---
 
@@ -363,22 +368,23 @@ Harness/
 │   │                     # dans le projet
 │   ├── CLAUDE.md
 │   ├── .claude/
-│   │   ├── skills/hx-*/
-│   │   ├── agents/hx-*.md
-│   │   ├── rules/
-│   │   └── settings.json
+│   │   ├── skills/hx-*/  # 12 skills
+│   │   ├── agents/hx-*.md # 7 agents
+│   │   ├── rules/        # 3 rules
+│   │   └── settings.json # hooks, permissions
 │   ├── .harness/
+│   │   ├── hx.mjs  hooks.mjs
 │   │   ├── config.json   # squelette
 │   │   ├── project.md.jinja
-│   │   ├── hx.mjs
-│   │   └── hooks/        # P1
+│   │   └── ci/setup/     # si ci
 │   ├── openspec/config.yaml
 │   └── .github/workflows/
-│       └── hx-check.yml.jinja
-├── tests/
-│   └── fixtures/         # node, python, dotnet,
-│                         # go, mixte
-└── docs/                 # PLAN, ADR, research
+│       └── hx-check.yml  # si ci
+├── tests/                # unit, contrat,
+│   └── fixtures/         # e2e (5 stacks)
+├── evals/                # evals headless
+└── docs/                 # PLAN, ADR,
+                          # élagage, research
 ```
 
 </td><td>
@@ -397,7 +403,8 @@ mon-projet/
 ├── .harness/
 │   ├── config.json       # ← personnalisé
 │   ├── project.md        # ← personnalisé
-│   ├── hx.mjs  hooks/
+│   ├── ci/setup/         # ← personnalisé
+│   ├── hx.mjs  hooks.mjs
 ├── openspec/
 │   ├── config.yaml
 │   ├── specs/
@@ -416,25 +423,31 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 
 ## 8. Qualité du template
 
-| Test (GitHub Actions du repo Harness) | Vérifie |
-|---|---|
-| `copier copy` puis `hx detect --write` sur des **fixtures multi-stack** (Node, Python, .NET, Go, projet mixte) → `hx doctor` et `hx check` verts | **Preuve d'agnosticité** : le générique fonctionne quelle que soit la stack |
-| `copier update` du tag précédent vers le courant, sur une fixture personnalisée | Les personnalisations survivent à la mise à jour |
-| Tests unitaires de `hx.mjs` (résolution de composant, exécution, codes de sortie) | Fiabilité du contrat |
-| Validation `SKILL.md` + budgets (< 500 lignes, `CLAUDE.md` ≤ 100) | Standard et budget de contexte |
-| Contrat `--json` d'OpenSpec sur la version épinglée | Pas de casse silencieuse lors d'une montée de version |
-| Evals de `hx-setup` et des skills clés (v1) : tâche sur une fixture, puis vérification déterministe | Gain réel (principe P9) |
-
----
+| Test | Vérifie | Où |
+|---|---|---|
+| Unitaires `hx` et hooks | Détection, résolution des commandes, trace, pistes, codes de sortie, hooks (confirmation, lint, `Stop`, session) | `npm test`, CI |
+| Lint du template | Standard `SKILL.md`, agents en lecture seule sans Edit/Write, rules ciblées, budgets (`CLAUDE.md` ≤ 100 lignes, skills < 500), références `hx-*` existantes, aucun Unicode invisible | `npm test`, CI |
+| Contrat OpenSpec | Chaque hypothèse sur la version épinglée : `init`, `.openspec.yaml`, `list` et `instructions apply --json`, archive, `Purpose` | `npm test`, CI |
+| E2E multi-stack | `copier copy` → `hx detect` → `doctor` → `check` sur Node, Python, .NET, Go, mixte ; YAML CI valide | CI |
+| E2E cycle OpenSpec | Scénario sans test → rouge ; test tagué → vert ; hooks ; archive ; dérive → rouge | CI |
+| E2E `copier update` | L'amélioration générique arrive, les personnalisations restent | CI |
+| Evals comportementales | Un agent headless sur un projet de démo, notation déterministe ; A/B `--without <skill>` pour l'élagage | `evals/run.sh`, CI manuelle (coût réel) |
 
 ## 9. Roadmap
 
-| Phase | Durée indicative | Livrables | Terminé quand |
+| Phase | Livrables | Validé par | Reste à confirmer sur un vrai projet |
 |---|---|---|---|
-| **P0 Socle** ✅ | livrée | `copier.yml`, `template/`, `CLAUDE.md`, `openspec/config.yaml`, `hx run / check / doctor / detect / openspec`, `/hx-setup` v0, 5 fixtures, CI du template | ✅ Sur 5 fixtures (Node, Python, .NET, Go, mixte) : `copier copy` → `hx detect` → `hx doctor` et `hx check` verts ; `copier update` conserve les personnalisations |
-| **P1 Boucle de base** | ~2 sem. | 7 skills MVP (dont `hx-adr`), 5 agents (dont `hx-architect`), rule `architecture.md`, hooks, workflow `hx-check.yml`, `/hx-setup` complet (rules stack, carte, CI, permissions) | 3 changes M menés de bout en bout sur un vrai projet |
-| **P2 Qualité** | ~2 sem. | `hx trace`, `hx run arch`, `hx-verifier`, `hx-security-reviewer`, `hx-debug` / `hx-clarify` / `hx-learn`, evals | Traçabilité ≥ 80 % sur le projet pilote, evals vertes |
-| **P3 Extensions** | au fil de l'eau | `hx-discover`, plugin utilisateur optionnel, autres outils si besoin, revue d'élagage | Selon les besoins |
+| **P0 Socle** ✅ | `copier.yml`, `template/`, `hx run / check / doctor / detect / openspec`, `/hx-setup`, fixtures, CI du template | E2E sur 5 stacks ; `copier update` conserve les personnalisations | — |
+| **P1 Boucle de base** ✅ | Skills `hx-triage`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr` ; agents `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-architect` ; rules `openspec`, `testing`, `architecture` ; hooks ; workflow `hx-check.yml` + outillage CI ; contrôles pistes et archives | Unitaires (hooks, pistes) ; E2E cycle OpenSpec ; evals `tdd-s`, `implement-m`, `architect`, `setup` | 3 changes M menés de bout en bout |
+| **P2 Qualité** ✅ | `hx trace` ; agents `hx-verifier`, `hx-security-reviewer` ; skills `hx-clarify`, `hx-debug`, `hx-learn` ; evals headless + A/B ; lint du template ; contrat OpenSpec | Unitaires ; contrat OpenSpec ; 4/4 evals | Traçabilité ≥ 80 % sur le projet pilote |
+| **P3 Extensions** ✅ | Skill `hx-discover` (brownfield) ; revue d'élagage ([`elagage.md`](elagage.md)) ; ADR 001 à 003 (plugin utilisateur et multi-outils non retenus) | Lint du template | Première revue d'élagage après quelques semaines d'usage |
+
+**Constats faits pendant la réalisation**, désormais encodés dans le harness :
+
+- **Pas de blocage de `openspec/specs/`** : `/opsx:sync` et `/opsx:archive` y écrivent par l'agent. Le hook demande donc une confirmation au lieu de bloquer.
+- **`Purpose` d'au moins 50 caractères** pour une nouvelle capability, sinon `validate --strict` refuse la spec après l'archive (rule `openspec` + `config.yaml`).
+- **`state` décide, pas `missingPrerequisites`** : `instructions apply` liste `design` comme prérequis même quand il est facultatif. L'eval `implement-m` a révélé ce bug du skill `hx-implement`, corrigé et couvert par le contrat.
+- **Jamais de dossier `bin/`** pour les scripts du harness : les `.gitignore` .NET l'ignorent. `hx doctor` vérifie qu'aucun fichier du harness n'est ignoré.
 
 ---
 
@@ -464,4 +477,6 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | 5 | Stack | ✅ **Agnostique** : contrat de commandes + `/hx-setup` |
 | 6 | Archive OpenSpec | ✅ **Dernier commit de la PR** : `main` a toujours un code et des specs cohérents |
 | 7 | Orientation d'architecture | ✅ **Feature-first + règle de dépendance clean**, niveau proportionné à la taille et au besoin (§5) |
-| 8 | Plugin utilisateur en complément ? | ⏳ Plus tard (P3), si le besoin de mise à jour instantanée se fait sentir |
+| 8 | Plugin utilisateur en complément ? | ✅ **Non retenu** : les skills dépendent des fichiers du projet ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)) |
+| 9 | Hook sur `openspec/specs/` | ✅ **Confirmation** (`ask`) plutôt que blocage : l'archive y écrit légitimement |
+| 10 | Modèle des agents | ✅ **Hérité de la session** ; réglable par projet via le champ `model` |

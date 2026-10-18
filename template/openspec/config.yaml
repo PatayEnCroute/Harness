@@ -16,6 +16,7 @@ rules:
     - "Chaque exigence utilise SHALL ou MUST et décrit un comportement observable, sans détail d'implémentation."
     - "Chaque scénario est vérifiable par un test automatisé (WHEN/THEN concrets, valeurs explicites)."
     - "Le moins d'exigences possible pour couvrir le besoin."
+    - "Pour une nouvelle capability, le delta commence par ## Purpose (au moins 50 caractères) : sans lui, l'archive laisse un texte provisoire refusé par validate --strict."
   design:
     - "Commencer par le besoin (problème, attribut qualité visé) avant toute solution."
     - "Indiquer le niveau d'architecture visé (0 à 3) pour chaque feature touchée, et pourquoi."
@@ -29,7 +30,9 @@ rules:
 operations:
   apply:
     guidance:
+      - "Préférer le skill hx-implement : un sous-agent neuf par tâche, test d'abord (hx-tdd), revue de conformité après chaque tâche."
       - "Lancer les tests via `node .harness/hx.mjs run test` (ou `--file <chemin>` pour un test ciblé)."
+      - "Taguer chaque test qui couvre un scénario : `@scenario <capability>/<scénario>`."
       - "Ne cocher une tâche qu'après avoir vu son test passer."
   archive:
     guidance:

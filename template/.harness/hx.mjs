@@ -40,6 +40,7 @@ export function defaultConfig() {
       features: {},
       profile: { size: null, lifespan: null, domain_complexity: null },
     },
+    trace: { min_coverage: 100 },
     tracks: {
       S: { spec: false },
       M: { spec: true, design: 'optional' },
@@ -137,13 +138,14 @@ export function findComponentForFile(config, root, file) {
 }
 
 // Renvoie la liste des commandes à exécuter : [{ component, command, cwd }].
-export function resolveInvocations(config, root, name, { component, file } = {}) {
+// fileOnly : avec --file, n'exécute que la variante « -file » (sinon rien), pour les hooks rapides.
+export function resolveInvocations(config, root, name, { component, file, fileOnly = false } = {}) {
   if (file) {
     const match = findComponentForFile(config, root, file);
     if (!match) return [];
     const { component: c, relative } = match;
     const perFile = c.commands[`${name}-file`];
-    const command = perFile ? perFile.replaceAll('{file}', shellQuote(relative)) : c.commands[name];
+    const command = perFile ? perFile.replaceAll('{file}', shellQuote(relative)) : fileOnly ? undefined : c.commands[name];
     return command ? [{ component: c.name, command, cwd: path.resolve(root, c.path) }] : [];
   }
   return components(config)
@@ -154,7 +156,7 @@ export function resolveInvocations(config, root, name, { component, file } = {})
 let installedOpenspec;
 
 // Version de la CLI openspec présente dans le PATH, ou null.
-function installedOpenspecVersion() {
+export function installedOpenspecVersion() {
   if (installedOpenspec === undefined) {
     const r = spawnSync('openspec --version', { shell: true, encoding: 'utf8', env: env() });
     installedOpenspec = r.status === 0 ? r.stdout.trim() : null;
@@ -175,7 +177,7 @@ export function openspecCommand(root, args) {
 
 const env = () => ({ ...process.env, OPENSPEC_TELEMETRY: '0' });
 
-function execute(command, cwd, { capture }) {
+export function execute(command, cwd, { capture }) {
   const started = Date.now();
   const r = spawnSync(command, {
     cwd,
@@ -189,7 +191,7 @@ function execute(command, cwd, { capture }) {
   return { ok: r.status === 0, code: r.status ?? 1, ms: Date.now() - started, output };
 }
 
-function tail(text, lines = TAIL_LINES) {
+export function tail(text, lines = TAIL_LINES) {
   const all = text.trimEnd().split('\n');
   return (all.length > lines ? [`… (${all.length - lines} lignes masquées)`, ...all.slice(-lines)] : all).join('\n');
 }
@@ -201,6 +203,14 @@ function runStep(step, opts) {
     console.log(`\n✗ ${step.label} · ${step.component} : ${step.command}\n${tail(result.output)}`);
   }
   return { ...step, ...result };
+}
+
+// Étape exécutée dans le processus (pistes, trace) : fn renvoie { ok, output, notice }.
+function inProcessStep(label, fn, opts) {
+  const started = Date.now();
+  const { ok, output, notice } = fn();
+  if (output && (!ok || notice || opts.verbose)) console.log(`\n${ok ? '▶' : '✗'} ${label}\n${output}`);
+  return { label, component: '—', ok, ms: Date.now() - started, output };
 }
 
 const fmtMs = (ms) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
@@ -218,7 +228,7 @@ function printResults(title, results) {
 // Détection déterministe des stacks (point de départ de /hx-setup)
 // ---------------------------------------------------------------------------
 
-function readText(file) {
+export function readText(file) {
   try {
     return fs.readFileSync(file, 'utf8');
   } catch {
@@ -450,6 +460,166 @@ export function detect(root, { maxDepth = 3, python = defaultPython() } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// OpenSpec : changes, pistes, traçabilité (lecture directe du Markdown)
+// ---------------------------------------------------------------------------
+
+const TRACE_EXTENSIONS = new Set([...SOURCE_EXTENSIONS, '.feature', '.robot']);
+const SCENARIO_TAG = /@scenario\s+([a-z0-9](?:[a-z0-9/_-]*[a-z0-9])?)/g;
+const toPosix = (p) => p.split(path.sep).join('/');
+
+export function slugify(text) {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function walkFiles(dir, accept, { skip = skipDir } = {}, out = []) {
+  for (const e of listDir(dir)) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      if (!skip(e.name)) walkFiles(full, accept, { skip }, out);
+    } else if (e.isFile() && accept(full)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+// Scénarios d'un fichier de spec : [{ requirement, scenario, section }].
+// section : null dans une spec principale, ADDED / MODIFIED / REMOVED / RENAMED dans un delta.
+export function parseScenarios(markdown) {
+  const out = [];
+  let section = null;
+  let requirement = null;
+  for (const line of markdown.split(/\r?\n/)) {
+    const delta = /^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\b/i.exec(line);
+    if (delta) section = delta[1].toUpperCase();
+    else if (/^##\s/.test(line)) section = null;
+    const req = /^###\s+Requirement:\s*(.+?)\s*$/.exec(line);
+    if (req) requirement = req[1];
+    const scenario = /^####\s+Scenario:\s*(.+?)\s*$/.exec(line);
+    if (scenario) out.push({ requirement, scenario: scenario[1], section });
+  }
+  return out;
+}
+
+// Fichiers spec.md d'un dossier, avec leur capability (chemin relatif du dossier parent).
+function specFiles(dir) {
+  return walkFiles(dir, (f) => path.basename(f) === 'spec.md', { skip: (name) => name.startsWith('.') })
+    .map((file) => ({ file, capability: toPosix(path.relative(dir, path.dirname(file))) }));
+}
+
+export function listChanges(root, { archived = false } = {}) {
+  const base = path.join(root, 'openspec', 'changes');
+  const dirs = (dir) => listDir(dir).filter((e) => e.isDirectory() && !e.name.startsWith('.'));
+  const active = dirs(base).filter((e) => e.name !== 'archive')
+    .map((e) => ({ name: e.name, dir: path.join(base, e.name), archived: false }));
+  if (!archived) return active;
+  const done = dirs(path.join(base, 'archive'))
+    .map((e) => ({ name: e.name, dir: path.join(base, 'archive', e.name), archived: true }));
+  return [...active, ...done];
+}
+
+// Clés de premier niveau de .openspec.yaml (format plat « clé: valeur »).
+export function readChangeMeta(dir) {
+  const meta = {};
+  for (const line of readText(path.join(dir, '.openspec.yaml')).split(/\r?\n/)) {
+    const m = /^([\w-]+):\s*(.*?)\s*$/.exec(line);
+    if (m) meta[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+  return meta;
+}
+
+export function taskProgress(dir) {
+  const tasks = readText(path.join(dir, 'tasks.md'));
+  const done = (tasks.match(/^\s*-\s*\[[xX]\]/gm) ?? []).length;
+  return { done, total: done + (tasks.match(/^\s*-\s*\[ \]/gm) ?? []).length };
+}
+
+// Scénarios attendus : tous ceux des specs principales, et les ADDED / MODIFIED des changes en cours.
+export function collectScenarios(root) {
+  const id = (capability, scenario) => `${capability}/${slugify(scenario)}`;
+  const main = specFiles(path.join(root, 'openspec', 'specs')).flatMap(({ file, capability }) =>
+    parseScenarios(readText(file)).map((s) => ({ ...s, capability, id: id(capability, s.scenario) })));
+  const changes = listChanges(root).flatMap((change) =>
+    specFiles(path.join(change.dir, 'specs')).flatMap(({ file, capability }) =>
+      parseScenarios(readText(file))
+        .filter((s) => s.section === 'ADDED' || s.section === 'MODIFIED')
+        .map((s) => ({ ...s, capability, id: id(capability, s.scenario), change: change.name }))));
+  return { main, changes };
+}
+
+// Tags « @scenario <capability>/<scénario> » dans les fichiers source : Map id → ["fichier:ligne"].
+export function collectTags(root) {
+  const tags = new Map();
+  for (const file of walkFiles(root, (f) => TRACE_EXTENSIONS.has(path.extname(f).toLowerCase()))) {
+    const text = readText(file);
+    if (!text.includes('@scenario')) continue;
+    text.split('\n').forEach((line, i) => {
+      for (const m of line.matchAll(SCENARIO_TAG)) {
+        tags.set(m[1], [...(tags.get(m[1]) ?? []), `${toPosix(path.relative(root, file))}:${i + 1}`]);
+      }
+    });
+  }
+  return tags;
+}
+
+export function trace(root, config) {
+  const { main, changes } = collectScenarios(root);
+  const tags = collectTags(root);
+  const known = new Set([...main, ...changes].map((s) => s.id));
+  const uncoveredMain = main.filter((s) => !tags.has(s.id));
+  const uncoveredChanges = changes.filter((s) => !tags.has(s.id));
+  const orphans = [...tags].filter(([id]) => !known.has(id)).map(([id, where]) => ({ id, where }));
+  const covered = main.length - uncoveredMain.length;
+  const coverage = main.length ? Math.floor((covered / main.length) * 100) : 100;
+  const min = config?.trace?.min_coverage ?? 100;
+  const ok = uncoveredChanges.length === 0 && orphans.length === 0 && coverage >= min;
+  return { ok, scenarios: main.length, covered, coverage, min, uncoveredChanges, uncoveredMain, orphans };
+}
+
+export function formatTrace(report, { limit = 20 } = {}) {
+  const lines = [`Specs principales : ${report.covered}/${report.scenarios} scénarios couverts (${report.coverage} %, minimum ${report.min} %)`];
+  const list = (title, items) => {
+    if (!items.length) return;
+    lines.push(`${title} :`, ...items.slice(0, limit).map((x) => `  - ${x}`));
+    if (items.length > limit) lines.push(`  … ${items.length - limit} de plus`);
+  };
+  list('Scénarios de changes en cours sans test', report.uncoveredChanges.map((s) => `${s.id} (${s.change})`));
+  if (report.coverage < report.min) list('Scénarios des specs sans test', report.uncoveredMain.map((s) => s.id));
+  list('Tags @scenario orphelins', report.orphans.map((o) => `${o.id} → ${o.where.join(', ')}`));
+  return lines.join('\n');
+}
+
+// Règles des pistes : x-track déclaré sur les changes en cours ; piste L → design.md qui cite un ADR existant.
+export function checkPolicy(root) {
+  const issues = [];
+  for (const change of listChanges(root, { archived: true })) {
+    const label = change.archived ? `archive/${change.name}` : change.name;
+    const track = readChangeMeta(change.dir)['x-track'];
+    if (!track) {
+      if (!change.archived) issues.push({ level: 'warn', label, detail: 'piste non déclarée (x-track: M ou L dans .openspec.yaml)' });
+      continue;
+    }
+    if (!['S', 'M', 'L'].includes(track)) {
+      issues.push({ level: 'error', label, detail: `x-track invalide : ${track}` });
+      continue;
+    }
+    if (track !== 'L') continue;
+    const design = readText(path.join(change.dir, 'design.md'));
+    if (!design) {
+      issues.push({ level: 'error', label, detail: 'piste L : design.md manquant' });
+      continue;
+    }
+    const adrs = [...new Set([...design.matchAll(/docs\/adr\/[^\s()[\]<>"'`]+?\.md/g)].map((m) => m[0]))];
+    if (!adrs.length) issues.push({ level: 'error', label, detail: 'piste L : design.md doit citer un ADR (docs/adr/…)' });
+    for (const adr of adrs) {
+      if (!fs.existsSync(path.join(root, adr))) issues.push({ level: 'error', label, detail: `ADR introuvable : ${adr}` });
+    }
+  }
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
 // Commandes CLI
 // ---------------------------------------------------------------------------
 
@@ -493,7 +663,11 @@ function cmdRun(root, args) {
   const config = requireConfig(root);
   if (!config) return 1;
   if (unknownComponent(config, opts.component)) return 2;
-  const invocations = resolveInvocations(config, root, name, { component: opts.component, file: opts.file });
+  const invocations = resolveInvocations(config, root, name, {
+    component: opts.component,
+    file: opts.file,
+    fileOnly: Boolean(opts['file-only']),
+  });
   if (invocations.length === 0) {
     if (opts.file) {
       console.error(`hx : rien à exécuter pour « ${name} » sur ${opts.file}`);
@@ -517,8 +691,20 @@ function cmdCheck(root, args) {
   if (unknownComponent(config, opts.component)) return 2;
   const results = [];
   if (fs.existsSync(path.join(root, 'openspec'))) {
-    const command = openspecCommand(root, ['validate', '--all', '--strict', '--no-interactive']);
-    results.push(runStep({ label: 'openspec', component: '—', command, cwd: root }, opts));
+    const validate = (label, args) => runStep({ label, component: '—', command: openspecCommand(root, args), cwd: root }, opts);
+    results.push(validate('openspec', ['validate', '--all', '--strict', '--no-interactive']));
+    if (!opts.fast) {
+      results.push(validate('archives', ['validate', '--archived', '--no-interactive']));
+      results.push(inProcessStep('pistes', () => {
+        const issues = checkPolicy(root);
+        const output = issues.map((i) => `${i.level === 'error' ? '✗' : '⚠'} ${i.label} : ${i.detail}`).join('\n');
+        return { ok: !issues.some((i) => i.level === 'error'), output, notice: issues.length > 0 };
+      }, opts));
+      results.push(inProcessStep('trace', () => {
+        const report = trace(root, config);
+        return { ok: report.ok, output: formatTrace(report) };
+      }, opts));
+    }
   } else {
     results.push({ label: 'openspec', component: '—', skipped: true, reason: 'dossier openspec/ absent' });
   }
@@ -560,7 +746,10 @@ function cmdDoctor(root, args) {
   else if (project.includes('hx:todo')) add('warn', 'Carte du projet', 'pas encore personnalisée : lance /hx-setup');
   else add('ok', 'Carte du projet', '.harness/project.md');
 
-  const tracked = ['.harness/hx.mjs', CONFIG_PATH, '.harness/project.md', 'CLAUDE.md', '.claude/settings.json'];
+  const settings = readText(path.join(root, '.claude', 'settings.json'));
+  add(settings.includes('.harness/hooks.mjs') ? 'ok' : 'warn', 'Hooks Claude Code', settings ? '.claude/settings.json' : '.claude/settings.json absent');
+
+  const tracked = ['.harness/hx.mjs', '.harness/hooks.mjs', CONFIG_PATH, '.harness/project.md', 'CLAUDE.md', '.claude/settings.json'];
   const ignored = spawnSync('git', ['check-ignore', ...tracked], { cwd: root, encoding: 'utf8' });
   if (ignored.status === 0) add('error', 'Git', `fichiers ignorés par .gitignore : ${ignored.stdout.trim().split('\n').join(', ')}`);
 
@@ -620,16 +809,26 @@ function cmdDetect(root, args) {
   return 0;
 }
 
+function cmdTrace(root, args) {
+  const opts = parseFlags(args);
+  const report = trace(root, loadConfig(root).config ?? {});
+  if (opts.json) console.log(JSON.stringify(report, null, 2));
+  else console.log(`hx trace\n${formatTrace(report)}\n\n${report.ok ? '✓ traçabilité complète' : '✗ traçabilité incomplète'}`);
+  return report.ok ? 0 : 1;
+}
+
 function cmdOpenspec(root, args) {
   return execute(openspecCommand(root, args), root, { capture: false }).code;
 }
 
 const HELP = `hx : contrat de commandes du harness
 
-  hx run <commande> [--component <nom>] [--file <chemin>]
+  hx run <commande> [--component <nom>] [--file <chemin> [--file-only]]
                       exécute une commande du contrat (.harness/config.json)
   hx check [--fast] [--component <nom>] [--verbose]
-                      openspec validate + lint + typecheck + arch + test
+                      openspec (validate, archives) + pistes + trace + lint + typecheck + arch + test
+                      --fast : openspec validate + lint + typecheck
+  hx trace [--json]   scénarios OpenSpec ↔ tests tagués « @scenario <capability>/<scénario> »
   hx doctor [--no-run]
                       vérifie l'installation et exécute chaque commande
   hx detect [--json] [--write [--force]]
@@ -645,6 +844,7 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
     case 'check': return cmdCheck(root, rest);
     case 'doctor': return cmdDoctor(root, rest);
     case 'detect': return cmdDetect(root, rest);
+    case 'trace': return cmdTrace(root, rest);
     case 'openspec': return cmdOpenspec(root, rest);
     case undefined: case 'help': case '--help': case '-h':
       console.log(HELP);

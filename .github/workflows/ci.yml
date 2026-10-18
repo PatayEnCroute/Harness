@@ -3,6 +3,7 @@ name: ci
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,6 +16,7 @@ env:
 
 jobs:
   unit:
+    name: unit (hx, hooks, template, contrat OpenSpec)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -49,7 +51,19 @@ jobs:
           go-version: stable
       - run: tests/e2e.sh ${{ matrix.fixture }}
 
+  openspec:
+    name: e2e (cycle OpenSpec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v7
+      - run: tests/e2e-openspec.sh
+
   update:
+    name: e2e (copier update)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -58,3 +72,21 @@ jobs:
           node-version: 22
       - uses: astral-sh/setup-uv@v7
       - run: tests/e2e-update.sh
+
+  evals:
+    name: evals (manuel, coût réel)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v7
+      - name: Evals
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "::notice::secret ANTHROPIC_API_KEY absent : evals ignorées"; exit 0; fi
+          npm i -g @anthropic-ai/claude-code
+          evals/run.sh

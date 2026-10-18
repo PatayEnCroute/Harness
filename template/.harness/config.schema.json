@@ -2,35 +2,73 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Contrat du harness (.harness/config.json)",
   "type": "object",
-  "required": ["version", "components"],
+  "required": [
+    "version",
+    "components"
+  ],
   "additionalProperties": false,
   "properties": {
-    "$schema": { "type": "string" },
-    "version": { "const": 1 },
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
     "components": {
       "description": "Unités qui se testent et se construisent indépendamment. Un projet mono-stack n'en a qu'une.",
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["path", "commands"],
+        "required": [
+          "path",
+          "commands"
+        ],
         "additionalProperties": false,
         "properties": {
-          "path": { "type": "string", "description": "Dossier du composant, relatif à la racine. Les commandes s'y exécutent." },
-          "stack": { "type": "string", "description": "Informatif : node, python, dotnet, go…" },
+          "path": {
+            "type": "string",
+            "description": "Dossier du composant, relatif à la racine. Les commandes s'y exécutent."
+          },
+          "stack": {
+            "type": "string",
+            "description": "Informatif : node, python, dotnet, go…"
+          },
           "commands": {
             "type": "object",
             "description": "Commandes shell. Les variantes « -file » reçoivent {file}, chemin relatif au composant.",
             "properties": {
-              "setup": { "type": "string", "description": "Installe les dépendances" },
-              "build": { "type": "string" },
-              "lint": { "type": "string" },
-              "lint-file": { "type": "string", "pattern": "\\{file\\}" },
-              "typecheck": { "type": "string" },
-              "test": { "type": "string" },
-              "test-file": { "type": "string", "pattern": "\\{file\\}" },
-              "arch": { "type": "string", "description": "Règles de dépendance (fitness functions)" }
+              "setup": {
+                "type": "string",
+                "description": "Installe les dépendances"
+              },
+              "build": {
+                "type": "string"
+              },
+              "lint": {
+                "type": "string"
+              },
+              "lint-file": {
+                "type": "string",
+                "pattern": "\\{file\\}"
+              },
+              "typecheck": {
+                "type": "string"
+              },
+              "test": {
+                "type": "string"
+              },
+              "test-file": {
+                "type": "string",
+                "pattern": "\\{file\\}"
+              },
+              "arch": {
+                "type": "string",
+                "description": "Règles de dépendance (fitness functions)"
+              }
             },
-            "additionalProperties": { "type": "string" }
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       }
@@ -39,21 +77,61 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "style": { "const": "feature-first" },
-        "level": { "$ref": "#/$defs/level", "description": "Niveau par défaut du projet (voir PLAN §5)" },
+        "style": {
+          "const": "feature-first"
+        },
+        "level": {
+          "$ref": "#/$defs/level",
+          "description": "Niveau par défaut du projet (voir PLAN §5)"
+        },
         "features": {
           "type": "object",
           "description": "Niveau par feature, uniquement quand le besoin justifie un écart",
-          "additionalProperties": { "$ref": "#/$defs/level" }
+          "additionalProperties": {
+            "$ref": "#/$defs/level"
+          }
         },
         "profile": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "size": { "enum": ["small", "medium", "large", null] },
-            "lifespan": { "enum": ["throwaway", "medium", "long", null] },
-            "domain_complexity": { "enum": ["low", "medium", "high", null] }
+            "size": {
+              "enum": [
+                "small",
+                "medium",
+                "large",
+                null
+              ]
+            },
+            "lifespan": {
+              "enum": [
+                "throwaway",
+                "medium",
+                "long",
+                null
+              ]
+            },
+            "domain_complexity": {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                null
+              ]
+            }
           }
+        }
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min_coverage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Couverture minimale des scénarios des specs principales par des tests tagués @scenario (défaut 100)"
         }
       }
     },
@@ -63,9 +141,21 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "spec": { "type": "boolean" },
-          "design": { "enum": ["optional", "required"] },
-          "adr": { "enum": ["optional", "required"] }
+          "spec": {
+            "type": "boolean"
+          },
+          "design": {
+            "enum": [
+              "optional",
+              "required"
+            ]
+          },
+          "adr": {
+            "enum": [
+              "optional",
+              "required"
+            ]
+          }
         }
       }
     }
