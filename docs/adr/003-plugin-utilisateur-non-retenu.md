@@ -21,5 +21,9 @@ Le plan (phase 3) envisageait un plugin installé au niveau utilisateur, pour qu
 ## Décision
 Pas de plugin. Le besoin (mise à jour instantanée) n'est pas observé, et le coût (deux sources de vérité) est réel.
 
+## Conséquences
+- Plus facile : une seule source de vérité, versionnée par projet ; sessions cloud et autres machines identiques.
+- Plus difficile : chaque projet se met à jour par sa propre commande `copier update`.
+
 ## Révision
 Si `copier update` devient une corvée observable (beaucoup de projets en retard malgré `hx doctor`), ou si des skills indépendants du projet apparaissent.

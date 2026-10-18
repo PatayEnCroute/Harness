@@ -2,6 +2,16 @@
 
 Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les projets reçoivent une version par `uvx copier update --trust`.
 
+## [Non publié]
+
+### Modifié
+- **Documentation remise à jour** après un audit des incohérences entre docs et code :
+  - `docs/PLAN.md` : statut v0.3.0, workflow conforme à `CLAUDE.md` (piste S sans revue ni ship, archive faite par `/hx-ship`), `hx trace` et `hx migrate` documentés, `hx-explorer` en `haiku`, chemins protégés et `permissions.deny`, arborescences complètes, contrat OpenSpec dans `npm run test:contract` ;
+  - README : schéma du workflow, permissions, conflits vus par `hx doctor`, désinstallation complète ;
+  - `docs/elagage.md` : réserve sur les mesures étendue aux 4 scénarios, coût réel, ligne de base non archivée ; candidat « template de PR » retiré (déjà dans `hx-ship`) ;
+  - `evals/README.md` : version évaluée (correcteurs pris dans l'arbre de travail), champs du JSONL ;
+  - ADR-003 et ADR-004 : section Conséquences ; ADR-004 : procédure de montée avec `npm run test:contract`.
+
 ## [0.3.0] — 2026-10-18
 
 Fiabilisation issue de la revue du 2026-10-18 : mesurer juste, plus de faux verts, protections vues par git.

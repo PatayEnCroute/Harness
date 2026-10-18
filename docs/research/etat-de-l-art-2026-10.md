@@ -58,8 +58,8 @@
 | Un petit bug transformé en 4 user stories et 16 critères d'acceptation | [Böckeler](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html) | Pistes S/M/L |
 | « The Waterfall Strikes Back » : 1 300 lignes de spec pour afficher une date | [Marmelab](https://marmelab.com/blog/2025/11/12/spec-driven-development-waterfall-strikes-back.html) | Rules de concision, chemin S |
 | Goulot de review : +98 % de PR mergées, +91 % de temps de review ⚠️ | [secondaire](https://www.augmentcode.com/guides/ai-productivity-paradox-engineering-delivery) | Petites PR, reviewers IA filtrés |
-| Gains de productivité non démontrés (METR 2026 : −4 %, IC −15 % à +9 %) | [METR](https://evals.alignment.org/blog/2026-02-24-uplift-update/) | Baseline et mesure dès la phase 0 |
-| 13 à 26 % des skills publics vulnérables | [Snyk](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub), [arXiv 2601.10338](https://arxiv.org/abs/2601.10338) | Marketplace interne, scan |
+| Gains de productivité non démontrés (METR 2026 : −4 %, IC −15 % à +9 %) | [METR](https://evals.alignment.org/blog/2026-02-24-uplift-update/) | Evals headless (`--runs 10`, A/B `--without`) et revue d'élagage ([`elagage.md`](../elagage.md)) |
+| 13 à 26 % des skills publics vulnérables | [Snyk](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub), [arXiv 2601.10338](https://arxiv.org/abs/2601.10338) | Aucun skill tiers : tous viennent du template, versionnés et relus ; lint du template (Unicode invisible) |
 
 ## 6. Architecture des projets (§5 du plan)
 

@@ -33,10 +33,14 @@ OpenSpec, avec trois garde-fous :
 2. **Chaque hypothèse est vérifiée** par `tests/openspec-contract.test.mjs`, qui lance la version épinglée en vrai. Le harness ne touche jamais aux fichiers `openspec-*` générés.
 3. **Les extensions passent par des voies prévues** : `config.yaml` (`context`, `rules`), clés `x-*` dans `.openspec.yaml`, skills voisins. Jamais de fork.
 
+## Conséquences
+- Plus facile : specs, deltas et archive viennent d'un outil maintenu ; le harness n'ajoute que ses contrôles.
+- Plus difficile : le harness suit le rythme des versions d'OpenSpec, chacune passant par la procédure ci-dessous.
+
 ## Montée de version
 1. Lire le CHANGELOG d'OpenSpec : format des specs, `.openspec.yaml`, sorties `--json`, commandes.
 2. Changer `openspec_version` dans `copier.yml`. Les e2e et le test de contrat la lisent à cet endroit.
-3. `npm test && npm run e2e`. Un test de contrat rouge désigne l'hypothèse cassée : adapter le code `hx` concerné dans le même commit.
+3. `npm test && npm run test:contract && npm run e2e`. Un test de contrat rouge désigne l'hypothèse cassée : adapter le code `hx` concerné dans le même commit.
 4. Noter la montée dans `CHANGELOG.md`. Les projets la reçoivent au prochain `copier update`.
 
 ## Critères de sortie
