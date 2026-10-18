@@ -4,11 +4,15 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
+### Ajouté
+- Première ligne de base des evals en `--runs 10` (`evals/results/`, synthèse dans `docs/elagage.md`) : 4 scénarios à 10/10.
+
 ### Modifié
 - Fichiers CI conditionnels : `template/.github/` et `template/.harness/ci/` remplacent les dossiers nommés `{% if ci %}…{% endif %}`. La condition vit dans `_exclude` (`copier.yml`). Le rendu ne change pas ; l'e2e vérifie maintenant `ci=false`.
 - Hook `PreToolUse` : `HX_ALLOW_CONFIG_EDITS=1` lève la confirmation sur `.harness/config.json` seulement, pour les exécutions sans humain. En headless, elle valait refus et faisait échouer l'eval `setup` (0/6) ; `evals/run.sh` l'exporte pour ce scénario.
 - Hook `PreToolUse`, commandes Bash : tous les chemins protégés cités comptent, pas seulement le premier, et lancer `node .harness/hx.mjs` n'est plus pris pour une écriture de `hx.mjs` (cause du dernier échec de l'eval `setup`).
 - Eval `architect` : le correcteur exige que `hx-architect` ait été lancé et ait rendu un résultat (transcript), au lieu de noter seulement la ligne finale.
+- Eval `tdd-s` : `test-first` ignore le corps des heredocs et suit l'ordre des écritures dans une commande (test puis squelette = test d'abord) ; deux faux négatifs corrigés.
 - `_min_copier_version` passe à 9.19.1, la version testée en CI (`_exclude` templaté).
 
 ## [0.2.0] — 2026-10-18
