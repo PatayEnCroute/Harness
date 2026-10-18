@@ -25,6 +25,8 @@ But : une spec de base **fidèle au comportement actuel**, pour que les prochain
    - `specs/<capability>/spec.md` : `## Purpose`, puis `## ADDED Requirements` avec exigences et scénarios WHEN/THEN aux valeurs concrètes.
    - `tasks.md` : une tâche par scénario, « relier ou écrire le test ».
 4. **Relier les tests** : pour chaque scénario, ajoute le tag `@scenario <capability>/<scénario>` au test existant qui le prouve. S'il n'y en a pas, écris-le en mode caractérisation : il doit passer sur le code actuel.
+   - **Tu fais ces tâches toi-même**, sans `hx-implement` : `hx-implementer` refuse une tâche qui n'est qu'un test. Coche chaque tâche dans `tasks.md` après avoir vu son test passer (`node .harness/hx.mjs run test --file <chemin>`).
+   - **Pas de `hx-review`** : aucun code de production ne change. La relecture est celle de l'utilisateur, sur le rapport (étape 7).
 5. **Vérifier** : `node .harness/hx.mjs openspec validate --all --strict`, puis `node .harness/hx.mjs check`. La trace doit être complète pour ce change.
 6. **Archiver** : `/opsx:archive baseline-<capability>`. La spec devient une spec principale.
 7. **Rapport** : exigences spécifiées, tests reliés ou écrits, bugs suspectés (à trancher par l'utilisateur), écarts d'architecture constatés.

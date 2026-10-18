@@ -2,6 +2,22 @@
 
 Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les projets reçoivent une version par `uvx copier update --trust`.
 
+## [Non publié]
+
+Incohérences levées entre les prompts, `hx.mjs` et la doc.
+
+### Modifié
+- **`hx check`, étape `pistes`** : un change en cours sans `x-track` est une erreur, plus un avertissement (sans piste, aucune règle de piste ne s'appliquait). `hx-triage` et `docs/PLAN.md` le disent.
+- **Seuil `arch`** : « au moins trois features dont les frontières comptent », dans `hx-setup` comme dans `arch-rules.md`.
+- **`hx-setup`** : `.claude/settings.json` reste hors de portée, sauf la fusion des réglages d'un projet existant (étape 1).
+- **`hx-discover`** : l'agent fait et coche lui-même les tâches du change de base (`hx-implementer` refuse une tâche qui n'est qu'un test) ; pas de `hx-review`, aucun code de production ne change.
+- **Archive** : `openspec/config.yaml` et `hx-ship` disent la même chose : `hx check` après l'archive, commit seulement s'il est vert.
+- **Prompts** : `hx-security-reviewer` cite la CI parmi ses déclencheurs, comme `hx-review` ; la description de `hx-learn` cite la forme « Note » (`docs/learnings/`).
+- Commentaire de `DEFAULT_TEST_PATTERN` : il dit en quoi il diffère de `.claude/rules/testing.md` (`specs?/`, `e2e/`, `.feature`, `.robot`).
+
+### Corrigé
+- **`hx doctor`** voit aussi `CLAUDE.md.rej`, `openspec/config.yaml.rej` et `.github/workflows/hx-check.yml.rej`.
+
 ## [0.3.0] — 2026-10-18
 
 Fiabilisation issue de la revue du 2026-10-18 : mesurer juste, plus de faux verts, protections vues par git.

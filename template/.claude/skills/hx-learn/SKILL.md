@@ -1,6 +1,6 @@
 ---
 name: hx-learn
-description: Capitalise après une livraison, un incident ou une erreur répétée de l'agent. Transforme la leçon en contrôle, rule ou skill, au bon niveau (projet ou template Harness). À utiliser après un merge, un incident, ou quand la même correction revient pour la deuxième fois.
+description: Capitalise après une livraison, un incident ou une erreur répétée de l'agent. Transforme la leçon en contrôle, rule ou skill, ou en note (`docs/learnings/`) si elle n'appelle aucune action, au bon niveau (projet ou template Harness). À utiliser après un merge, un incident, ou quand la même correction revient pour la deuxième fois.
 ---
 
 # hx-learn : la boucle de pilotage

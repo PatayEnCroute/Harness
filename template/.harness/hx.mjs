@@ -544,7 +544,8 @@ export function detect(root, { maxDepth = 3, python = defaultPython() } = {}) {
 // ---------------------------------------------------------------------------
 
 const TRACE_EXTENSIONS = new Set([...SOURCE_EXTENSIONS, '.feature', '.robot']);
-// Fichiers de test reconnus par défaut (mêmes conventions que .claude/rules/testing.md) ; trace.test_pattern le remplace.
+// Fichiers de test reconnus par défaut : les conventions de .claude/rules/testing.md, plus specs?/, e2e/, .feature et .robot
+// (scénarios exécutables) ; trace.test_pattern le remplace.
 export const DEFAULT_TEST_PATTERN = String.raw`(^|/)(tests?|__tests__|specs?|e2e)/|\.(test|spec)\.[^/]+$|_(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|Tests?\.(cs|fs|vb|java|kt|scala|swift)$|\.(feature|robot)$`;
 const SCENARIO_TAG = /@scenario\s+([a-z0-9](?:[a-z0-9/_-]*[a-z0-9])?)/g;
 const toPosix = (p) => p.split(path.sep).join('/');
@@ -688,7 +689,8 @@ export function formatTrace(report, { limit = 20 } = {}) {
 }
 
 // Règles des pistes, lues dans « tracks » du contrat (défauts : S, M, L de defaultConfig) :
-// spec → au moins une delta spec ; design → design.md ; adr → design.md cite un ADR. Tout ADR cité doit exister.
+// x-track obligatoire sur un change en cours ; spec → au moins une delta spec ; design → design.md ; adr → design.md cite un ADR.
+// Tout ADR cité doit exister.
 export function trackRules(config) {
   const rules = { ...defaultConfig().tracks };
   for (const [name, custom] of Object.entries(config?.tracks ?? {})) rules[name] = { ...rules[name], ...custom };
@@ -704,7 +706,8 @@ export function checkPolicy(root, config = {}) {
     const error = (detail) => issues.push({ level: 'error', label, detail });
     const track = readChangeMeta(change.dir)['x-track'];
     if (!track) {
-      if (!change.archived) issues.push({ level: 'warn', label, detail: `piste non déclarée (x-track: ${names} dans .openspec.yaml)` });
+      // Sans piste, aucune règle ne s'appliquerait : bloquant pour un change en cours.
+      if (!change.archived) error(`piste non déclarée (x-track: ${names} dans .openspec.yaml)`);
       continue;
     }
     const rules = Object.hasOwn(tracks, track) ? tracks[track] : null;
@@ -881,6 +884,7 @@ const CONFLICT_MARKER = /^(<{7}|>{7})( |$)/m;
 // Restes d'un `copier update` en conflit dans les fichiers du harness : marqueurs <<<<<<< / >>>>>>> ou fichiers .rej.
 export function mergeLeftovers(root) {
   const files = ['CLAUDE.md', 'openspec/config.yaml', '.github/workflows/hx-check.yml']
+    .flatMap((rel) => [rel, `${rel}.rej`])
     .map((rel) => path.join(root, rel))
     .filter((file) => fs.existsSync(file));
   for (const dir of ['.claude', '.harness']) {

@@ -22,7 +22,7 @@ Le processus est proportionné au risque. Choisis **la piste la plus légère** 
 3. Si l'impact n'est pas évident, lance `hx-explorer`. Ne suppose pas.
 4. Choisis la piste. Entre deux pistes, prends la plus légère et dis quel signal la ferait monter.
 5. Annonce : `Piste X : raison en une ligne. Prochaine étape : …`
-6. Pour M ou L, une fois le change créé par `/opsx:propose`, ajoute `x-track: M` (ou `L`) dans `openspec/changes/<change>/.openspec.yaml`. `hx check` le vérifie.
+6. Pour M ou L, une fois le change créé par `/opsx:propose`, ajoute `x-track: M` (ou `L`) dans `openspec/changes/<change>/.openspec.yaml`. `hx check` échoue tant qu'un change en cours n'a pas de piste.
 
 ## En cours de route
 

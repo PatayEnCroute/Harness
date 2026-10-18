@@ -103,6 +103,18 @@ describe('cohérence et budgets', () => {
     assert.match(read(path.join(claude, 'skills', 'hx-triage', 'SKILL.md')), /\| Piste \| Critères \|/);
   });
 
+  test('hx-setup et arch-rules.md donnent le même seuil pour configurer arch', () => {
+    const setup = path.join(claude, 'skills', 'hx-setup');
+    for (const file of [path.join(setup, 'SKILL.md'), path.join(setup, 'references', 'arch-rules.md')]) {
+      assert.match(read(file), /au moins trois features dont les frontières comptent/, path.basename(file));
+    }
+  });
+
+  test('hx-review et hx-security-reviewer citent la CI parmi les déclencheurs sécurité', () => {
+    assert.match(read(path.join(claude, 'skills', 'hx-review', 'SKILL.md')), /hx-security-reviewer`, si le diff touche [^\n]*la CI/);
+    assert.match(frontmatter(read(path.join(claude, 'agents', 'hx-security-reviewer.md'))).data.description, /la CI/);
+  });
+
   test('les relecteurs rendent leurs constats au même format, que hx-review consolide', () => {
     for (const name of agents.filter((n) => n.endsWith('-reviewer'))) {
       assert.match(read(path.join(claude, 'agents', `${name}.md`)), /`\[bloquant\|important\|mineur\] chemin:ligne — /, name);

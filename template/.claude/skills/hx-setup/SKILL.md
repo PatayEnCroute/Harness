@@ -20,6 +20,8 @@ Tu remplis **uniquement les fichiers spécifiques au projet**. Tous les autres s
 
 Fichiers à **ne pas modifier** : `CLAUDE.md`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `.harness/config.schema.json`, `.harness/versions.json`, `openspec/config.yaml`, `.claude/settings.json`, `.claude/rules/{openspec,testing,architecture}.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.github/workflows/hx-check.yml`.
 
+Seule exception : sur un projet existant, l'étape 1 fusionne dans `.claude/settings.json` les réglages du projet que l'installation a remplacés (`permissions`, `model`, `env`, hooks du projet). Rien d'autre n'y change, et les hooks et permissions du harness restent tels quels.
+
 Si l'utilisateur a passé une consigne (`$ARGUMENTS`), concentre-toi dessus et ne refais que les étapes utiles.
 
 ## Règles
@@ -119,7 +121,7 @@ Renseigne `architecture` dans `.harness/config.json`. Le **besoin** décide, pas
 
 ### 7. Règles de dépendance (`arch`)
 
-Suis `references/arch-rules.md`. Ne configure `arch` que si le besoin existe : niveau ≥ 2 pour au moins une feature, ou plusieurs features dont les frontières comptent. Vérifie que la règle échoue sur une violation volontaire, puis retire cette violation.
+Suis `references/arch-rules.md`. Ne configure `arch` que si le besoin existe : niveau ≥ 2 pour au moins une feature, ou au moins trois features dont les frontières comptent. Vérifie que la règle échoue sur une violation volontaire, puis retire cette violation.
 
 ### 8. Rules de stack
 

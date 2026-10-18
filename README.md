@@ -45,7 +45,7 @@ Les actions GitHub sont épinglées par SHA de commit et tenues à jour par Depe
 ## Mettre à jour, résoudre un conflit, désinstaller
 
 - **Mettre à jour** : `uvx copier@9.19.1 update --trust` sur un arbre git propre, puis `node .harness/hx.mjs doctor`. Les fichiers spécifiques ne sont jamais réécrits ; `hx migrate` ajoute à `config.json` les clés nouvelles.
-- **Conflit** : quand le template et le projet ont changé la même zone d'un fichier générique, Copier y laisse des marqueurs `<<<<<<<` / `>>>>>>>` (ou un fichier `.rej`). `hx doctor` les liste. Garde la version du template sauf personnalisation voulue (un fichier générique s'améliore dans Harness, pas dans le projet), supprime les marqueurs et les `.rej`, relance `hx doctor`, puis commite.
+- **Conflit** : quand le template et le projet ont changé la même zone d'un fichier générique, Copier y laisse des marqueurs `<<<<<<<` / `>>>>>>>` ou un fichier `.rej`, que `hx doctor` liste. Garde la version du template sauf personnalisation voulue (un fichier générique s'améliore dans Harness, pas dans le projet), supprime les marqueurs et les `.rej`, relance `hx doctor`, puis commite.
 - **Désinstaller** : supprime `.harness/`, `.copier-answers.yml`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing` et `architecture` de `.claude/rules/`, `.github/workflows/hx-check.yml` (et `.github/CODEOWNERS` s'il vient du template). Retire de `.claude/settings.json` les hooks qui appellent `.harness/hooks.mjs` et les permissions `hx.mjs`, et de `CLAUDE.md` les sections du harness. `openspec/` reste utilisable sans le harness : garde-le si les specs servent encore.
 
 ## Développer le template
