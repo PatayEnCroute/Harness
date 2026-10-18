@@ -18,7 +18,7 @@ Chaque erreur répétée est un défaut du harness, pas seulement du code. On la
    | **Contrôle déterministe** | La règle se vérifie par un outil : lint, test, règle `arch`, commande du contrat | Projet : `.harness/config.json`, config de l'outil, tests |
    | **Rule** | Convention qui ne se vérifie pas mécaniquement | Projet : `.claude/rules/stack-*.md` ou `.harness/project.md` |
    | **Skill ou agent** | Procédure en plusieurs étapes qui revient | Template Harness |
-   | **Note** | Contexte utile, sans action | Projet : `docs/learnings/AAAA-MM-JJ-sujet.md`, 15 lignes au plus |
+   | **Note** | Contexte utile, sans action | Projet : `docs/learnings/AAAA-MM-JJ-sujet.md`, 15 lignes au plus, relue par `hx-triage` et `hx-clarify` : mets les mots-clés du sujet dans le titre |
 
 4. **Niveau** :
    - **propre au projet** : applique la correction dans le projet ;

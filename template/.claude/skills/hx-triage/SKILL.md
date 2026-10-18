@@ -18,10 +18,11 @@ Le processus est proportionné au risque. Choisis **la piste la plus légère** 
 ## Étapes
 
 1. Reformule la demande en une phrase.
-2. Si l'impact n'est pas évident, lance `hx-explorer`. Ne suppose pas.
-3. Choisis la piste. Entre deux pistes, prends la plus légère et dis quel signal la ferait monter.
-4. Annonce : `Piste X : raison en une ligne. Prochaine étape : …`
-5. Pour M ou L, une fois le change créé par `/opsx:propose`, ajoute `x-track: M` (ou `L`) dans `openspec/changes/<change>/.openspec.yaml`. `hx check` le vérifie.
+2. Si `docs/learnings/` existe, cherches-y les mots-clés de la demande (`git grep -i <mot> -- docs/learnings`) : une leçon passée peut changer la piste.
+3. Si l'impact n'est pas évident, lance `hx-explorer`. Ne suppose pas.
+4. Choisis la piste. Entre deux pistes, prends la plus légère et dis quel signal la ferait monter.
+5. Annonce : `Piste X : raison en une ligne. Prochaine étape : …`
+6. Pour M ou L, une fois le change créé par `/opsx:propose`, ajoute `x-track: M` (ou `L`) dans `openspec/changes/<change>/.openspec.yaml`. `hx check` le vérifie.
 
 ## En cours de route
 
