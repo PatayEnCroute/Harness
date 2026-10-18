@@ -83,6 +83,7 @@ prepare() {
   mkdir -p "$work/pristine"
   cp .harness/hx.mjs .harness/hooks.mjs .harness/config.json "$work/pristine/"
   git add -A && git "${git_env[@]}" commit -qm "état initial"
+  git rev-parse HEAD > "$work/initial-sha"
 }
 
 # Avant de noter : outils du harness restaurés, contrat inchangé (sauf scénario qui a le droit de l'écrire).
@@ -98,12 +99,12 @@ integrity() {
 
 record() {
   R_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" R_SHA="$sha" R_SCENARIO="$1" R_VARIANT="$variant" R_RUN="$2" \
-  R_VERDICT="$3" R_DURATION="$4" R_COST="$5" R_VERSION="$claude_version" R_MODEL="$model" R_DIR="$6" \
+  R_VERDICT="$3" R_DURATION="$4" R_COST="$5" R_VERSION="$claude_version" R_MODEL="$model" R_DIR="$6" R_REASON="$7" \
   node -e '
     const e = process.env, num = (v) => (v === "" || Number.isNaN(Number(v)) ? null : Number(v));
     console.log(JSON.stringify({
       date: e.R_DATE, sha: e.R_SHA, scenario: e.R_SCENARIO, variant: e.R_VARIANT, run: Number(e.R_RUN),
-      pass: e.R_VERDICT === "pass", verdict: e.R_VERDICT, duration_s: num(e.R_DURATION), cost_usd: num(e.R_COST),
+      pass: e.R_VERDICT === "pass", verdict: e.R_VERDICT, reason: e.R_REASON || null, duration_s: num(e.R_DURATION), cost_usd: num(e.R_COST),
       claude_version: e.R_VERSION, model: e.R_MODEL, kept_dir: e.R_DIR || null,
     }));
   ' >> "$results"
@@ -120,7 +121,7 @@ for scenario in "${scenarios[@]}"; do
   for run in $(seq 1 "$runs"); do
     work="$campaign/$scenario-$run"
     mkdir -p "$work"
-    verdict=FAIL duration="" cost=""
+    verdict=FAIL duration="" cost="" reason=""
     total=$((total + 1))
 
     # set -e reste actif dans le sous-shell seulement hors contexte « || » ou « if ».
@@ -157,7 +158,7 @@ for scenario in "${scenarios[@]}"; do
       (
         set -e
         integrity "$dir" "$work"
-        RESULT="$work/result.txt" TRANSCRIPT="$work/transcript.jsonl" EVAL_LIB="$evals/lib" \
+        RESULT="$work/result.txt" TRANSCRIPT="$work/transcript.jsonl" EVAL_LIB="$evals/lib" INITIAL_SHA="$(cat "$work/initial-sha")" \
           bash -c 'set -eE; trap "echo \"✗ échec : \$BASH_COMMAND\" >&2" ERR; source "$1"' grade "$dir/grade.sh"
       ) > "$work/grade.log" 2>&1
       rc=$?
@@ -166,12 +167,19 @@ for scenario in "${scenarios[@]}"; do
       cd "$repo"
     fi
 
+    # Raison d'un échec : première ligne « ✗ » du journal de notation (ou de préparation), pour l'historique.
+    if [ "$verdict" != pass ]; then
+      log="$work/grade.log"
+      [ "$verdict" != ERREUR ] || log="$work/setup.log"
+      reason="$(grep '✗' "$log" 2>/dev/null | head -n 1 | sed 's/^[[:space:]]*✗[[:space:]]*//' | cut -c1-300 || true)"
+    fi
     keep="$work"
     if [ "$verdict" = pass ]; then
       passed=$((passed + 1)); pass_by[$scenario]=$((pass_by[$scenario] + 1)); keep=""
     fi
-    record "$scenario" "$run" "$verdict" "$duration" "$cost" "$keep"
+    record "$scenario" "$run" "$verdict" "$duration" "$cost" "$keep" "$reason"
     printf '%-14s %-4s %-8s %8s %8s  %s\n' "$scenario" "$run" "$verdict" "${duration:-?}s" "${cost:-?}\$" "$keep"
+    [ -z "$reason" ] || echo "    ✗ $reason"
     [ -n "$keep" ] || rm -rf "$work"
   done
 done

@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      runs:
+        description: "Exécutions par scénario (10 au moins pour décider)"
+        default: "10"
+      scenarios:
+        description: "Scénarios séparés par des espaces (vide : tous)"
+        default: ""
+      without:
+        description: "A/B : skill ou agent à retirer (vide : variante complète)"
+        default: ""
 
 permissions:
   contents: read
@@ -130,14 +140,27 @@ jobs:
         run: npm i -g @anthropic-ai/claude-code@2.1.302
       # Le secret n'est visible que de cette étape, pas des installations qui la précèdent.
       # TMPDIR : les dossiers de travail des evals en échec, gardés par run.sh, restent sous runner.temp pour l'artefact.
+      # Entrées passées par l'environnement, jamais interpolées dans le script.
+      # Sans secret, le job échoue : un vert sans mesure ferait croire que les evals ont tourné.
       - name: Evals
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TMPDIR: ${{ runner.temp }}/evals
+          RUNS: ${{ inputs.runs }}
+          SCENARIOS: ${{ inputs.scenarios }}
+          WITHOUT: ${{ inputs.without }}
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "::notice::secret ANTHROPIC_API_KEY absent : evals ignorées"; exit 0; fi
+          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "::error::secret ANTHROPIC_API_KEY absent : aucune eval exécutée"; exit 1; fi
           mkdir -p "$TMPDIR"
-          evals/run.sh
+          args=(--runs "${RUNS:-10}")
+          [ -z "$WITHOUT" ] || args+=(--without "$WITHOUT")
+          read -ra names <<< "$SCENARIOS"
+          evals/run.sh "${args[@]}" "${names[@]}"
+      # Le JSONL dans le journal : la mesure reste lisible même sans télécharger l'artefact.
+      - name: Résultats (JSONL)
+        if: always()
+        run: |
+          for f in $(git ls-files --others --exclude-standard evals/results); do echo "== $f"; cat "$f"; done
       - name: Résultats des evals
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -1,4 +1,5 @@
-// Test d'abord : dans le transcript stream-json, la première écriture d'un test précède la première écriture du code.
+// Test d'abord : dans le transcript stream-json, la première écriture d'un test précède la première écriture du code,
+// et un lancement des tests a échoué (rouge) après cette écriture du test, avant le premier lancement au vert.
 // Usage : node test-first.mjs <transcript.jsonl> <regex du code> <regex des tests>
 // Écritures comptées : outils Write, Edit, MultiEdit, NotebookEdit, et commandes Bash (redirection, tee, cp, mv, sed -i).
 // Dans une commande Bash, les redirections comptent dans leur ordre d'exécution (test puis squelette du code : test d'abord).
@@ -31,6 +32,9 @@ function withoutHeredocBodies(command) {
   return kept.join('\n');
 }
 const COPY = /\b(cp|mv)\b|\bsed\s+-i/;
+// Lancements de tests reconnus, et marqueurs d'échec dans leur sortie (un « | tail » masque le code de sortie).
+const TEST_RUN = /\bhx(?:\.mjs)?\s+(?:run\s+test|check)\b|\bnpm\s+(?:run\s+)?test\b|\bnode\s+--test\b|\bnpx\s+(?:vitest|jest)\b|\bpytest\b/;
+const FAILED_OUTPUT = /^not ok \d+|# fail [1-9]|ERR_MODULE_NOT_FOUND|Cannot find module|SyntaxError/m;
 
 // Cibles écrites par une commande shell, dans l'ordre : fichiers redirigés ou passés à tee ; commande entière pour cp, mv, sed -i.
 function shellTargets(raw) {
@@ -40,7 +44,11 @@ function shellTargets(raw) {
   return targets;
 }
 
-const writes = [];
+const textOf = (content) => (typeof content === 'string' ? content : (content ?? []).map((c) => c?.text ?? '').join('\n'));
+
+// Événements dans l'ordre des appels d'outils : écritures, et lancements de tests (résultat rattaché par tool_use_id).
+const events = [];
+const runs = new Map();
 for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
   let event;
   try {
@@ -48,26 +56,38 @@ for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
   } catch {
     continue;
   }
-  if (event?.type !== 'assistant') continue;
-  for (const block of event.message?.content ?? []) {
-    if (block?.type !== 'tool_use') continue;
+  for (const block of event?.message?.content ?? []) {
+    if (event.type === 'user' && block?.type === 'tool_result' && runs.has(block.tool_use_id)) {
+      const output = textOf(block.content);
+      runs.get(block.tool_use_id).red = Boolean(block.is_error) || /^Exit code [1-9]/.test(output) || FAILED_OUTPUT.test(output);
+    }
+    if (event.type !== 'assistant' || block?.type !== 'tool_use') continue;
     const input = block.input ?? {};
-    if (WRITE_TOOLS.has(block.name)) writes.push({ tool: block.name, target: String(input.file_path ?? input.notebook_path ?? '') });
+    if (WRITE_TOOLS.has(block.name)) events.push({ tool: block.name, target: String(input.file_path ?? input.notebook_path ?? '') });
     else if (block.name === 'Bash') {
-      for (const target of shellTargets(String(input.command ?? ''))) writes.push({ tool: 'Bash', target });
+      const command = String(input.command ?? '');
+      for (const target of shellTargets(command)) events.push({ tool: 'Bash', target });
+      if (TEST_RUN.test(withoutHeredocBodies(command))) {
+        const run = { tool: 'Bash', target: command, kind: 'run', red: null };
+        runs.set(block.id, run);
+        events.push(run);
+      }
     }
   }
 }
 
 const kind = (target) => (code.test(target) ? 'code' : test.test(target) ? 'test' : null);
-const relevant = writes.map((w) => ({ ...w, kind: kind(w.target) })).filter((w) => w.kind);
-for (const [i, w] of relevant.entries()) console.log(`${i + 1}. ${w.kind.padEnd(4)} ${w.tool} ${w.target.slice(-100)}`);
-const firstTest = relevant.findIndex((w) => w.kind === 'test');
-const firstCode = relevant.findIndex((w) => w.kind === 'code');
+const relevant = events.map((e) => (e.kind === 'run' ? e : Object.assign(e, { kind: kind(e.target) }))).filter((e) => e.kind);
+const label = (e) => (e.kind === 'run' ? (e.red === null ? 'run ?' : e.red ? 'rouge' : 'vert') : e.kind);
+for (const [i, e] of relevant.entries()) console.log(`${i + 1}. ${label(e).padEnd(5)} ${e.tool} ${e.target.replace(/\s+/g, ' ').slice(-100)}`);
+const firstTest = relevant.findIndex((e) => e.kind === 'test');
+const firstCode = relevant.findIndex((e) => e.kind === 'code');
+const after = relevant.slice(firstTest + 1).filter((e) => e.kind === 'run' && e.red !== null);
 let error = '';
 if (firstTest < 0) error = 'aucune écriture de test dans le transcript';
 else if (firstCode < 0) error = 'aucune écriture du code dans le transcript';
 else if (firstCode < firstTest) error = 'le code est écrit avant le test';
+else if (!after.length || !after[0].red) error = 'aucun lancement des tests au rouge avant le premier vert';
 if (error) {
   console.error(`✗ test d'abord : ${error}`);
   process.exit(1);
