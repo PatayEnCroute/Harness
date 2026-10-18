@@ -17,6 +17,7 @@ import {
   installedOpenspecVersion,
   listChanges,
   loadValidConfig,
+  pinnedOpenspec,
   readChangeMeta,
   readText,
   readVersions,
@@ -156,8 +157,13 @@ export function sessionStart(root, input, env = process.env) {
   if (readText(path.join(root, '.harness', 'project.md')).includes('hx:todo')) {
     lines.push("- Harness pas encore personnalisé : propose à l'utilisateur de lancer /hx-setup.");
   }
-  const pinned = readVersions(root).openspec;
-  if (env.CLAUDE_CODE_REMOTE === 'true' && /^[\w.-]+$/.test(pinned ?? '') && installedOpenspecVersion() !== pinned) {
+  let pinned = null;
+  try {
+    pinned = readVersions(root).openspec === undefined ? null : pinnedOpenspec(root);
+  } catch (err) {
+    lines.push(`- ${err.message} : CLI openspec non installée.`);
+  }
+  if (env.CLAUDE_CODE_REMOTE === 'true' && pinned && installedOpenspecVersion() !== pinned) {
     const r = spawnSync('npm', ['i', '-g', `@fission-ai/openspec@${pinned}`], { stdio: 'ignore', shell: process.platform === 'win32' });
     lines.push(r.status === 0
       ? `- CLI openspec ${pinned} installée pour cette session.`

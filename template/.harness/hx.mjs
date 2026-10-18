@@ -229,9 +229,20 @@ export function installedOpenspecVersion() {
   return installedOpenspec;
 }
 
+// Version épinglée d'OpenSpec (« latest » si versions.json n'en donne pas). Elle part dans une commande npx :
+// une valeur hors format est une erreur, jamais transmise au shell ni remplacée en silence.
+export function pinnedOpenspec(root) {
+  const version = readVersions(root).openspec;
+  if (version === undefined) return 'latest';
+  if (typeof version !== 'string' || !/^[\w.-]+$/.test(version)) {
+    throw new Error(`.harness/versions.json : version d'OpenSpec invalide (${JSON.stringify(version)})`);
+  }
+  return version;
+}
+
 // Préfère la CLI installée si elle a la version épinglée (plus rapide, hors ligne), sinon npx.
 export function openspecCommand(root, args) {
-  const version = readVersions(root).openspec ?? 'latest';
+  const version = pinnedOpenspec(root);
   const binary = installedOpenspecVersion() === version ? ['openspec'] : ['npx', '-y', `@fission-ai/openspec@${version}`];
   return [...binary, ...args].map((a) => shellQuote(a)).join(' ');
 }
@@ -946,6 +957,11 @@ function cmdDoctor(root, args) {
 
   const pinned = readVersions(root).openspec;
   add(fs.existsSync(path.join(root, 'openspec', 'config.yaml')) ? 'ok' : 'error', 'OpenSpec', 'openspec/config.yaml');
+  try {
+    pinnedOpenspec(root);
+  } catch (err) {
+    add('error', 'OpenSpec', err.message);
+  }
   if (!opts['no-run']) {
     const template = templateStatus(root);
     if (template) add(template.level, 'Template Harness', template.detail);
@@ -1068,5 +1084,10 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) {
-  process.exitCode = main();
+  try {
+    process.exitCode = main();
+  } catch (err) {
+    console.error(`hx : ${err.message}`);
+    process.exitCode = 1;
+  }
 }

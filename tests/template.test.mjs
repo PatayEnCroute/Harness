@@ -108,6 +108,14 @@ describe('cohérence et budgets', () => {
     }
   });
 
+  test('settings.json : les fichiers gérés par Copier (outils du harness) ne sont jamais édités par Claude', () => {
+    const { deny } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
+    for (const file of ['hx.mjs', 'hooks.mjs', 'versions.json']) {
+      assert.ok(deny.includes(`Edit(/.harness/${file})`), file);
+      assert.ok(fs.existsSync(path.join(template, '.harness', file.replace('versions.json', 'versions.json.jinja'))), `${file} existe dans le template`);
+    }
+  });
+
   test('les budgets internes des hooks restent sous les délais de settings.json', async () => {
     const { LINT_FILE_TIMEOUT_MS, STOP_BUDGET_MS } = await import(pathToFileURL(path.join(template, '.harness', 'hooks.mjs')).href);
     const settings = JSON.parse(read(path.join(claude, 'settings.json')));

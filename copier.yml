@@ -5,10 +5,13 @@ _min_copier_version: "9.19.1"
 _subdirectory: template
 _answers_file: .copier-answers.yml
 
-# Sans CI (ci=false) : ni workflow, ni Dependabot, ni action d'outillage.
+# Sans CI (ci=false) : ni workflow, ni Dependabot, ni action d'outillage. Sans codeowners : pas de CODEOWNERS.
 _exclude:
-  - "{% if not ci %}.github{% endif %}"
+  - "{% if not ci and not codeowners %}.github{% endif %}"
+  - "{% if not ci %}.github/workflows{% endif %}"
+  - "{% if not ci %}.github/dependabot.yml{% endif %}"
   - "{% if not ci %}.harness/ci{% endif %}"
+  - "{% if not codeowners %}.github/CODEOWNERS{% endif %}"
 
 # Fichiers spécifiques au projet : créés une fois, jamais réécrits par `copier update`.
 _skip_if_exists:
@@ -16,6 +19,7 @@ _skip_if_exists:
   - .harness/project.md
   - .harness/ci/setup/action.yml
   - .github/dependabot.yml   # le projet peut déjà avoir le sien
+  - .github/CODEOWNERS       # idem
 
 _tasks:
   - command: node .harness/hx.mjs openspec init --tools claude .
@@ -46,6 +50,11 @@ default_branch:
   help: Branche principale (déclenche hx-check au push)
   default: main
   when: "{{ ci }}"
+
+codeowners:
+  type: str
+  help: "Relecteurs obligatoires du harness et des specs (@utilisateur ou @org/équipe, séparés par des espaces ; vide : pas de CODEOWNERS)"
+  default: ""
 
 # Calculée, jamais posée : une question verrait sa réponse figée dans .copier-answers.yml,
 # et `copier update` n'apporterait jamais la nouvelle version épinglée aux projets existants.
