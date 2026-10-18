@@ -23,7 +23,8 @@ const HELP = `npx github:PatayEnCroute/Harness [options] [options de copier]
   --no-claude          ne pas ouvrir Claude Code à la fin
   -h, --help           cette aide
 
-  Les autres options vont à copier, par exemple --vcs-ref v0.4.0 ou --defaults.`;
+  Les autres options vont à copier, par exemple --vcs-ref v0.4.0 ou --defaults.
+  Sans terminal (agent, CI) : --defaults obligatoire, réponses en --data clé=valeur (voir INSTALL.md).`;
 
 export function parseArgs(argv) {
   const opts = { template: TEMPLATE, claude: true, help: false, copier: [] };
@@ -78,6 +79,10 @@ async function main(argv) {
   const cwd = process.cwd();
   const fail = (msg) => (console.error(`harness : ${msg}`), 1);
 
+  // Sans terminal (agent, CI), Copier ne peut pas poser ses questions : réponses par --defaults et --data (INSTALL.md).
+  if (!process.stdin.isTTY && !opts.copier.some((a) => a === '--defaults' || a === '-l')) {
+    return fail('sans terminal interactif, passe --defaults et les réponses en --data clé=valeur (voir INSTALL.md)');
+  }
   const pre = preflight(cwd);
   if (pre.error) return fail(pre.error);
   if (pre.init) {

@@ -4,6 +4,8 @@ Template personnel de *harness engineering* pour **Claude Code**, autour d'[Open
 
 ## Utiliser le template
 
+> **Agent IA** : pour installer le harness à la demande d'un utilisateur, suis [`INSTALL.md`](INSTALL.md). Côté utilisateur, il suffit de dire à Claude Code : « Installe le harness github.com/PatayEnCroute/Harness en suivant son INSTALL.md ».
+
 Prérequis : `git` et Node ≥ 20.19. Dans le dossier du projet (vide, ou dépôt git sans changement en cours) :
 
 ```bash
@@ -81,7 +83,7 @@ Les projets suivent les **tags** du template (`copier update` prend le dernier).
 
 ```bash
 # 1. CHANGELOG.md : la section « Non publié » devient la version
-git tag v0.3.0 && git push origin v0.3.0
+git tag v0.4.0 && git push origin v0.4.0
 ```
 
-**Statut** : v0.3.0, phases 0 à 4 livrées (P4 : fiabilisation), **pas encore éprouvées sur un vrai projet**. La v1.0 attend le pilote : 3 changes M de bout en bout et une traçabilité ≥ 80 %. Historique : [`CHANGELOG.md`](CHANGELOG.md).
+**Statut** : v0.4.0, phases 0 à 5 livrées (P5 : démarrage en une commande, par une personne ou un agent), **pas encore éprouvées sur un vrai projet**. La v1.0 attend le pilote : 3 changes M de bout en bout et une traçabilité ≥ 80 %. Historique : [`CHANGELOG.md`](CHANGELOG.md).

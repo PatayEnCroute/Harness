@@ -51,8 +51,22 @@ describe('lanceur npx', () => {
     assert.ok(r === 'uvx' || r === exe, `${r}`);
   });
 
-  test('version de Copier : la même que copier.yml et la CI', () => {
+  test('version de Copier : la même que copier.yml, la CI et INSTALL.md', () => {
     assert.match(fs.readFileSync(path.join(repo, 'copier.yml'), 'utf8'), new RegExp(`_min_copier_version: "${COPIER_VERSION}"`));
     assert.match(fs.readFileSync(path.join(repo, '.github', 'workflows', 'ci.yml'), 'utf8'), new RegExp(`COPIER_VERSION: "${COPIER_VERSION}"`));
+    for (const m of fs.readFileSync(path.join(repo, 'INSTALL.md'), 'utf8').matchAll(/copier@([\d.]+)/g)) assert.equal(m[1], COPIER_VERSION);
+  });
+
+  test('INSTALL.md : chaque question de copier.yml a sa ligne et son --data', () => {
+    const install = fs.readFileSync(path.join(repo, 'INSTALL.md'), 'utf8');
+    // Questions : clés de premier niveau hors « _ », sauf les valeurs calculées (when: false).
+    const questions = fs.readFileSync(path.join(repo, 'copier.yml'), 'utf8').split(/\n(?=\w)/)
+      .filter((block) => /^[a-z]\w*:/.test(block) && !/\n\s+when: false/.test(block))
+      .map((block) => block.split(':')[0]);
+    assert.deepEqual(questions, ['project_name', 'ci', 'default_branch', 'codeowners']);
+    for (const q of questions) {
+      assert.match(install, new RegExp(`\\| \`${q}\` \\|`), `${q} absente du tableau`);
+      assert.match(install, new RegExp(`--data ${q}=`), `${q} absente de la commande`);
+    }
   });
 });
