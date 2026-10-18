@@ -17,6 +17,7 @@ import {
   installedOpenspecVersion,
   listChanges,
   loadValidConfig,
+  pinnedOpenspec,
   readChangeMeta,
   readText,
   readVersions,
@@ -26,6 +27,10 @@ import {
 } from './hx.mjs';
 
 const FEEDBACK = 2; // code de sortie qui renvoie stderr à Claude
+// Budgets sous les délais de .claude/settings.json (PostToolUse 120 s, Stop 600 s) : une commande trop lente
+// est arrêtée et signalée, au lieu que Claude Code tue le hook sans explication.
+export const LINT_FILE_TIMEOUT_MS = 100_000;
+export const STOP_BUDGET_MS = 570_000;
 const NOT_CODE = /^(\.harness|\.claude|\.github|openspec|docs)\/|\.md$/;
 const CASE_INSENSITIVE_FS = process.platform === 'darwin' || process.platform === 'win32';
 
@@ -45,44 +50,80 @@ export function relative(root, file) {
   return path.relative(realPath(root), realPath(path.resolve(root, file))).split(path.sep).join('/');
 }
 
-// Fichiers qui décident de ce qui s'exécute sans confirmation (commandes du contrat, hooks, permissions),
-// et specs principales, qui ne changent que par /opsx:sync ou /opsx:archive.
-const EXECUTION_REASON = 'Ce fichier décide des commandes exécutées sans confirmation (contrat hx, hooks ou permissions). Vérifie la modification avant de l\'accepter.';
+// Chemins protégés : fichiers qui décident de ce qui s'exécute sans confirmation (contrat hx, hooks, permissions,
+// version d'OpenSpec lancée par npx), et specs principales, qui ne changent que par /opsx:sync ou /opsx:archive.
+// Liste unique : elle sert à PreToolUse (confirmation) et à Stop (signalement, quel que soit l'outil qui a écrit).
+const SPECS = 'openspec/specs/';
+const CONTRACT = '.harness/config.json';
+const EXECUTION_FILES = ['.harness/hx.mjs', '.harness/hooks.mjs', '.harness/versions.json', '.claude/settings.json', '.claude/settings.local.json'];
+const EXECUTION_REASON = 'Ce fichier décide des commandes exécutées sans confirmation (contrat hx, hooks, permissions ou version d\'OpenSpec). Vérifie la modification avant de l\'accepter.';
 const PROTECTED = [
-  { test: (rel) => rel.startsWith('openspec/specs/'), reason: 'openspec/specs/ ne change que pendant /opsx:sync ou /opsx:archive. Confirme seulement dans ce cadre.' },
-  { test: (rel) => rel === '.harness/config.json', reason: EXECUTION_REASON, contract: true },
-  { test: (rel) => ['.harness/hx.mjs', '.harness/hooks.mjs'].includes(rel) || /^\.claude\/settings(\.local)?\.json$/.test(rel), reason: EXECUTION_REASON },
+  { test: (rel) => rel.startsWith(SPECS), reason: 'openspec/specs/ ne change que pendant /opsx:sync ou /opsx:archive. Confirme seulement dans ce cadre.' },
+  { test: (rel) => rel === CONTRACT, reason: EXECUTION_REASON, contract: true },
+  { test: (rel) => EXECUTION_FILES.includes(rel), reason: EXECUTION_REASON },
 ];
+const isProtected = (rel) => PROTECTED.some((p) => p.test(CASE_INSENSITIVE_FS ? rel.toLowerCase() : rel));
 // Exécution sans humain (evals de /hx-setup) : une confirmation y vaut refus, alors qu'écrire le contrat est la tâche.
 // HX_ALLOW_CONFIG_EDITS=1 lève la confirmation sur .harness/config.json seulement ; hooks, permissions et specs restent protégés.
 const protectedFor = (env) => PROTECTED.filter((p) => !(p.contract && env.HX_ALLOW_CONFIG_EDITS === '1'));
-const PROTECTED_IN_COMMAND = /(?:^|[\s'"=/])(\.harness\/(?:config\.json|hx\.mjs|hooks\.mjs)|\.claude\/settings(?:\.local)?\.json|openspec\/specs\/)/g;
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Repérage best effort dans une commande (chemin cité littéralement) ; ce qui y échappe est signalé par le hook Stop.
+const PROTECTED_IN_COMMAND = new RegExp(`(?:^|[\\s'"=/])(${[SPECS, CONTRACT, ...EXECUTION_FILES].map(escapeRegExp).join('|')})`, 'g');
 // Lancer un script du harness (node .harness/hx.mjs …) ne l'écrit pas : ce chemin-là ne compte pas.
 const RUNS_HARNESS_SCRIPT = /\bnode\s+["']?(?:\$CLAUDE_PROJECT_DIR\/)?\.harness\/(?:hx|hooks)\.mjs["']?/g;
 // Écritures probables dans une commande shell (redirections vers /dev/null ou entre descripteurs exclues).
 const WRITES = /\btee\b|\b(sed|perl)\b[^|;&]*\s-\w*i|--in-place|\b(mv|cp|rm|truncate|dd|ln)\s|writeFile|\bopen\(|>/;
 const writes = (command) => WRITES.test(command.replace(/\d*>&\d|\d*>\s*\/dev\/null/g, ''));
 
-// État de la session : fichiers édités par Claude, lus par le hook Stop. Hors du dépôt, une entrée par projet et session.
+// État de la session, hors du dépôt, une entrée par projet et session : commit de départ, et empreinte des fichiers
+// déjà vus (modifiés avant la session, ou contrôlés au vert). Écrit seulement par SessionStart et Stop.
 function sessionFile(root, input) {
   const key = createHash('sha256').update(`${realPath(root)}\0${input.session_id ?? 'sans-session'}`).digest('hex').slice(0, 16);
   return path.join(os.tmpdir(), 'hx-hooks', `${key}.json`);
 }
 
-function readEdited(root, input) {
+function readState(root, input) {
   try {
     return JSON.parse(fs.readFileSync(sessionFile(root, input), 'utf8'));
   } catch {
-    return [];
+    return null;
   }
 }
 
-function writeEdited(root, input, files) {
+function writeState(root, input, state) {
   const file = sessionFile(root, input);
-  if (!files.length) return fs.rmSync(file, { force: true });
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(files));
+  fs.writeFileSync(file, JSON.stringify(state));
 }
+
+function git(root, args) {
+  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  return r.status === 0 ? r.stdout : null;
+}
+
+// Fichiers modifiés depuis le commit base (commités ou non) et fichiers non suivis, relatifs à la racine, en « / ».
+// Vu par git, donc quel que soit l'outil qui a écrit (Edit, Bash, script). null hors d'un dépôt git.
+export function changedFiles(root, base = 'HEAD') {
+  const untracked = git(root, ['ls-files', '-z', '--others', '--exclude-standard']);
+  if (untracked === null) return null;
+  // Dépôt sans commit (ou base disparue) : tous les fichiers suivis comptent.
+  const tracked = git(root, ['diff', '--name-only', '-z', '--no-renames', '--relative', base]) ?? git(root, ['ls-files', '-z', '--cached']) ?? '';
+  return [...new Set(`${tracked}\0${untracked}`.split('\0').filter(Boolean))];
+}
+
+// Empreinte du contenu (taille et date au-delà de 5 Mo) : deux écritures dans la même milliseconde restent distinctes.
+function fingerprint(root, rel) {
+  try {
+    const file = path.join(root, rel);
+    const st = fs.statSync(file);
+    if (!st.isFile() || st.size > 5 * 1024 * 1024) return `${st.size}:${st.mtimeMs}`;
+    return createHash('sha256').update(fs.readFileSync(file)).digest('hex').slice(0, 16);
+  } catch {
+    return 'absent';
+  }
+}
+
+const snapshot = (root, files) => Object.fromEntries(files.map((rel) => [rel, fingerprint(root, rel)]));
 
 // Contrat utilisable par les hooks : null si absent ou pas encore personnalisé (aucun composant).
 // Un contrat illisible ou cassé n'est jamais ignoré en silence : il revient à Claude comme retour bloquant.
@@ -106,12 +147,23 @@ function readInput() {
 
 // Contexte injecté au démarrage : projet à personnaliser, changes en cours, CLI openspec en session cloud.
 export function sessionStart(root, input, env = process.env) {
+  // Point de départ du hook Stop, posé une seule fois par session (pas à la reprise ni au compactage) :
+  // ce qui est déjà modifié avant Claude ne déclenche rien.
+  if (!readState(root, input)) {
+    const files = changedFiles(root);
+    if (files) writeState(root, input, { base: git(root, ['rev-parse', 'HEAD'])?.trim() || null, seen: snapshot(root, files) });
+  }
   const lines = [];
   if (readText(path.join(root, '.harness', 'project.md')).includes('hx:todo')) {
     lines.push("- Harness pas encore personnalisé : propose à l'utilisateur de lancer /hx-setup.");
   }
-  const pinned = readVersions(root).openspec;
-  if (env.CLAUDE_CODE_REMOTE === 'true' && /^[\w.-]+$/.test(pinned ?? '') && installedOpenspecVersion() !== pinned) {
+  let pinned = null;
+  try {
+    pinned = readVersions(root).openspec === undefined ? null : pinnedOpenspec(root);
+  } catch (err) {
+    lines.push(`- ${err.message} : CLI openspec non installée.`);
+  }
+  if (env.CLAUDE_CODE_REMOTE === 'true' && pinned && installedOpenspecVersion() !== pinned) {
     const r = spawnSync('npm', ['i', '-g', `@fission-ai/openspec@${pinned}`], { stdio: 'ignore', shell: process.platform === 'win32' });
     lines.push(r.status === 0
       ? `- CLI openspec ${pinned} installée pour cette session.`
@@ -159,20 +211,15 @@ export function preToolUse(root, input, env = process.env) {
 }
 
 // Lint du fichier modifié, seulement si le composant définit « lint-file » (retour rapide).
-// Le fichier est aussi noté pour le hook Stop.
 export function postToolUse(root, input) {
   const file = input.tool_input?.file_path;
   if (!file) return 0;
   const rel = relative(root, file);
-  if (!rel.startsWith('../') && !NOT_CODE.test(rel)) {
-    const edited = readEdited(root, input);
-    if (!edited.includes(rel)) writeEdited(root, input, [...edited, rel]);
-  }
   const { config, code } = hookConfig(root);
   if (!config || NOT_CODE.test(rel)) return code;
   const failures = [];
   for (const inv of resolveInvocations(config, root, 'lint', { file: path.join(root, rel), fileOnly: true })) {
-    const r = execute(inv.command, inv.cwd, { capture: true });
+    const r = execute(inv.command, inv.cwd, { capture: true, timeout: LINT_FILE_TIMEOUT_MS });
     if (!r.ok) failures.push(`lint · ${inv.component} : ${inv.command}\n${tail(r.output, 30)}`);
   }
   if (!failures.length) return 0;
@@ -180,31 +227,49 @@ export function postToolUse(root, input) {
   return FEEDBACK;
 }
 
-// Avant de rendre la main : lint + typecheck des seuls composants dont Claude a édité du code pendant la session.
-// Les modifications antérieures ou faites hors de Claude ne déclenchent rien ; la liste est vidée une fois au vert.
+// Avant de rendre la main, d'après git (donc aussi pour les écritures faites par Bash) :
+// - lint + typecheck des seuls composants dont le code a changé depuis le dernier passage au vert de la session ;
+// - signalement à l'utilisateur des chemins protégés modifiés, que PreToolUse ait vu passer l'écriture ou non.
+// Ce qui était déjà modifié au démarrage de la session ne déclenche rien. Hors d'un dépôt git : aucun contrôle.
 export function stop(root, input) {
   if (input.stop_hook_active) return 0;
   const { config, code } = hookConfig(root);
-  if (!config) return code;
-  const edited = readEdited(root, input);
-  const touched = new Set(edited
+  if (code) return code;
+  const state = readState(root, input) ?? { base: null, seen: {} };
+  const files = changedFiles(root, state.base ?? 'HEAD');
+  if (!files) return 0;
+  const fresh = files.filter((rel) => state.seen[rel] !== fingerprint(root, rel));
+  const touched = new Set(config ? fresh
+    .filter((rel) => !NOT_CODE.test(rel))
     .map((rel) => findComponentForFile(config, root, path.join(root, rel))?.component.name)
-    .filter(Boolean));
+    .filter(Boolean) : []);
+  const deadline = Date.now() + STOP_BUDGET_MS;
   const failures = [];
   for (const component of touched) {
     for (const step of FAST_STEPS) {
       for (const inv of resolveInvocations(config, root, step, { component })) {
-        const r = execute(inv.command, inv.cwd, { capture: true });
+        const left = deadline - Date.now();
+        if (left <= 0) {
+          failures.push(`${step} · ${inv.component} : non exécuté, budget du hook Stop épuisé`);
+          continue;
+        }
+        const r = execute(inv.command, inv.cwd, { capture: true, timeout: left });
         if (!r.ok) failures.push(`${step} · ${inv.component} : ${inv.command}\n${tail(r.output, 30)}`);
       }
     }
   }
-  if (!failures.length) {
-    writeEdited(root, input, []);
-    return 0;
+  if (failures.length) {
+    console.error(`Le code modifié ne passe pas les contrôles rapides. Corrige avant de terminer, ou explique pourquoi c'est attendu.\n\n${failures.join('\n\n')}`);
+    return FEEDBACK;
   }
-  console.error(`Le code modifié ne passe pas les contrôles rapides. Corrige avant de terminer, ou explique pourquoi c'est attendu.\n\n${failures.join('\n\n')}`);
-  return FEEDBACK;
+  writeState(root, input, { ...state, seen: { ...state.seen, ...snapshot(root, fresh) } });
+  const guarded = fresh.filter(isProtected);
+  if (guarded.length) {
+    console.log(JSON.stringify({
+      systemMessage: `Harness : fichiers protégés modifiés pendant la session : ${guarded.join(', ')}. Vérifie le diff (git diff) avant de commiter.`,
+    }));
+  }
+  return 0;
 }
 
 const HANDLERS = { 'session-start': sessionStart, 'pre-tool-use': preToolUse, 'post-tool-use': postToolUse, stop };

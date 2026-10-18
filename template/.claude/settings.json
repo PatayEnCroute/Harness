@@ -7,6 +7,11 @@
     "allow": [
       "Bash(node .harness/hx.mjs *)",
       "Bash(openspec *)"
+    ],
+    "deny": [
+      "Edit(/.harness/hx.mjs)",
+      "Edit(/.harness/hooks.mjs)",
+      "Edit(/.harness/versions.json)"
     ]
   },
   "hooks": {

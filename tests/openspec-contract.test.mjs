@@ -44,6 +44,17 @@ describe(`contrat OpenSpec ${pinned}`, () => {
     }
   });
 
+  test('chaque commande /opsx:* citée par le template existe dans cette version', () => {
+    const template = path.join(here, '..', 'template');
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+    const cited = new Set(walk(template).filter((f) => /\.(md|ya?ml|jinja)$/.test(f))
+      .flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(/\/opsx:([a-z-]+)/g)].map((m) => m[1])));
+    assert.ok(cited.size > 0);
+    const missing = [...cited].filter((name) => !fs.existsSync(path.join(root, '.claude/commands/opsx', `${name}.md`)));
+    assert.deepEqual(missing, []);
+  });
+
   test('new change : .openspec.yaml plat, x-track accepté par validate --strict', () => {
     assert.equal(openspec('new change add-mult').status, 0);
     fs.appendFileSync(path.join(root, change, '.openspec.yaml'), 'x-track: M\n');

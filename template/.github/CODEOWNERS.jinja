@@ -1,0 +1,7 @@
+# Relecture obligatoire des fichiers qui décident de ce qui s'exécute ou de ce que la CI valide :
+# une PR ne peut pas assouplir seule ses propres contrôles (min_coverage, commandes, hooks, workflow).
+# Effectif avec la protection de branche « Require review from Code Owners ».
+/.harness/                    {{ codeowners }}
+/.claude/settings.json        {{ codeowners }}
+/.github/                     {{ codeowners }}
+/openspec/specs/              {{ codeowners }}

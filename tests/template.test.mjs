@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const template = path.resolve(here, '..', 'template');
@@ -98,6 +98,17 @@ describe('cohérence et budgets', () => {
     assert.deepEqual(missing, []);
   });
 
+  test('CLAUDE.md ne recopie pas les critères de piste de hx-triage (une seule source, pas de dérive)', () => {
+    assert.doesNotMatch(read(path.join(template, 'CLAUDE.md')), /\| Quand \|/);
+    assert.match(read(path.join(claude, 'skills', 'hx-triage', 'SKILL.md')), /\| Piste \| Critères \|/);
+  });
+
+  test('les relecteurs rendent leurs constats au même format, que hx-review consolide', () => {
+    for (const name of agents.filter((n) => n.endsWith('-reviewer'))) {
+      assert.match(read(path.join(claude, 'agents', `${name}.md`)), /`\[bloquant\|important\|mineur\] chemin:ligne — /, name);
+    }
+  });
+
   test('settings.json : JSON valide, hooks vers des fichiers du template', () => {
     const settings = JSON.parse(read(path.join(claude, 'settings.json')));
     const commands = Object.values(settings.hooks).flat().flatMap((h) => h.hooks.map((x) => x.command));
@@ -106,6 +117,22 @@ describe('cohérence et budgets', () => {
       const m = /\$CLAUDE_PROJECT_DIR\/([^"]+)"/.exec(command);
       assert.ok(m && fs.existsSync(path.join(template, m[1])), command);
     }
+  });
+
+  test('settings.json : les fichiers gérés par Copier (outils du harness) ne sont jamais édités par Claude', () => {
+    const { deny } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
+    for (const file of ['hx.mjs', 'hooks.mjs', 'versions.json']) {
+      assert.ok(deny.includes(`Edit(/.harness/${file})`), file);
+      assert.ok(fs.existsSync(path.join(template, '.harness', file.replace('versions.json', 'versions.json.jinja'))), `${file} existe dans le template`);
+    }
+  });
+
+  test('les budgets internes des hooks restent sous les délais de settings.json', async () => {
+    const { LINT_FILE_TIMEOUT_MS, STOP_BUDGET_MS } = await import(pathToFileURL(path.join(template, '.harness', 'hooks.mjs')).href);
+    const settings = JSON.parse(read(path.join(claude, 'settings.json')));
+    const timeout = (event) => settings.hooks[event][0].hooks[0].timeout * 1000;
+    assert.ok(LINT_FILE_TIMEOUT_MS < timeout('PostToolUse'), 'PostToolUse');
+    assert.ok(STOP_BUDGET_MS < timeout('Stop'), 'Stop');
   });
 
   test('fichiers JSON du template valides', () => {

@@ -10,7 +10,7 @@ Une question coûte une minute ; une spec fausse coûte un change entier. Mais u
 ## Étapes
 
 1. Reformule le besoin en une phrase : qui, quoi, pourquoi.
-2. Lis le contexte avant de demander : code concerné (`hx-explorer` si besoin), specs existantes dans `openspec/specs/`, `.harness/project.md`. Ne pose pas une question dont la réponse est dans le dépôt.
+2. Lis le contexte avant de demander : code concerné (`hx-explorer` si besoin), specs existantes dans `openspec/specs/`, `.harness/project.md`, leçons de `docs/learnings/` sur le même sujet. Ne pose pas une question dont la réponse est dans le dépôt.
 3. Liste les ambiguïtés, puis garde **au plus 5** questions, par ordre d'impact sur la spec :
    - **besoin** : quel problème, pour qui ;
    - **périmètre** : ce qui est inclus, et surtout ce qui est exclu (non-objectifs) ;

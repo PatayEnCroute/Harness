@@ -68,4 +68,10 @@ for absent in .github .harness/ci; do
   [ ! -e "$work/sans-ci/$absent" ] || { echo "ÉCHEC : $absent livré avec ci=false" >&2; exit 1; }
 done
 [ -f "$work/sans-ci/.harness/hx.mjs" ] || { echo "ÉCHEC : ci=false a retiré le harness" >&2; exit 1; }
+
+# CODEOWNERS : seulement si des relecteurs sont donnés, avec ou sans CI.
+[ ! -e .github/CODEOWNERS ] || { echo "ÉCHEC : CODEOWNERS livré sans codeowners" >&2; exit 1; }
+"${copier[@]}" copy --trust --defaults --skip-tasks -d ci=false -d codeowners=@acme/devs --vcs-ref HEAD "$repo" "$work/owners" > /dev/null
+grep -q '^/\.harness/ *@acme/devs$' "$work/owners/.github/CODEOWNERS" || { echo "ÉCHEC : CODEOWNERS absent ou incomplet" >&2; exit 1; }
+[ ! -e "$work/owners/.github/workflows" ] || { echo "ÉCHEC : workflow livré avec ci=false" >&2; exit 1; }
 echo "e2e $fixture : OK"

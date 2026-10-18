@@ -8,7 +8,7 @@ node --input-type=module -e "
   import { mult } from './src/mult.js';
   if (mult(2, 3) !== 6 || mult(7, 0) !== 0) throw new Error('mult(2, 3) = ' + mult(2, 3) + ', mult(7, 0) = ' + mult(7, 0));
 "
-# Chaque scénario a un test qui échoue quand seul son comportement est faux.
-mutant_caught src/mult.js 'export const mult = (a, b) => (b === 0 ? 0 : NaN); export default mult;'
-mutant_caught src/mult.js 'export const mult = (a, b) => (b === 0 ? NaN : a * b); export default mult;'
+# Chaque scénario a un test tagué qui échoue quand seul son comportement est faux.
+mutant_caught_by calc/multiply-two-numbers src/mult.js 'export const mult = (a, b) => (b === 0 ? 0 : NaN); export default mult;'
+mutant_caught_by calc/multiply-by-zero src/mult.js 'export const mult = (a, b) => (b === 0 ? NaN : a * b); export default mult;'
 node .harness/hx.mjs check

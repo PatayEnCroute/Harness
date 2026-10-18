@@ -29,8 +29,21 @@
 | `hx-setup` | La personnalisation à la stack est longue et sujette à erreur | eval `setup` | — (gain de temps, pas de faiblesse du modèle) |
 | `hx trace` | Les specs et le code divergent | `hx check` en CI | — (contrôle déterministe, coût quasi nul) |
 | Hook `PostToolUse` (lint du fichier) | Les erreurs de lint s'accumulent jusqu'à la fin | nombre d'échecs `lint` en fin de tâche | Le lint final passe toujours sans le hook |
+| Hook `Stop` (chemins protégés) | Le modèle contourne une protection par un chemin que `PreToolUse` ne voit pas (`cd`, script) | signalements à l'utilisateur sur un trimestre | — (contrôle déterministe, coût quasi nul) |
+| `hx-learn` → `docs/learnings/` relu par `hx-triage` et `hx-clarify` | Les leçons d'un incident sont oubliées au change suivant | même correction demandée deux fois | Aucune leçon relue n'a changé une décision sur un trimestre |
 
 Les contrôles déterministes (`hx check`, trace, pistes, archives) coûtent peu et ne dépendent pas du modèle : ils restent.
+
+## Candidats en attente du pilote
+
+Trous possibles du workflow, **non construits** : on n'ajoute un composant que si le pilote (3 changes M de bout en bout, [PLAN §9](PLAN.md)) en montre le besoin, avec une mesure.
+
+| Candidat | Signal qui le justifierait |
+|---|---|
+| Rollback et migration de données en piste L (`hx-ship`, `hx-adr`) | Une migration livrée sans plan de retour arrière |
+| Revue de performance (`hx-code-reviewer` ou relecteur dédié) | Une régression de performance passée en revue |
+| Étape docs / CHANGELOG dans la piste M | Une PR mergée avec une doc utilisateur périmée |
+| Template de PR dans `hx-ship` | Une PR refusée ou reprise pour sa description |
 
 ## Journal
 
@@ -39,4 +52,4 @@ Les contrôles déterministes (`hx check`, trace, pistes, archives) coûtent peu
 | 2026-10-18 | Plugin utilisateur | Non construit ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)) | Besoin non observé |
 | 2026-10-18 | Génération multi-outils | Non construite ([ADR-002](adr/002-claude-code-seul-standards-gratuits.md)) | Un seul outil utilisé |
 | 2026-10-18 | Ligne de base | 4/4 evals vertes, une exécution chacune (`architect`, `setup`, `tdd-s`, `implement-m`), environ 1,10 $ au total | Première mesure ; à répéter avec `--runs 10` et en A/B, résultats dans `evals/results/` |
-| 2026-10-18 | Ligne de base `--runs 10` (variante complète, `claude-sonnet-5-5`) | `architect` 10/10 · `implement-m` 10/10 · `setup` 10/10 · `tdd-s` 10/10 après renotation (8/10 brut : 2 faux négatifs du correcteur, corrigé). Environ 11 $ en tout, échecs et relances compris | `evals/results/20261018T2029*` (a8ef3b2), `…2054*` (bcf700c), `…2108*` (416decb). Les campagnes ont révélé et fait corriger 2 défauts du hook `PreToolUse` (`setup` 0/6 puis 9/10) et 2 du correcteur `test-first`. Prochaine étape : A/B `--without` par composant |
+| 2026-10-18 | Ligne de base `--runs 10` (variante complète, `claude-sonnet-5-5`) | Mesures brutes : `architect` 10/10 · `implement-m` 10/10 (a8ef3b2) · `setup` 10/10 (416decb) · `tdd-s` 8/10 (bcf700c ; 2 échecs attribués au correcteur `test-first`, corrigé depuis, **sans nouvelle mesure**). `architect` et `implement-m` ont été mesurés avant le durcissement de leurs correcteurs (cf88fda, 2d52145) : ces chiffres ne valent pas pour la version suivante. Environ 11 $ en tout, échecs et relances compris | `evals/results/20261018T2029*` (a8ef3b2), `…2054*` (bcf700c), `…2108*` (416decb). Les campagnes ont révélé et fait corriger 2 défauts du hook `PreToolUse` (`setup` 0/6 puis 9/10) et 2 du correcteur `test-first`. Prochaine étape : A/B `--without` par composant |

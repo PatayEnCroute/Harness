@@ -24,10 +24,10 @@ argument-hint: "[nom du change]"
    - l'extrait utile du design ;
    - la consigne : une seule tâche, TDD, rapport avec preuve.
 2. Lis son rapport. S'il n'y a pas de preuve d'exécution, renvoie-le la chercher.
-3. Indexe le travail de la tâche (`git add -A`), puis lance **`hx-spec-reviewer`** sur `git diff --cached` (les fichiers nouveaux y figurent, contrairement à `git diff`) et les scénarios concernés.
+3. Indexe **les seuls fichiers de la tâche** (`git add <fichiers>`, d'après le rapport et `git status`), puis lance **`hx-spec-reviewer`** sur `git diff --cached` (les fichiers nouveaux y figurent, contrairement à `git diff`) et les scénarios concernés. Un fichier modifié hors de la tâche reste hors du commit : signale-le.
 4. En cas de constat bloquant, relance `hx-implementer` avec les constats. **Au plus 3 tours** : au troisième échec, arrête-toi et expose le blocage à l'utilisateur.
 5. Coche la tâche dans `tasks.md` (`- [ ]` devient `- [x]`).
-6. Commit : `git add -A && git commit -m "<change> : <tâche>"`.
+6. Commit : `git add openspec/changes/<change>/tasks.md && git commit -m "<change> : <tâche>"` (un sujet par commit).
 
 Ensuite : `hx-verify`, puis `hx-review`.
 
@@ -36,4 +36,4 @@ Ensuite : `hx-verify`, puis `hx-review`.
 - **Contexte neuf** : chaque tâche a son propre sous-agent ; ne transmets que ce qui la concerne.
 - Ne modifie jamais `openspec/specs/`.
 - Si une tâche révèle une spec fausse ou incomplète, arrête-toi et propose `/opsx:update`. Ne code pas hors spec.
-- Sans sous-agents disponibles : même boucle en séquentiel, en appliquant toi-même la grille de `hx-spec-reviewer` après chaque tâche.
+- Sans sous-agents disponibles : même boucle en séquentiel. Tu ne peux pas juger ton propre travail : applique la grille de `hx-spec-reviewer` comme liste de contrôle, écris dans le rapport final que la revue de conformité **n'est pas indépendante**, et demande à l'utilisateur de relire avant `/hx-ship`.

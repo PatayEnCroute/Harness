@@ -82,7 +82,7 @@
         },
         "level": {
           "$ref": "#/$defs/level",
-          "description": "Niveau par défaut du projet (voir PLAN §5)"
+          "description": "Niveau par défaut du projet (voir .claude/rules/architecture.md)"
         },
         "features": {
           "type": "object",

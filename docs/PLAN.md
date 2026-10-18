@@ -32,10 +32,10 @@ flowchart LR
 
 | Étape | Commande | Durée visée |
 |---|---|---|
-| 1. Installer | `uvx copier copy --trust gh:PatayEnCroute/Harness .` (projet nouveau ou existant) | 1 min |
+| 1. Installer | `uvx copier@9.19.1 copy --trust gh:PatayEnCroute/Harness .` (projet nouveau ou existant) | 1 min |
 | 2. Personnaliser pour la stack | `/hx-setup` dans Claude Code : il détecte, propose, **exécute chaque commande pour la vérifier**, établit le profil d'architecture, et tu valides | 10–20 min |
 | 3. Vérifier | `node .harness/hx.mjs doctor` | 1 min |
-| Mettre à jour plus tard | `uvx copier update --trust` (tes personnalisations sont conservées) | 1 min |
+| Mettre à jour plus tard | `uvx copier@9.19.1 update --trust` (tes personnalisations sont conservées) | 1 min |
 
 > `--trust` autorise les tâches post-génération (`openspec init`). Python (via `uv`) n'est requis **qu'à l'installation et à la mise à jour**.
 
@@ -149,18 +149,23 @@ flowchart LR
 | Plugin Claude Code (niveau utilisateur) | ✅ | ✅ auto | ⚠️ installé sur ta machine, donc absent ailleurs tant que le projet ne le déclare pas | plus tard, en option |
 | **Copier** (fichiers commités dans le projet) | ✅ | ✅ fusion 3 voies | ✅ | ✅ |
 
-`copier.yml` reste minimal :
+`copier.yml` reste minimal (extrait ; la source fait foi) :
 
 ```yaml
 _subdirectory: template
-_skip_if_exists: [.harness/config.json, .harness/project.md, .harness/ci/setup/action.yml]
+_exclude: ["{% if not ci %}.github/workflows{% endif %}", "{% if not codeowners %}.github/CODEOWNERS{% endif %}", …]
+_skip_if_exists: [.harness/config.json, .harness/project.md, .harness/ci/setup/action.yml, .github/dependabot.yml, .github/CODEOWNERS]
 _tasks:                                   # OpenSpec épinglé, télémétrie coupée
   - command: node .harness/hx.mjs openspec init --tools claude .
     when: "{{ _copier_operation == 'copy' }}"
   - command: node .harness/hx.mjs openspec update .
     when: "{{ _copier_operation == 'update' }}"
+  - command: node .harness/hx.mjs migrate # clés nouvelles ajoutées à config.json
+    when: "{{ _copier_operation == 'update' }}"
 project_name: { type: str, default: "{{ _folder_name }}" }
 ci: { type: bool, default: true }         # workflow GitHub Actions hx-check
+default_branch: { type: str, default: main, when: "{{ ci }}" }
+codeowners: { type: str, default: "" }    # relecteurs obligatoires du harness et des specs
 openspec_version: { type: str, default: "1.14.3", when: false }   # calculée : copier update la propage (ADR-004)
 ```
 
@@ -338,8 +343,8 @@ src/
 |---|---|
 | `SessionStart` | Changes en cours (piste, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
 | `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `.claude/settings*.json`. Couvre Edit/Write et les commandes Bash qui écrivent ces chemins. Confirmation aussi avant le skill `openspec-apply-change`, avec renvoi vers `hx-implement` |
-| `PostToolUse` (édition) | Note le fichier pour `Stop`, puis `lint-file` si défini, pour rester rapide. Contrat cassé → retour à Claude, jamais un silence |
-| `Stop` | Lint + typecheck des seuls composants dont Claude a édité du code **pendant la session** (modifications antérieures ignorées) ; liste vidée au vert ; une seule relance (`stop_hook_active`) |
+| `PostToolUse` (édition) | `lint-file` si défini, pour rester rapide (arrêté au-delà de 100 s). Contrat cassé → retour à Claude, jamais un silence |
+| `Stop` | D'après **git** (donc aussi les écritures faites par Bash, et les fichiers commités pendant la session) : lint + typecheck des seuls composants dont le code a changé depuis le dernier vert de la session (ce qui était modifié au démarrage est ignoré) ; budget de 570 s ; une seule relance (`stop_hook_active`). Signale aussi à l'utilisateur les chemins protégés modifiés, quel que soit l'outil |
 
 > Le niveau de modèle des agents n'est pas fixé dans le template (champ `model` absent : modèle de la session). Il se règle par projet si besoin.
 
@@ -441,6 +446,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | **P1 Boucle de base** ✅ | Skills `hx-triage`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr` ; agents `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-architect` ; rules `openspec`, `testing`, `architecture` ; hooks ; workflow `hx-check.yml` + outillage CI ; contrôles pistes et archives | Unitaires (hooks, pistes) ; E2E cycle OpenSpec ; evals `tdd-s`, `implement-m`, `architect`, `setup` | 3 changes M menés de bout en bout |
 | **P2 Qualité** ✅ | `hx trace` ; agents `hx-verifier`, `hx-security-reviewer` ; skills `hx-clarify`, `hx-debug`, `hx-learn` ; evals headless + A/B ; lint du template ; contrat OpenSpec | Unitaires ; contrat OpenSpec ; 4/4 evals | Traçabilité ≥ 80 % sur le projet pilote |
 | **P3 Extensions** ✅ | Skill `hx-discover` (brownfield) ; revue d'élagage ([`elagage.md`](elagage.md)) ; ADR 001 à 003 (plugin utilisateur et multi-outils non retenus) | Lint du template | Première revue d'élagage après quelques semaines d'usage |
+| **P4 Fiabilité** ✅ (v0.3.0) | Correcteurs d'evals sans faux succès et testés ; plus de faux verts (`run --file`, trace vide, délais) ; hook `Stop` fondé sur git ; chemins protégés signalés quel que soit l'outil, `permissions.deny`, `CODEOWNERS` ; prompts sans contradiction ; leçons relues | Unitaires ; contrat OpenSpec ; e2e ; evals `--runs 10` | Le pilote ci-dessus |
 
 **Constats faits pendant la réalisation**, désormais encodés dans le harness :
 
