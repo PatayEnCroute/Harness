@@ -24,6 +24,8 @@
 | `hx-tdd` | Le modèle écrit le code avant le test, ou des tests qui ne peuvent pas échouer | eval `tdd-s` avec `--without hx-tdd` | Réussite égale sans le skill |
 | `hx-implement` | Le contexte se dégrade sur un long change ; le modèle sort de la spec | eval `implement-m` | Réussite égale sans le skill, sur un change de 5 tâches ou plus |
 | `hx-verify` + hook `Stop` | Le modèle déclare « terminé » sans preuve | evals `tdd-s`, `implement-m` : `hx check` vert à la fin | Plus aucun échec de `check` en fin d'eval sans le skill |
+| Porte de cadrage (`x-validated`) | Le modèle spécifie autre chose que la demande, puis l'implémente fidèlement | corrections demandées à la porte ; hypothèses du rapport de fin de run infirmées par l'utilisateur | Aucune correction à la porte sur un trimestre |
+| `hx worktree` | Deux changes dans un même dossier se gênent (trace, pistes, commits) | runs interrompus par un change voisin | — (contrôle déterministe, coût quasi nul) |
 | `hx-review` + reviewers | Le modèle juge mal son propre travail | constats confirmés par revue (`hx-review`) | Moins d'un constat confirmé par PR sur un trimestre |
 | `hx-architect` + rule `architecture.md` | Le modèle sur-conçoit (patterns par réflexe) | eval `architect` | Le modèle reste proportionné sans eux |
 | `hx-setup` | La personnalisation à la stack est longue et sujette à erreur | eval `setup` | — (gain de temps, pas de faiblesse du modèle) |

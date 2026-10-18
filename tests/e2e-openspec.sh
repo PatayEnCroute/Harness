@@ -61,7 +61,7 @@ if hx check > check.log 2>&1; then fail "check vert malgré un scénario sans te
 grep -q 'calc/multiply-two-numbers (add-mult)' check.log || fail "la trace ne cite pas le scénario manquant"
 
 step "Hooks : contexte de session et confirmation avant d'écrire une spec principale"
-hook session-start < /dev/null | grep -q 'add-mult (piste M, 0/2 tâches)' || fail "session-start"
+hook session-start < /dev/null | grep -q 'add-mult (piste M, cadrage non validé, 0/2 tâches)' || fail "session-start"
 echo "{\"tool_input\":{\"file_path\":\"$PWD/openspec/specs/calc/spec.md\"}}" | hook pre-tool-use | grep -q '"ask"' || fail "pre-tool-use"
 
 step "Test tagué puis implémentation : hx check vert"
@@ -83,6 +83,35 @@ sed -i 's/- \[ \]/- [x]/' "$change/tasks.md"
 hx openspec archive add-mult -y > /dev/null
 [ -f openspec/specs/calc/spec.md ] || fail "spec principale absente après archive"
 hx check
+
+step "Cadrage parallèle : le change validé part dans son worktree, le dossier principal reste vert"
+export GIT_AUTHOR_NAME=ci GIT_AUTHOR_EMAIL=ci@example.com GIT_COMMITTER_NAME=ci GIT_COMMITTER_EMAIL=ci@example.com
+git add -A && git commit -qm "harness + add-mult"
+hx openspec new change add-div > /dev/null
+div=openspec/changes/add-div
+printf 'x-track: M\nx-validated: 2026-10-18\n' >> "$div/.openspec.yaml"
+mkdir -p "$div/specs/calc"
+cat > "$div/specs/calc/spec.md" <<'EOF'
+## ADDED Requirements
+
+### Requirement: Division
+The system SHALL divide two integers.
+
+#### Scenario: Divide two numbers
+- **WHEN** dividing 6 by 3
+- **THEN** the result is 2
+EOF
+printf '## 1. Division\n\n- [ ] 1.1 div(6, 3) returns 2\n' > "$div/tasks.md"
+if hx check > div.log 2>&1; then fail "check vert malgré add-div sans test"; fi
+hx worktree add-div > worktree.log || { cat worktree.log; fail "hx worktree"; }
+grep -q 'hx-implement add-div' worktree.log || fail "commande de lancement du run absente"
+[ ! -e "$div" ] || fail "add-div encore dans le dossier principal"
+rm div.log worktree.log
+hx check > /dev/null || fail "dossier principal rouge après le départ de add-div"
+wt="$work/proj-add-div"
+[ "$(git -C "$wt" log -1 --format=%s)" = "add-div : proposition" ] || fail "proposition non commitée dans le worktree"
+(cd "$wt" && node .harness/hx.mjs trace || true) | grep -q 'calc/divide-two-numbers (add-div)' || fail "trace du worktree"
+git worktree remove --force "$wt"
 
 step "Dérive : test détaché de son scénario → hx check rouge"
 sed -i 's#// @scenario calc/multiply-two-numbers##' test/mult.test.js

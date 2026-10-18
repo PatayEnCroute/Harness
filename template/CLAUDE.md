@@ -17,6 +17,7 @@ N'appelle jamais directement l'outil de la stack pour installer, tester, linter 
 | Tout vérifier avant de dire « terminé » | `node .harness/hx.mjs check` |
 | Scénarios OpenSpec ↔ tests | `node .harness/hx.mjs trace` |
 | Diagnostiquer l'installation | `node .harness/hx.mjs doctor` |
+| Branche et worktree pour le run d'un change validé | `node .harness/hx.mjs worktree <change>` |
 
 Si une commande manque ou échoue pour une raison d'outillage, signale-le au lieu de la contourner.
 
@@ -27,8 +28,14 @@ Commence toute demande de changement par **`hx-triage`** : les critères de choi
 | Piste | Enchaînement |
 |---|---|
 | **S** | `hx-tdd` (ou `hx-debug`) → `hx-verify` → commit |
-| **M** | `hx-clarify` si la demande est floue → `/opsx:propose` → `hx-implement` → `hx-verify` → `hx-review` → `/hx-ship` |
-| **L** | M + `hx-architect` et `hx-adr`, design validé par l'utilisateur avant d'implémenter |
+| **M** | `hx-clarify` si la demande est floue → `/opsx:propose` → porte de cadrage → `hx-implement` → `hx-verify` → `hx-review` → `/hx-ship` |
+| **L** | M + `hx-architect` et `hx-adr`, design validé par l'utilisateur à la porte de cadrage |
+
+**M et L : cadrage, puis run sans interruption.** L'utilisateur cadre, puis l'agent travaille seul pendant que l'utilisateur cadre le change suivant.
+
+1. **Cadrage** (avec l'utilisateur) : `hx-clarify`, `/opsx:propose`, design en L. Il se termine par **la porte** décrite dans `hx-triage` : validation explicite, `x-validated`, puis `hx worktree <change>`.
+2. **Run** (dans le worktree, sans l'utilisateur) : `hx-implement` → `hx-verify` → `hx-review` → rapport de fin de run. **Ne rends pas la main entre ces étapes** et ne pose pas de question en cours de route ; arrête-toi seulement sur les blocages listés dans `hx-implement`.
+3. **Livraison** (l'utilisateur) : relecture du rapport, puis `/hx-ship`.
 
 - Le change OpenSpec porte sa piste : `x-track: M` ou `L` dans `.openspec.yaml`.
 - L'archive OpenSpec (`/opsx:archive`) est le **dernier commit de la PR**.

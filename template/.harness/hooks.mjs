@@ -173,8 +173,9 @@ export function sessionStart(root, input, env = process.env) {
   }
   for (const change of listChanges(root)) {
     const { done, total } = taskProgress(change.dir);
-    const track = readChangeMeta(change.dir)['x-track'] ?? '?';
-    lines.push(`- Change OpenSpec en cours : ${change.name} (piste ${track}, ${done}/${total} tâches)`);
+    const meta = readChangeMeta(change.dir);
+    const gate = meta['x-validated'] ? `cadrage validé le ${meta['x-validated']}` : 'cadrage non validé';
+    lines.push(`- Change OpenSpec en cours : ${change.name} (piste ${meta['x-track'] ?? '?'}, ${gate}, ${done}/${total} tâches)`);
   }
   if (lines.length) console.log(`Harness :\n${lines.join('\n')}`);
   return 0;

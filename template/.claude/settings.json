@@ -6,7 +6,16 @@
   "permissions": {
     "allow": [
       "Bash(node .harness/hx.mjs *)",
-      "Bash(openspec *)"
+      "Bash(openspec *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git grep *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ],
     "deny": [
       "Edit(/.harness/hx.mjs)",

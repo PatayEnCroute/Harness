@@ -126,6 +126,7 @@ C'est la seule interface entre le harness et la stack. Il gère aussi les projet
 | `hx trace [--json]` | Scénarios OpenSpec ↔ tests tagués `@scenario` |
 | `hx doctor` | Installation saine (fichiers, versions, `settings.json` lisible et hooks câblés, aucun reste de conflit de fusion dans les fichiers du harness, fichiers principaux non ignorés par git, retard sur le dernier tag) et les commandes `lint`, `typecheck`, `build`, `arch`, `test` **passent** |
 | `hx migrate` | Ajoute à `config.json` les clés nouvelles du template, sans rien remplacer (lancé par `copier update`) |
+| `hx worktree <change>` | Branche et worktree frère pour le run d'un change validé ; y déplace et commite le change (et ses ADR) s'il n'est pas encore suivi ; affiche la commande qui lance le run |
 | `hx openspec <args>` | Appelle la version épinglée d'OpenSpec, télémétrie coupée |
 
 ### 3.3 `/hx-setup` : la personnalisation assistée
@@ -187,8 +188,9 @@ flowchart LR
   I([Intention]) --> T{hx-triage}
   T -->|S : correctif| TDD["hx-tdd<br/>(ou hx-debug)"]
   TDD --> VS[hx-verify] --> CM([commit])
-  T -->|M / L| C["hx-clarify<br/>si la demande est floue"] --> P["/opsx:propose<br/>(L : hx-architect + hx-adr,<br/>design validé)"]
-  P --> IM["hx-implement<br/>1 sous-agent / tâche"]
+  T -->|M / L| C["hx-clarify<br/>si la demande est floue"] --> P["/opsx:propose<br/>(L : hx-architect + hx-adr)"]
+  P --> G{{"Porte de cadrage<br/>validation · x-validated<br/>hx worktree"}}
+  G --> IM["hx-implement<br/>1 sous-agent / tâche"]
   IM --> V["hx-verify<br/>preuves"]
   V --> RV["hx-review<br/>reviewers indépendants"]
   RV --> SH["/hx-ship<br/>archive (dernier commit) · PR · CI"]
@@ -196,13 +198,15 @@ flowchart LR
   L -.->|générique| HX[(Harness)]
 ```
 
+> **Cadrage, run, livraison.** En M et L, l'utilisateur cadre jusqu'à la porte, le seul arrêt prévu. C'est là qu'il vérifie que la spec dit ce qu'il a demandé (`x-validated` dans `.openspec.yaml`). Le run (`hx-implement` → `hx-verify` → `hx-review`) se fait ensuite sans lui, dans le worktree du change : il ne s'arrête que sur un blocage listé par `hx-implement` et finit par un rapport de fin de run (hypothèses à confirmer, revue, mineurs). Pendant ce temps, le dossier principal reste libre pour cadrer le change suivant : `trace` et `pistes` portent sur tous les changes d'un dossier, donc deux changes dans le même dossier se gêneraient.
+>
 > Les critères de piste ne vivent que dans le skill `hx-triage`. Il lance `hx-explorer` quand l'impact n'est pas évident. Sur un projet existant sans specs, `hx-discover` dérive d'abord des specs de base depuis le code.
 
 | Piste | Quand | Artefacts OpenSpec | Contrôles |
 |---|---|---|---|
 | **S** | Diff descriptible en une phrase, aucun comportement spécifié ne change | aucun | `hx check` (tests, lint…) |
 | **M** | Fonctionnalité ou changement de comportement | proposal + delta specs + tasks | + `validate --strict` + traçabilité |
-| **L** | Archi, contrat d'API, migration | + `design.md` + ADR | + ta relecture du design **avant** l'implémentation |
+| **L** | Archi, contrat d'API, migration | + `design.md` + ADR | + design et ADR validés à la porte de cadrage, **avant** le run |
 
 ---
 

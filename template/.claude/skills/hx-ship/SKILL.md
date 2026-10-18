@@ -21,7 +21,8 @@ disable-model-invocation: true
    - **Pourquoi** : repris de `proposal.md`.
    - **Quoi** : les changements, en quelques puces.
    - **Piste** : S, M ou L, et les ADR éventuels.
+   - **Hypothèses** : celles du rapport de fin de run, avec la décision de l'utilisateur.
    - **Vérification** : résumé de la sortie de `hx check`.
    - **Traçabilité** : résumé de `hx trace`.
 4. **CI** : `gh pr checks --watch`. En cas d'échec : diagnostique (`hx-debug`), corrige, relance `hx-verify`, pousse. Ne désactive jamais un contrôle pour passer.
-5. **Après le merge** : `hx-learn`.
+5. **Après le merge** : `hx-learn`. Si le change avait son worktree (`hx worktree`), supprime-le depuis le dossier principal : `git worktree remove <dossier>`.

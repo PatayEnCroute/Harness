@@ -13,7 +13,7 @@ export const FAST_STEPS = ['lint', 'typecheck'];
 export const DOCTOR_STEPS = ['lint', 'typecheck', 'build', 'arch', 'test'];
 export const CONFIG_PATH = '.harness/config.json';
 
-const VALUE_FLAGS = new Set(['file', 'component']);
+const VALUE_FLAGS = new Set(['file', 'component', 'path', 'branch']);
 const TAIL_LINES = 60;
 const IGNORED_DIRS = new Set([
   'node_modules', 'bower_components', 'vendor', 'dist', 'build', 'out', 'target', 'bin', 'obj',
@@ -688,6 +688,8 @@ export function formatTrace(report, { limit = 20 } = {}) {
   return lines.join('\n');
 }
 
+const ADR_REF = /docs\/adr\/[^\s()[\]<>"'`]+?\.md/g;
+
 // Règles des pistes, lues dans « tracks » du contrat (défauts : S, M, L de defaultConfig) :
 // x-track obligatoire sur un change en cours ; spec → au moins une delta spec ; design → design.md ; adr → design.md cite un ADR.
 // Tout ADR cité doit exister.
@@ -723,13 +725,59 @@ export function checkPolicy(root, config = {}) {
       if (rules.design === 'required' || rules.adr === 'required') error(`piste ${track} : design.md manquant`);
       continue;
     }
-    const adrs = [...new Set([...design.matchAll(/docs\/adr\/[^\s()[\]<>"'`]+?\.md/g)].map((m) => m[0]))];
+    const adrs = [...new Set([...design.matchAll(ADR_REF)].map((m) => m[0]))];
     if (!adrs.length && rules.adr === 'required') error(`piste ${track} : design.md doit citer un ADR (docs/adr/…)`);
     for (const adr of adrs) {
       if (!fs.existsSync(path.join(root, adr))) error(`ADR introuvable : ${adr}`);
     }
   }
   return issues;
+}
+
+// Un change = une branche = un worktree, dossier frère du projet : le run d'un change n'est pas troublé par le cadrage
+// du suivant (trace et pistes portent sur tous les changes en cours du dossier). Le worktree part de HEAD ; le change
+// et les ADR cités par son design.md, s'ils ne sont pas encore suivis, y sont déplacés et commités.
+// Retourne { target, branch, moved } ou { error }.
+export function createWorktree(root, change, { target, branch = change } = {}) {
+  const git = (args, cwd = root) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const rel = `openspec/changes/${change}`;
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(change) || change === 'archive') return { error: `nom de change invalide : ${change}` };
+  if (!fs.existsSync(path.join(root, rel))) return { error: `change introuvable : ${rel}` };
+  const top = git(['rev-parse', '--show-toplevel']).stdout.trim();
+  if (!top || fs.realpathSync(top) !== fs.realpathSync(root)) return { error: 'le projet doit être la racine de son dépôt git' };
+  if (git(['rev-parse', '--verify', '--quiet', 'HEAD']).status !== 0) return { error: 'aucun commit : le worktree part de HEAD' };
+  for (const file of ['.harness/hx.mjs', CONFIG_PATH]) {
+    if (git(['cat-file', '-e', `HEAD:${file}`]).status !== 0) return { error: `${file} n'est pas commité : le worktree part de HEAD` };
+  }
+  const dirty = git(['status', '--porcelain', '--untracked-files=no', '--', '.harness', '.claude', 'CLAUDE.md', 'openspec/config.yaml']).stdout.trim();
+  if (dirty) return { error: `harness modifié et non commité (le worktree part de HEAD) :\n${dirty}` };
+  const adrs = [...readText(path.join(root, rel, 'design.md')).matchAll(ADR_REF)].map((m) => m[0]);
+  const paths = [...new Set([rel, ...adrs])].filter((p) => fs.existsSync(path.join(root, p)));
+  const status = git(['status', '--porcelain', '-z', '--untracked-files=all', '--', ...paths]).stdout.split('\0').filter(Boolean);
+  const tracked = status.filter((entry) => !entry.startsWith('??'));
+  if (tracked.length) return { error: `modifications suivies non commitées (commite-les d'abord) :\n${tracked.join('\n')}` };
+  const untracked = status.map((entry) => entry.slice(3));
+  if (git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]).status === 0) return { error: `la branche ${branch} existe déjà` };
+  const dest = path.resolve(target ?? path.join(path.dirname(root), `${path.basename(root)}-${change}`));
+  if (fs.existsSync(dest)) return { error: `le dossier existe déjà : ${dest}` };
+  const add = git(['worktree', 'add', '-q', '-b', branch, dest, 'HEAD']);
+  if (add.status !== 0) return { error: `git worktree add a échoué : ${add.stderr.trim()}` };
+  const moved = untracked.length > 0;
+  if (moved) {
+    for (const p of untracked) {
+      fs.mkdirSync(path.dirname(path.join(dest, p)), { recursive: true });
+      fs.copyFileSync(path.join(root, p), path.join(dest, p));
+    }
+    const commit = git(['add', '--', ...untracked], dest).status === 0 && git(['commit', '-q', '-m', `${change} : proposition`], dest);
+    if (!commit || commit.status !== 0) {
+      return { error: `worktree créé (${dest}), mais le commit de la proposition a échoué : ${commit?.stderr?.trim() ?? 'git add'}. Le change reste aussi dans le dossier principal.` };
+    }
+    for (const p of untracked) fs.rmSync(path.join(root, p), { force: true });
+    if (!fs.readdirSync(path.join(root, rel), { recursive: true }).some((f) => fs.statSync(path.join(root, rel, f)).isFile())) {
+      fs.rmSync(path.join(root, rel), { recursive: true, force: true });
+    }
+  }
+  return { target: dest, branch, moved };
 }
 
 // ---------------------------------------------------------------------------
@@ -1047,6 +1095,28 @@ function cmdMigrate(root) {
   return 0;
 }
 
+function cmdWorktree(root, args) {
+  const opts = parseFlags(args);
+  if (missingValue(opts)) return 2;
+  const change = opts._[0];
+  if (!change) {
+    console.error('usage : hx worktree <change> [--path <dossier>] [--branch <nom>]');
+    return 2;
+  }
+  const result = createWorktree(root, change, { target: opts.path, branch: opts.branch });
+  if (result.error) {
+    console.error(`hx : ${result.error}`);
+    return 1;
+  }
+  console.log([
+    `Worktree prêt : ${result.target} (branche ${result.branch})${result.moved ? ` ; change déplacé et commité : « ${change} : proposition »` : ''}.`,
+    'Lancer le run :',
+    `  cd ${shellQuote(result.target)} && claude --permission-mode acceptEdits "/hx-implement ${change}"`,
+    `Après le merge : git worktree remove ${shellQuote(result.target)}`,
+  ].join('\n'));
+  return 0;
+}
+
 function cmdOpenspec(root, args) {
   return execute(openspecCommand(root, args), root, { capture: false }).code;
 }
@@ -1063,6 +1133,8 @@ const HELP = `hx : contrat de commandes du harness
                       vérifie l'installation et exécute chaque commande
   hx detect [--json] [--write [--force]]
                       propose les composants à partir des manifestes
+  hx worktree <change> [--path <dossier>] [--branch <nom>]
+                      branche + worktree frère pour le run d'un change (y déplace le change s'il n'est pas commité)
   hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 
@@ -1077,6 +1149,7 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
     case 'detect': return cmdDetect(root, rest);
     case 'trace': return cmdTrace(root, rest);
     case 'migrate': return cmdMigrate(root);
+    case 'worktree': return cmdWorktree(root, rest);
     case 'openspec': return cmdOpenspec(root, rest);
     case undefined: case 'help': case '--help': case '-h':
       console.log(HELP);

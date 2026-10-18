@@ -1,7 +1,7 @@
 # Prépare un change OpenSpec de piste M (multiplication) dans le projet courant.
 node .harness/hx.mjs openspec new change add-mult
 change=openspec/changes/add-mult
-echo 'x-track: M' >> "$change/.openspec.yaml"
+printf 'x-track: M\nx-validated: 2026-10-18\n' >> "$change/.openspec.yaml"
 cat > "$change/proposal.md" <<'MD'
 ## Why
 Need multiplication to compute invoice line totals.
