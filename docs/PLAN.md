@@ -353,7 +353,7 @@ src/
 |---|---|
 | `openspec` | `openspec validate --all --strict` : structure des specs et des changes |
 | `archives` | `openspec validate --archived` : toutes les tâches d'un change archivé sont faites |
-| `pistes` | `x-track` valide, parmi les pistes de `tracks` (absent sur un change en cours : simple avertissement) ; règles de `tracks` (`spec` → delta spec, `design` → `design.md`, `adr` → ADR cité) ; tout ADR cité existe |
+| `pistes` | `x-track` déclaré sur chaque change en cours (absent → échec) et valide, parmi les pistes de `tracks` ; règles de `tracks` (`spec` → delta spec, `design` → `design.md`, `adr` → ADR cité) ; tout ADR cité existe |
 | `trace` | Chaque scénario ADDED/MODIFIED d'un change en cours a un test tagué `@scenario` (seuls les fichiers de test comptent : `trace.test_pattern`) ; couverture des specs principales ≥ `trace.min_coverage` (100 % par défaut) ; aucun tag orphelin |
 | `lint` · `typecheck` · `arch` · `test` | Contrat de commandes, par composant |
 

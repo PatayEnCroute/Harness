@@ -4,13 +4,25 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
+Incohérences levées entre les prompts, `hx.mjs` et la doc.
+
 ### Modifié
+- **`hx check`, étape `pistes`** : un change en cours sans `x-track` est une erreur, plus un avertissement (sans piste, aucune règle de piste ne s'appliquait). `hx-triage` et `docs/PLAN.md` le disent.
+- **Seuil `arch`** : « au moins trois features dont les frontières comptent », dans `hx-setup` comme dans `arch-rules.md`.
+- **`hx-setup`** : `.claude/settings.json` reste hors de portée, sauf la fusion des réglages d'un projet existant (étape 1).
+- **`hx-discover`** : l'agent fait et coche lui-même les tâches du change de base (`hx-implementer` refuse une tâche qui n'est qu'un test) ; pas de `hx-review`, aucun code de production ne change.
+- **Archive** : `openspec/config.yaml` et `hx-ship` disent la même chose : `hx check` après l'archive, commit seulement s'il est vert.
+- **Prompts** : `hx-security-reviewer` cite la CI parmi ses déclencheurs, comme `hx-review` ; la description de `hx-learn` cite la forme « Note » (`docs/learnings/`).
+- Commentaire de `DEFAULT_TEST_PATTERN` : il dit en quoi il diffère de `.claude/rules/testing.md` (`specs?/`, `e2e/`, `.feature`, `.robot`).
 - **Documentation remise à jour** après un audit des incohérences entre docs et code :
   - `docs/PLAN.md` : statut v0.3.0, workflow conforme à `CLAUDE.md` (piste S sans revue ni ship, archive faite par `/hx-ship`), `hx trace` et `hx migrate` documentés, `hx-explorer` en `haiku`, chemins protégés et `permissions.deny`, arborescences complètes, contrat OpenSpec dans `npm run test:contract` ;
   - README : schéma du workflow, permissions, conflits vus par `hx doctor`, désinstallation complète ;
   - `docs/elagage.md` : réserve sur les mesures étendue aux 4 scénarios, coût réel, ligne de base non archivée ; candidat « template de PR » retiré (déjà dans `hx-ship`) ;
   - `evals/README.md` : version évaluée (correcteurs pris dans l'arbre de travail), champs du JSONL ;
   - ADR-003 et ADR-004 : section Conséquences ; ADR-004 : procédure de montée avec `npm run test:contract`.
+
+### Corrigé
+- **`hx doctor`** voit aussi `CLAUDE.md.rej`, `openspec/config.yaml.rej` et `.github/workflows/hx-check.yml.rej`.
 
 ## [0.3.0] — 2026-10-18
 

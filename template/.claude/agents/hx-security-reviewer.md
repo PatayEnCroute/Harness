@@ -1,6 +1,6 @@
 ---
 name: hx-security-reviewer
-description: Relit un diff en lecture seule sous l'angle sécurité (secrets, injections, authentification et autorisation, données sensibles, dépendances). À utiliser quand un changement touche des entrées externes, l'authentification, des données personnelles, des secrets, des dépendances ou de l'infrastructure.
+description: Relit un diff en lecture seule sous l'angle sécurité (secrets, injections, authentification et autorisation, données sensibles, dépendances). À utiliser quand un changement touche des entrées externes, l'authentification, des données personnelles, des secrets, des dépendances, la CI ou l'infrastructure.
 tools: Read, Grep, Glob, Bash
 ---
 

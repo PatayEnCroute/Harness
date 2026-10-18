@@ -36,4 +36,4 @@ operations:
       - "Ne cocher une tâche qu'après avoir vu son test passer."
   archive:
     guidance:
-      - "L'archive est le dernier commit de la PR, après un `node .harness/hx.mjs check` vert."
+      - "L'archive est le dernier commit de la PR : lancer `node .harness/hx.mjs check` après l'archive, et ne commiter que s'il est vert."

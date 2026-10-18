@@ -338,6 +338,10 @@ describe('CLI', () => {
 
     writeFiles(root, { '.claude/settings.json': settings, '.claude/skills/hx-tdd/SKILL.md.rej': 'x', 'CLAUDE.md': 'a\n>>>>>>> after updating\n' });
     assert.deepEqual(mergeLeftovers(root).sort(), ['.claude/skills/hx-tdd/SKILL.md.rej', 'CLAUDE.md']);
+
+    writeFiles(root, { 'CLAUDE.md': 'a\n', 'CLAUDE.md.rej': 'x', 'openspec/config.yaml.rej': 'x', '.github/workflows/hx-check.yml.rej': 'x' });
+    fs.rmSync(path.join(root, '.claude/skills/hx-tdd/SKILL.md.rej'));
+    assert.deepEqual(mergeLeftovers(root).sort(), ['.github/workflows/hx-check.yml.rej', 'CLAUDE.md.rej', 'openspec/config.yaml.rej']);
   });
 
   test('doctor : version du template comparée au dernier tag de la source', () => {
@@ -516,11 +520,11 @@ describe('OpenSpec : scénarios et traçabilité', () => {
     });
     const details = () => checkPolicy(root).map((i) => `${i.level} ${i.label} ${i.detail}`);
     assert.ok(details().some((d) => d.startsWith('error big') && d.includes('design.md manquant')));
-    assert.ok(details().some((d) => d.startsWith('warn small') && d.includes('piste non déclarée')));
+    assert.ok(details().some((d) => d.startsWith('error small') && d.includes('piste non déclarée')));
     writeFiles(root, { 'openspec/changes/big/design.md': '## Besoin\nVoir docs/adr/001-cache.md\n' });
     assert.ok(details().some((d) => d.includes('ADR introuvable : docs/adr/001-cache.md')));
     writeFiles(root, { 'docs/adr/001-cache.md': '# ADR-001\n' });
-    assert.ok(!details().some((d) => d.startsWith('error')));
+    assert.ok(!details().some((d) => d.startsWith('error big')));
     writeFiles(root, { 'openspec/changes/big/design.md': '## Besoin\nVoir [ADR](docs/adr/002-décision.md).\n' });
     assert.ok(details().some((d) => d.includes('ADR introuvable : docs/adr/002-décision.md')));
   });
