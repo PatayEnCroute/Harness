@@ -1,6 +1,6 @@
 # Harness — Plan directeur
 
-> **Statut** : v0.2.0 · 2026-10-18 · **phases 0 à 3 livrées, pas encore éprouvées sur un vrai projet** (voir §9). La v1.0 attend le pilote.
+> **Statut** : v0.3.0 · 2026-10-18 · **phases 0 à 4 livrées, pas encore éprouvées sur un vrai projet** (voir §9). La v1.0 attend le pilote.
 > **Nature** : un **template personnel**. On y garde sa configuration Claude Code, on l'applique à chaque projet (nouveau ou existant), puis on la met à jour depuis ce repo.
 > **Cadre** : Claude Code · projets solo · GitHub Actions · **agnostique de la stack** · OpenSpec 1.14.x (OPSX)
 > **État de l'art** → [`research/etat-de-l-art-2026-10.md`](research/etat-de-l-art-2026-10.md)
@@ -37,12 +37,12 @@ flowchart LR
 | 3. Vérifier | `node .harness/hx.mjs doctor` | 1 min |
 | Mettre à jour plus tard | `uvx copier@9.19.1 update --trust` (tes personnalisations sont conservées) | 1 min |
 
-> `--trust` autorise les tâches post-génération (`openspec init`). Python (via `uv`) n'est requis **qu'à l'installation et à la mise à jour**.
+> `--trust` autorise les tâches post-génération : `openspec init` à l'installation, `openspec update` et `hx migrate` à chaque mise à jour. Python (via `uv`) n'est requis **qu'à l'installation et à la mise à jour**.
 
 ### Non-objectifs
 
 - ❌ Forker OpenSpec ou modifier ses skills `openspec-*` (ils sont réécrits par `openspec update`).
-- ❌ Supporter d'autres outils IA que Claude Code (le choix reste ouvert : voir §10).
+- ❌ Supporter d'autres outils IA que Claude Code ([ADR-002](adr/002-claude-code-seul-standards-gratuits.md) ; risque et porte de sortie : §10).
 - ❌ Des « packs » de stack préfabriqués : la personnalisation est **assistée**, pas précâblée.
 - ❌ Une spec pour un correctif d'une ligne.
 
@@ -74,7 +74,7 @@ C'est le cœur de l'agnosticité.
 
 | | **Générique** (vient du template, mis à jour par `copier update`) | **Spécifique** (personnalisé à l'intégration par `/hx-setup`) |
 |---|---|---|
-| Fichiers | `CLAUDE.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.claude/rules/{openspec,testing,architecture}.md`, `.claude/settings.json`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json` (commandes, profil d'architecture, trace), `.harness/project.md` (carte, importée par `CLAUDE.md`), `.claude/rules/stack-*.md`, `.harness/ci/setup/action.yml` (outillage CI), configuration `arch` |
+| Fichiers | `CLAUDE.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.claude/rules/{openspec,testing,architecture}.md`, `.claude/settings.json`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `.harness/config.schema.json`, `.harness/versions.json`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json` (commandes, profil d'architecture, trace), `.harness/project.md` (carte, importée par `CLAUDE.md`), `.claude/rules/stack-*.md`, `.harness/ci/setup/action.yml` (outillage CI), `.github/dependabot.yml`, `.github/CODEOWNERS`, configuration `arch` |
 | Change… | quand le Harness s'améliore | une seule fois par projet, puis rarement |
 | Conflits `copier update` | gérés par la fusion à 3 voies | **aucun** : fichiers créés par `/hx-setup`, absents du template ou marqués `_skip_if_exists` |
 
@@ -122,9 +122,11 @@ C'est la seule interface entre le harness et la stack. Il gère aussi les projet
 |---|---|
 | `hx detect [--write]` | Propose les composants et commandes à partir des manifestes (point de départ déterministe de `/hx-setup`) |
 | `hx run test` | Lance `test` sur tous les composants |
-| `hx run lint --file web/src/app.ts` | Choisit le composant d'après le chemin du fichier |
+| `hx run lint --file web/src/app.ts` | Choisit le composant d'après le chemin du fichier (code 3 si aucun composant ne définit la commande) |
 | `hx check [--fast]` | Contrat validé, puis validate OpenSpec + archives + pistes + trace + lint + typecheck + arch + test (`--fast` : validate OpenSpec + lint + typecheck). **Jamais vert sans test exécuté** |
-| `hx doctor` | Installation saine (fichiers, versions, `settings.json` lisible et hooks câblés, aucun reste de conflit de fusion, rien d'ignoré par git) et chaque commande **passe** |
+| `hx trace [--json]` | Scénarios OpenSpec ↔ tests tagués `@scenario` |
+| `hx doctor` | Installation saine (fichiers, versions, `settings.json` lisible et hooks câblés, aucun reste de conflit de fusion dans les fichiers du harness, fichiers principaux non ignorés par git, retard sur le dernier tag) et les commandes `lint`, `typecheck`, `build`, `arch`, `test` **passent** |
+| `hx migrate` | Ajoute à `config.json` les clés nouvelles du template, sans rien remplacer (lancé par `copier update`) |
 | `hx openspec <args>` | Appelle la version épinglée d'OpenSpec, télémétrie coupée |
 
 ### 3.3 `/hx-setup` : la personnalisation assistée
@@ -133,7 +135,7 @@ C'est la seule interface entre le harness et la stack. Il gère aussi les projet
 flowchart LR
   D["1. Détecter<br/>manifestes : package.json,<br/>*.csproj, pyproject, go.mod…"] --> C["2. Proposer<br/>composants + commandes"]
   C --> X["3. Exécuter<br/>chaque commande<br/>(preuve)"]
-  X --> R["4. Rédiger<br/>rules stack · carte CLAUDE.md<br/>setup CI · permissions"]
+  X --> R["4. Rédiger<br/>rules stack · carte project.md<br/>setup CI"]
   R --> V["5. Valider<br/>tu relis le diff"]
 ```
 
@@ -143,11 +145,7 @@ flowchart LR
 
 ### 3.4 Pourquoi Copier
 
-| Option | Projet existant | Mises à jour | Fonctionne en session cloud | Retenu |
-|---|---|---|---|---|
-| Template GitHub | ❌ | ❌ | ✅ | — |
-| Plugin Claude Code (niveau utilisateur) | ✅ | ✅ auto | ⚠️ installé sur ta machine, donc absent ailleurs tant que le projet ne le déclare pas | plus tard, en option |
-| **Copier** (fichiers commités dans le projet) | ✅ | ✅ fusion 3 voies | ✅ | ✅ |
+Copier installe dans un projet nouveau ou existant, met à jour par fusion à 3 voies et fonctionne en session cloud, car les fichiers sont commités dans le projet ([ADR-001](adr/001-copier-moteur-de-template.md)). Un plugin utilisateur en complément n'est pas retenu ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)).
 
 `copier.yml` reste minimal (extrait ; la source fait foi) :
 
@@ -188,22 +186,22 @@ openspec_version: { type: str, default: "1.14.3", when: false }   # calculée : 
 ```mermaid
 flowchart LR
   I([Intention]) --> T{hx-triage}
-  T -->|S : correctif| TDD[hx-tdd]
-  T -->|M / L| E["explore<br/>(+ hx-discover si brownfield)"]
-  E --> C[hx-clarify] --> P["/opsx:propose"]
+  T -->|S : correctif| TDD["hx-tdd<br/>(ou hx-debug)"]
+  TDD --> VS[hx-verify] --> CM([commit])
+  T -->|M / L| C["hx-clarify<br/>si la demande est floue"] --> P["/opsx:propose<br/>(L : hx-architect + hx-adr,<br/>design validé)"]
   P --> IM["hx-implement<br/>1 sous-agent / tâche"]
-  TDD --> V
   IM --> V["hx-verify<br/>preuves"]
   V --> RV["hx-review<br/>reviewers indépendants"]
-  RV --> SH["hx-ship<br/>PR + CI"]
-  SH --> AR["/opsx:archive"]
-  AR --> L[hx-learn]
+  RV --> SH["/hx-ship<br/>archive (dernier commit) · PR · CI"]
+  SH --> L[hx-learn]
   L -.->|générique| HX[(Harness)]
 ```
 
+> Les critères de piste ne vivent que dans le skill `hx-triage`. Il lance `hx-explorer` quand l'impact n'est pas évident. Sur un projet existant sans specs, `hx-discover` dérive d'abord des specs de base depuis le code.
+
 | Piste | Quand | Artefacts OpenSpec | Contrôles |
 |---|---|---|---|
-| **S** | Diff descriptible en une phrase, aucun comportement spécifié ne change | aucun | tests + lint + review |
+| **S** | Diff descriptible en une phrase, aucun comportement spécifié ne change | aucun | `hx check` (tests, lint…) |
 | **M** | Fonctionnalité ou changement de comportement | proposal + delta specs + tasks | + `validate --strict` + traçabilité |
 | **L** | Archi, contrat d'API, migration | + `design.md` + ADR | + ta relecture du design **avant** l'implémentation |
 
@@ -274,11 +272,11 @@ src/
 |---|---|
 | `.harness/config.json › architecture` | Niveau du projet, niveaux par feature, profil (taille, durée de vie, complexité métier). Rempli par `/hx-setup`, revu par `hx-architect`. |
 | `.claude/rules/architecture.md` | Forme du code, règle de dépendance, « pas de besoin, pas de couche » ; chargée sur les fichiers source |
-| `hx-architect` (agent) | Analyse besoin → options → décision. Appelé en piste L, par `/hx-setup` sur un projet neuf, et quand un signal de changement de niveau apparaît. |
+| `hx-architect` (agent) | Analyse besoin → options → décision. Appelé en piste L, par `/hx-setup` sur un projet neuf dont le besoin dépasse le niveau 1, et quand un signal de changement de niveau apparaît. |
 | `hx-adr` (skill) | Gabarit ADR « besoin d'abord » (ci-dessous) |
 | `openspec/config.yaml › rules.design` | `design.md` commence par le besoin, indique le niveau visé et liste les options |
 | `hx-code-reviewer` | Signale la **sur-ingénierie** (abstraction sans besoin cité) autant que les **violations** de la règle de dépendance |
-| `hx run arch` (v1) | Règles de dépendance testées, configurées par `/hx-setup` selon la stack : dependency-cruiser (TS), import-linter (Python), NetArchTest / ArchUnitNET (.NET), ArchUnit (Java)… |
+| `hx run arch` (v1) | Règles de dépendance testées, configurées par `/hx-setup` selon la stack : dependency-cruiser (TS), import-linter (Python), NetArchTest / ArchUnitNET (.NET), go-arch-lint (Go), ArchUnit (Java)… |
 
 **Gabarit ADR** (`docs/adr/NNN-titre.md`) :
 
@@ -296,7 +294,7 @@ src/
 
 ## 6. Catalogue
 
-**MVP** = phases 0–1 · **v1** = phase 2 · **v2** = phase 3. **Tout le catalogue est livré.**
+**MVP** = phases 0–1 · **v1** = phase 2 · **v2** = phase 3. **Tout le catalogue est livré** ; la phase 4 a fiabilisé l'existant sans ajouter de composant.
 
 ### Skills (`.claude/skills/hx-*`)
 
@@ -317,24 +315,24 @@ src/
 
 ### Agents (`.claude/agents/hx-*.md`)
 
-| Agent | Rôle | Outils | Niveau de modèle conseillé |
+| Agent | Rôle | Outils | Modèle |
 |---|---|---|---|
-| `hx-explorer` | Cartographier le code et l'impact | lecture seule | rapide |
-| `hx-implementer` | Réaliser **une** tâche en TDD | lecture, écriture, shell | standard |
-| `hx-spec-reviewer` | Le code respecte-t-il les scénarios des specs ? | lecture seule | standard |
-| `hx-code-reviewer` | Qualité, conventions, simplicité ; sur-ingénierie et règle de dépendance | lecture seule | standard |
-| `hx-verifier` (v1) | Exécuter et prouver : tests, app | lecture, shell | standard |
-| `hx-security-reviewer` (v1) | Secrets, injection, dépendances | lecture seule | puissant |
-| `hx-architect` | Décisions besoin d'abord, feature-first, proportionnées à la taille du projet (§5) | lecture seule | puissant |
+| `hx-explorer` | Cartographier le code et l'impact | lecture + shell | `haiku` |
+| `hx-implementer` | Réaliser **une** tâche en TDD | lecture, écriture, shell | session |
+| `hx-spec-reviewer` | Le code respecte-t-il les scénarios des specs ? | lecture + shell | session |
+| `hx-code-reviewer` | Qualité, conventions, simplicité ; sur-ingénierie et règle de dépendance | lecture + shell | session |
+| `hx-verifier` (v1) | Exécuter et prouver : tests, app | lecture + shell | session |
+| `hx-security-reviewer` (v1) | Secrets, injection, dépendances | lecture + shell | session |
+| `hx-architect` | Décisions besoin d'abord, feature-first, proportionnées à la taille du projet (§5) | lecture + shell | session |
 
 ### Rules
 
 | Rule | Portée | Source | Contenu |
 |---|---|---|---|
-| `CLAUDE.md` | toujours | template + `/hx-setup` | Principes, workflow, contrat de commandes (générique) + carte du repo (spécifique). ≤ 100 lignes. |
+| `CLAUDE.md` | toujours | template | Principes, workflow, contrat de commandes. Importe `.harness/project.md` (carte du repo, remplie par `/hx-setup`). ≤ 100 lignes. |
 | `.claude/rules/openspec.md` | `openspec/**` | template | SHALL/MUST, scénarios WHEN/THEN testables, concision |
 | `.claude/rules/testing.md` | fichiers de test | template | Tag de traçabilité `@scenario`, un comportement par test |
-| `.claude/rules/architecture.md` | fichiers source | template (globs par `/hx-setup`) | Forme feature-first, règle de dépendance, « pas de besoin, pas de couche » |
+| `.claude/rules/architecture.md` | fichiers source (extensions des langages courants) | template | Forme feature-first, règle de dépendance, « pas de besoin, pas de couche » |
 | `.claude/rules/stack-*.md` | globs de la stack | **`/hx-setup`** | Idiomes, pièges, conventions observées |
 
 ### Hooks (`.claude/settings.json` → `.harness/hooks.mjs`)
@@ -342,11 +340,12 @@ src/
 | Événement | Action |
 |---|---|
 | `SessionStart` | Changes en cours (piste, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
-| `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `.claude/settings*.json`. Couvre Edit/Write et les commandes Bash qui écrivent ces chemins. Confirmation aussi avant le skill `openspec-apply-change`, avec renvoi vers `hx-implement` |
+| `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `versions.json`, `.claude/settings*.json` (en plus, `permissions.deny` refuse Edit sur `hx.mjs`, `hooks.mjs` et `versions.json`). Couvre Edit/Write et les commandes Bash qui écrivent ces chemins. Confirmation aussi avant le skill `openspec-apply-change`, avec renvoi vers `hx-implement` |
 | `PostToolUse` (édition) | `lint-file` si défini, pour rester rapide (arrêté au-delà de 100 s). Contrat cassé → retour à Claude, jamais un silence |
 | `Stop` | D'après **git** (donc aussi les écritures faites par Bash, et les fichiers commités pendant la session) : lint + typecheck des seuls composants dont le code a changé depuis le dernier vert de la session (ce qui était modifié au démarrage est ignoré) ; budget de 570 s ; une seule relance (`stop_hook_active`). Signale aussi à l'utilisateur les chemins protégés modifiés, quel que soit l'outil |
 
-> Le niveau de modèle des agents n'est pas fixé dans le template (champ `model` absent : modèle de la session). Il se règle par projet si besoin.
+> Seul `hx-explorer` fixe son modèle (`haiku` : exploration rapide et peu coûteuse) ; les autres agents héritent du modèle de la session. Le champ `model` se règle par projet.
+> « lecture + shell » : pas d'Edit ni de Write ; le shell sert à lancer `hx`, `git diff` et les outils de lecture.
 
 ### Contrôles (`hx check`, identiques en local et en GitHub Actions)
 
@@ -354,7 +353,7 @@ src/
 |---|---|
 | `openspec` | `openspec validate --all --strict` : structure des specs et des changes |
 | `archives` | `openspec validate --archived` : toutes les tâches d'un change archivé sont faites |
-| `pistes` | `x-track` déclaré sur les changes en cours, parmi les pistes de `tracks` ; règles de `tracks` (`spec` → delta spec, `design` → `design.md`, `adr` → ADR cité) ; tout ADR cité existe |
+| `pistes` | `x-track` valide, parmi les pistes de `tracks` (absent sur un change en cours : simple avertissement) ; règles de `tracks` (`spec` → delta spec, `design` → `design.md`, `adr` → ADR cité) ; tout ADR cité existe |
 | `trace` | Chaque scénario ADDED/MODIFIED d'un change en cours a un test tagué `@scenario` (seuls les fichiers de test comptent : `trace.test_pattern`) ; couverture des specs principales ≥ `trace.min_coverage` (100 % par défaut) ; aucun tag orphelin |
 | `lint` · `typecheck` · `arch` · `test` | Contrat de commandes, par composant |
 
@@ -380,11 +379,15 @@ Harness/
 │   ├── .harness/
 │   │   ├── hx.mjs  hooks.mjs
 │   │   ├── config.json   # squelette
+│   │   ├── config.schema.json
+│   │   ├── versions.json.jinja
 │   │   ├── project.md.jinja
 │   │   └── ci/setup/     # si ci
 │   ├── openspec/config.yaml
-│   └── .github/workflows/
-│       └── hx-check.yml  # si ci
+│   └── .github/          # si ci
+│       ├── workflows/hx-check.yml
+│       ├── dependabot.yml
+│       └── CODEOWNERS    # si codeowners
 ├── tests/                # unit, contrat,
 │   └── fixtures/         # e2e (5 stacks)
 ├── evals/                # evals headless
@@ -399,7 +402,7 @@ Harness/
 ```
 mon-projet/
 ├── .copier-answers.yml   # version du template
-├── CLAUDE.md             # générique + carte
+├── CLAUDE.md             # générique, importe project.md
 ├── .claude/
 │   ├── skills/           # hx-* + openspec-*
 │   ├── agents/
@@ -410,11 +413,12 @@ mon-projet/
 │   ├── project.md        # ← personnalisé
 │   ├── ci/setup/         # ← personnalisé
 │   ├── hx.mjs  hooks.mjs
+│   └── versions.json  config.schema.json
 ├── openspec/
 │   ├── config.yaml
 │   ├── specs/
 │   └── changes/
-├── .github/workflows/hx-check.yml
+├── .github/              # hx-check.yml, dependabot.yml, CODEOWNERS
 └── docs/
     ├── adr/
     └── learnings/
@@ -432,7 +436,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 |---|---|---|
 | Unitaires `hx` et hooks | Détection, résolution des commandes, trace, pistes, codes de sortie, hooks (confirmation, lint, `Stop`, session) | `npm test`, CI |
 | Lint du template | Standard `SKILL.md`, agents en lecture seule sans Edit/Write, rules ciblées, budgets (`CLAUDE.md` ≤ 100 lignes, skills < 500), références `hx-*` existantes, aucun Unicode invisible | `npm test`, CI |
-| Contrat OpenSpec | Chaque hypothèse sur la version épinglée : `init`, `.openspec.yaml`, `list` et `instructions apply --json`, archive, `Purpose` | `npm test`, CI |
+| Contrat OpenSpec | Chaque hypothèse sur la version épinglée : `init`, `.openspec.yaml`, `list` et `instructions apply --json`, archive, `Purpose`, chaque `/opsx:*` cité existe | `npm run test:contract` (réseau), CI |
 | E2E multi-stack | `copier copy` → `hx detect` → `doctor` → `check` sur Node, Python, .NET, Go, mixte ; YAML CI valide | CI |
 | E2E cycle OpenSpec | Scénario sans test → rouge ; test tagué → vert ; hooks ; archive ; dérive → rouge | CI |
 | E2E `copier update` | L'amélioration générique arrive, les personnalisations restent | CI |
@@ -444,8 +448,8 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 |---|---|---|---|
 | **P0 Socle** ✅ | `copier.yml`, `template/`, `hx run / check / doctor / detect / openspec`, `/hx-setup`, fixtures, CI du template | E2E sur 5 stacks ; `copier update` conserve les personnalisations | — |
 | **P1 Boucle de base** ✅ | Skills `hx-triage`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr` ; agents `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-architect` ; rules `openspec`, `testing`, `architecture` ; hooks ; workflow `hx-check.yml` + outillage CI ; contrôles pistes et archives | Unitaires (hooks, pistes) ; E2E cycle OpenSpec ; evals `tdd-s`, `implement-m`, `architect`, `setup` | 3 changes M menés de bout en bout |
-| **P2 Qualité** ✅ | `hx trace` ; agents `hx-verifier`, `hx-security-reviewer` ; skills `hx-clarify`, `hx-debug`, `hx-learn` ; evals headless + A/B ; lint du template ; contrat OpenSpec | Unitaires ; contrat OpenSpec ; 4/4 evals | Traçabilité ≥ 80 % sur le projet pilote |
-| **P3 Extensions** ✅ | Skill `hx-discover` (brownfield) ; revue d'élagage ([`elagage.md`](elagage.md)) ; ADR 001 à 003 (plugin utilisateur et multi-outils non retenus) | Lint du template | Première revue d'élagage après quelques semaines d'usage |
+| **P2 Qualité** ✅ | `hx trace` ; agents `hx-verifier`, `hx-security-reviewer` ; skills `hx-clarify`, `hx-debug`, `hx-learn` ; evals headless + A/B ; lint du template ; contrat OpenSpec | Unitaires ; contrat OpenSpec ; 4/4 evals (une exécution chacune) | Traçabilité ≥ 80 % sur le projet pilote |
+| **P3 Extensions** ✅ | Skill `hx-discover` (brownfield) ; revue d'élagage ([`elagage.md`](elagage.md)) ; ADR 001 à 003 (Copier ; plugin utilisateur et multi-outils non retenus) ; ADR-004 (OpenSpec) en v0.2.0 | Lint du template | Première revue d'élagage après quelques semaines d'usage |
 | **P4 Fiabilité** ✅ (v0.3.0) | Correcteurs d'evals sans faux succès et testés ; plus de faux verts (`run --file`, trace vide, délais) ; hook `Stop` fondé sur git ; chemins protégés signalés quel que soit l'outil, `permissions.deny`, `CODEOWNERS` ; prompts sans contradiction ; leçons relues | Unitaires ; contrat OpenSpec ; e2e | Evals `--runs 10` en local sur cette version ; le pilote ci-dessus |
 
 **Constats faits pendant la réalisation**, désormais encodés dans le harness :
@@ -466,7 +470,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | Stack exotique ou monorepo complexe | Le contrat accepte n'importe quelle commande shell ; les composants couvrent le multi-stack |
 | Conflits lors de `copier update` | Le spécifique vit dans des fichiers hors template (§3.1) ; `hx doctor` détecte marqueurs de conflit et `settings.json` illisible |
 | Projets qui ne se mettent plus à jour | `hx doctor` compare `_commit` (`.copier-answers.yml`) au dernier tag du template ; `hx migrate` complète le contrat à chaque update |
-| Besoin futur d'un autre outil IA | Skills au standard `SKILL.md` ; ajouter une cible = générer des copies (réintroduire `sync`) |
+| Besoin futur d'un autre outil IA | Skills au standard `SKILL.md` ; ajouter une cible = générer des copies avec un outil de synchronisation (rulesync, APM : voir l'état de l'art) |
 | L'architecte sur-conçoit | Besoin d'abord, option la plus simple obligatoire, niveau par feature ; `hx-code-reviewer` signale toute abstraction sans besoin cité |
 | Lourdeur | Pistes S/M/L ; élaguer ce qui ne sert pas |
 
@@ -485,5 +489,5 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | 7 | Orientation d'architecture | ✅ **Feature-first + règle de dépendance clean**, niveau proportionné à la taille et au besoin (§5) |
 | 8 | Plugin utilisateur en complément ? | ✅ **Non retenu** : les skills dépendent des fichiers du projet ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)) |
 | 9 | Hook sur `openspec/specs/` | ✅ **Confirmation** (`ask`) plutôt que blocage : l'archive y écrit légitimement |
-| 10 | Modèle des agents | ✅ **Hérité de la session** ; réglable par projet via le champ `model` |
+| 10 | Modèle des agents | ✅ **Hérité de la session**, sauf `hx-explorer` (`haiku`) ; réglable par projet via le champ `model` |
 | 11 | OpenSpec | ✅ **Dépendance centrale assumée**, épinglée, contrat testé, critères de sortie écrits ([ADR-004](adr/004-openspec-dependance-centrale.md)) |
