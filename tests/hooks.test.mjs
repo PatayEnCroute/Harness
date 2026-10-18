@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const hooks = path.resolve(here, '..', 'template', '.harness', 'hooks.mjs');
@@ -186,7 +186,7 @@ describe('hooks Claude Code', () => {
   test('stop : une commande trop lente est arrêtée et signalée', () => {
     const slow = 'node -e "setTimeout(() => {}, 60000)"';
     const r = spawnSync(process.execPath, ['--input-type=module', '-e', `
-      import { execute } from ${JSON.stringify(path.resolve(here, '..', 'template', '.harness', 'hx.mjs'))};
+      import { execute } from ${JSON.stringify(pathToFileURL(path.resolve(here, '..', 'template', '.harness', 'hx.mjs')).href)};
       const r = execute(${JSON.stringify(slow)}, process.cwd(), { capture: true, timeout: 300 });
       console.log(JSON.stringify({ ok: r.ok, timedOut: r.timedOut, output: r.output }));
     `], { encoding: 'utf8' });
