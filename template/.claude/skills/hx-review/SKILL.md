@@ -15,7 +15,7 @@ Celui qui a écrit le code ne le juge pas. Les relecteurs n'ont pas ton contexte
    - `hx-spec-reviewer`, si un change OpenSpec est concerné ;
    - `hx-code-reviewer`, toujours ;
    - `hx-security-reviewer`, si le diff touche des entrées externes, l'authentification, des données personnelles, des secrets, des dépendances, la CI ou l'infrastructure.
-3. **Filtre** : pour chaque constat bloquant ou important, va lire la ligne citée et confirme-le toi-même. Écarte ce que tu ne peux pas confirmer, avec une raison d'une ligne.
+3. **Filtre** : les trois relecteurs emploient la même échelle (`bloquant`, `important`, `mineur`). Pour chaque constat bloquant ou important, va lire la ligne citée et confirme-le toi-même. Écarte ce que tu ne peux pas confirmer, avec une raison d'une ligne.
 4. **Corrige** les constats bloquants confirmés, en TDD (`hx-tdd`), puis relance `hx-verify`.
 5. **Mineurs** : propose-les à l'utilisateur, ne les corrige pas sans son accord.
 

@@ -17,7 +17,7 @@ paths:
 
 # Écrire des tests
 
-- **Test d'abord** : le test échoue pour la bonne raison avant que le code existe.
+- **Test d'abord** : le test échoue pour la bonne raison avant que le code existe. Seule exception : un test de caractérisation sur du code existant (refactor, `hx-discover`), qui passe tout de suite.
 - **Un comportement par test** : son nom décrit ce comportement, pas la méthode testée.
 - **Traçabilité** : un test qui couvre un scénario OpenSpec porte le tag `@scenario <capability>/<scénario>`, dans son nom ou en commentaire juste au-dessus. Exemple : `// @scenario calc/ajouter-deux-nombres`. `node .harness/hx.mjs trace` vérifie la correspondance.
 - **Doublures aux frontières seulement** : on simule les I/O externes (réseau, horloge, prestataires), jamais le code qu'on possède.

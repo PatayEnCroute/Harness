@@ -122,10 +122,19 @@ export function sessionStart(root, input, env = process.env) {
   return 0;
 }
 
+// Skills installés par OpenSpec qui court-circuitent le workflow du harness (réécrits par `openspec update` : on ne les modifie pas).
+const REDIRECTED_SKILLS = {
+  'openspec-apply-change': 'Le harness implémente un change avec hx-implement (sous-agent neuf par tâche, revue de conformité, preuve). Confirme seulement si l\'utilisateur a demandé openspec-apply-change explicitement.',
+};
+
 // Fichiers protégés : confirmation demandée, qu'ils soient édités par Edit/Write ou par une commande Bash qui écrit.
+// Skills qui court-circuitent le workflow : confirmation aussi, avec l'alternative.
 export function preToolUse(root, input) {
   let reason;
-  if (input.tool_name === 'Bash') {
+  if (input.tool_name === 'Skill') {
+    const skill = String(input.tool_input?.skill ?? '').replace(/^.*:/, '');
+    reason = Object.hasOwn(REDIRECTED_SKILLS, skill) ? REDIRECTED_SKILLS[skill] : undefined;
+  } else if (input.tool_name === 'Bash') {
     const command = String(input.tool_input?.command ?? '');
     const target = PROTECTED_IN_COMMAND.exec(command);
     if (target && writes(command)) {

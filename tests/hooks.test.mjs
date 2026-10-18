@@ -66,6 +66,15 @@ describe('hooks Claude Code', () => {
     assert.ok(asks(bash('cp /tmp/x.json .harness/config.json')));
   });
 
+  test('pre-tool-use : openspec-apply-change redirigé vers hx-implement, autres skills libres', () => {
+    const root = project({ components: {} });
+    const skill = (name) => hook('pre-tool-use', root, { tool_name: 'Skill', tool_input: { skill: name } });
+    assert.ok(asks(skill('openspec-apply-change')));
+    assert.match(skill('openspec-apply-change').stdout, /hx-implement/);
+    assert.equal(skill('hx-implement').stdout, '');
+    assert.equal(skill('openspec-propose').stdout, '');
+  });
+
   test('pre-tool-use : un lien symbolique vers le projet ne contourne pas la protection', () => {
     const root = project({ components: {} });
     const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-link-')), 'proj');
