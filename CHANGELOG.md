@@ -4,6 +4,21 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
+Un change M ou L se fait désormais en trois temps : cadrage avec l'utilisateur, run sans lui, livraison. L'utilisateur cadre le change suivant pendant le run.
+
+### Ajouté
+- **Porte de cadrage** (`hx-triage`) : le seul arrêt prévu en M et L. Proposition, scénarios et design sont montrés en un message, avec les points déduits plutôt que recopiés de la demande. Après validation explicite, `x-validated: AAAA-MM-JJ` va dans `.openspec.yaml`. `hx-implement` refuse de démarrer sans lui. Le hook de démarrage de session affiche l'état du cadrage de chaque change. Le contrat OpenSpec vérifie que `validate --strict` accepte la clé.
+- **`hx worktree <change>`** : une branche et un worktree frère par change. La commande refuse un change sans `x-validated`. Un change nouveau (non suivi, ou seulement indexé) y est déplacé et commité, avec les ADR cités par son `design.md`. Un change déjà commité reste aussi dans le dossier principal, et la commande le signale. La commande affiche celle qui lance le run (`claude --permission-mode acceptEdits "/hx-implement <change>"`). Le dossier principal reste vert et libre pour cadrer la suite. Testé en unitaire et dans `tests/e2e-openspec.sh`.
+- **Rapport de fin de run** (`hx-review`) : verdict, vérification, hypothèses à confirmer, revue, mineurs proposés, prochaine étape. `hx-implementer` rend ses hypothèses, `hx-ship` les reprend dans la PR.
+
+### Modifié
+- **Run sans interruption** : `hx-implement` enchaîne `hx-verify` et `hx-review` sans rendre la main, et liste les seuls arrêts autorisés. Les mineurs de `hx-review` vont dans le rapport au lieu d'être posés en question.
+- **Permissions** : git local (`status`, `diff`, `log`, `show`, `grep`, `add`, `commit`) sans confirmation. Un commit par tâche et le `git diff` des relecteurs ne demandent plus d'accord à chaque fois. `git push` reste confirmé.
+- L'eval `implement-m` part d'un change validé (`x-validated`).
+
+### Mise à jour
+- Un change en cours créé avant cette version n'a pas `x-validated` : `hx-implement` refusera de le reprendre. Passe la porte de cadrage, ou ajoute la clé si la proposition a déjà été relue.
+
 ## [0.4.0] — 2026-10-18
 
 Démarrage en une commande, par une personne (`npx`) ou par un agent (`INSTALL.md`) ; incohérences levées entre les prompts, `hx.mjs` et la doc.

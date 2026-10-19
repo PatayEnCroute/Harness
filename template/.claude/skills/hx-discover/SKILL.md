@@ -20,7 +20,7 @@ But : une spec de base **fidèle au comportement actuel**, pour que les prochain
 
 1. **Périmètre** : la capability (`$ARGUMENTS`). Lance `hx-explorer` pour cartographier ses points d'entrée, son flux, ses tests et ses dépendances.
 2. **Inventaire** : liste les comportements observables (entrées → sorties, erreurs, règles métier) avec, pour chacun, le code et les tests qui le prouvent.
-3. **Change de base** : `node .harness/hx.mjs openspec new change baseline-<capability>`, puis ajoute `x-track: M` dans son `.openspec.yaml`.
+3. **Change de base** : `node .harness/hx.mjs openspec new change baseline-<capability>`, puis ajoute `x-track: M` dans son `.openspec.yaml`. Pas de porte de cadrage ni de `hx worktree` : la spec décrit l'existant, et l'utilisateur relit le rapport (étape 7).
    - `proposal.md` : « Spécifier l'existant de <capability> », sans changement de comportement.
    - `specs/<capability>/spec.md` : `## Purpose`, puis `## ADDED Requirements` avec exigences et scénarios WHEN/THEN aux valeurs concrètes.
    - `tasks.md` : une tâche par scénario, « relier ou écrire le test ».

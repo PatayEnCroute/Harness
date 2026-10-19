@@ -33,11 +33,13 @@ La CLI OpenSpec (commandes `/opsx:*`) est installée au premier démarrage de se
 
 ```
 hx-triage ─┬─ S   : hx-tdd (ou hx-debug) → hx-verify → commit
-           └─ M/L : [hx-clarify] → /opsx:propose → hx-implement → hx-verify → hx-review → /hx-ship → hx-learn
-                    L : + hx-architect et hx-adr, design validé avant d'implémenter
+           └─ M/L : CADRAGE (avec toi)         [hx-clarify] → /opsx:propose → porte : validation, x-validated, hx worktree
+                    RUN (seul, son worktree)   hx-implement → hx-verify → hx-review → rapport de fin de run
+                    LIVRAISON (toi)            /hx-ship → hx-learn
+                    L : + hx-architect et hx-adr, validés à la porte
 ```
 
-`[hx-clarify]` : seulement si la demande est floue. `/hx-ship` fait de l'archive OpenSpec le dernier commit de la PR.
+`[hx-clarify]` : seulement si la demande est floue. **Un seul arrêt prévu**, la porte de cadrage : tu y vérifies que la spec dit ce que tu as demandé. Ensuite le run va jusqu'au rapport sans te solliciter, dans son propre worktree (`hx worktree <change>`) : pendant ce temps, tu cadres le change suivant dans le dossier principal. Le run ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Lance-le avec `--permission-mode acceptEdits` : la commande affichée par `hx worktree` le fait. `/hx-ship` fait de l'archive OpenSpec le dernier commit de la PR.
 
 | | Contenu |
 |---|---|
@@ -45,7 +47,7 @@ hx-triage ─┬─ S   : hx-tdd (ou hx-debug) → hx-verify → commit
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **3 rules** | `openspec`, `testing`, `architecture` (feature-first, proportionnée au besoin) |
 | **4 hooks** | contexte de session ; confirmation avant d'écrire une spec principale ou un fichier qui décide de ce qui s'exécute (contrat, hooks, permissions, version d'OpenSpec) ; lint du fichier édité ; avant de rendre la main, d'après git : contrôles rapides des composants modifiés et signalement des chemins protégés modifiés, quel que soit l'outil |
-| **Permissions** | `node .harness/hx.mjs` et `openspec` sans confirmation ; Edit refusé sur `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier), toute autre écriture de ces fichiers demande confirmation |
+| **Permissions** | `node .harness/hx.mjs`, `openspec` et git local (`status`, `diff`, `log`, `show`, `grep`, `add`, `commit`) sans confirmation, `git push` confirmé ; Edit refusé sur `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier), toute autre écriture de ces fichiers demande confirmation |
 | **`hx check`** | contrat · openspec · archives · pistes · trace `@scenario` · lint · typecheck · arch · test (jamais vert sans test), mêmes commandes en local et en CI |
 
 | Générique (mis à jour par `copier update`) | Spécifique (rempli par `/hx-setup`, jamais écrasé) |
@@ -58,7 +60,7 @@ Les actions GitHub sont épinglées par SHA de commit et tenues à jour par Depe
 
 - **Mettre à jour** : `uvx copier@9.19.1 update --trust` sur un arbre git propre, puis `node .harness/hx.mjs doctor`. Les fichiers spécifiques ne sont jamais réécrits ; `hx migrate` ajoute à `config.json` les clés nouvelles.
 - **Conflit** : quand le template et le projet ont changé la même zone d'un fichier générique, Copier y laisse des marqueurs `<<<<<<<` / `>>>>>>>` ou un fichier `.rej`, que `hx doctor` liste. Garde la version du template sauf personnalisation voulue (un fichier générique s'améliore dans Harness, pas dans le projet), supprime les marqueurs et les `.rej`, relance `hx doctor`, puis commite.
-- **Désinstaller** : supprime `.harness/`, `.copier-answers.yml`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing` et `architecture` de `.claude/rules/`, `.github/workflows/hx-check.yml` (et `.github/CODEOWNERS`, `.github/dependabot.yml` s'ils viennent du template). Retire de `.claude/settings.json` les hooks qui appellent `.harness/hooks.mjs`, les permissions `hx.mjs` et `openspec` et la variable `OPENSPEC_TELEMETRY`, et de `CLAUDE.md` les sections du harness. `openspec/` reste utilisable sans le harness : garde-le si les specs servent encore.
+- **Désinstaller** : supprime `.harness/`, `.copier-answers.yml`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing` et `architecture` de `.claude/rules/`, `.github/workflows/hx-check.yml` (et `.github/CODEOWNERS`, `.github/dependabot.yml` s'ils viennent du template). Retire de `.claude/settings.json` les hooks qui appellent `.harness/hooks.mjs`, les permissions `hx.mjs`, `openspec` et `git` du template et la variable `OPENSPEC_TELEMETRY`, et de `CLAUDE.md` les sections du harness. `openspec/` reste utilisable sans le harness : garde-le si les specs servent encore.
 
 ## Développer le template
 

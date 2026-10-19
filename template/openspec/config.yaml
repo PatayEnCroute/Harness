@@ -31,6 +31,7 @@ operations:
   apply:
     guidance:
       - "Utiliser le skill hx-implement, jamais openspec-apply-change : un sous-agent neuf par tâche, test d'abord (hx-tdd), revue de conformité après chaque tâche."
+      - "Ne rien implémenter sans x-validated dans .openspec.yaml (porte de cadrage de hx-triage)."
       - "Lancer les tests via `node .harness/hx.mjs run test` (ou `--file <chemin>` pour un test ciblé)."
       - "Taguer chaque test qui couvre un scénario : `@scenario <capability>/<scénario>`."
       - "Ne cocher une tâche qu'après avoir vu son test passer."

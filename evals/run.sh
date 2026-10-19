@@ -72,7 +72,7 @@ prepare() {
   trap 'echo "✗ préparation : échec de « $BASH_COMMAND »" >&2' ERR
   cp -r "$repo/tests/fixtures/$(cat "$dir/fixture")" "$work/proj"
   cd "$work/proj"
-  git init -q && git add -A && git "${git_env[@]}" commit -qm fixture
+  git init -q -b main && git add -A && git "${git_env[@]}" commit -qm fixture
   "${copier[@]}" copy --trust --defaults --vcs-ref HEAD "$repo" .
   if [ -f "$dir/setup.sh" ]; then
     # shellcheck source=/dev/null

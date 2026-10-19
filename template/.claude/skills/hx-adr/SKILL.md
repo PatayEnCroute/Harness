@@ -13,7 +13,7 @@ argument-hint: "[sujet de la décision]"
 3. Remplis le gabarit ci-dessous, sur **une page au plus**.
 4. **Statut** : `Proposé`. Il ne passe à `Accepté` qu'après validation explicite de l'utilisateur.
 5. **Lien** : cite le fichier de l'ADR dans le `design.md` du change. Pour la piste L, `hx check` exige ce lien.
-6. Une fois l'ADR accepté, si la décision change le niveau d'une feature, mets à jour `architecture.features` dans `.harness/config.json`.
+6. Une fois l'ADR accepté, si la décision change le niveau d'une feature, mets à jour `architecture.features` dans `.harness/config.json`. En piste L, fais-le dans le worktree du change (porte de cadrage de `hx-triage`).
 
 ## Gabarit
 

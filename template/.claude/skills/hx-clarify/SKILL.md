@@ -20,7 +20,7 @@ Une question coûte une minute ; une spec fausse coûte un change entier. Mais u
 4. Pose-les **en un seul message**, numérotées, chacune avec une **réponse par défaut** que tu appliqueras si l'utilisateur ne répond pas.
 5. Rédige un **brief** de 10 lignes au plus : besoin, périmètre, non-objectifs, scénarios clés en WHEN/THEN, contraintes.
 
-Ensuite : `/opsx:propose` avec ce brief.
+Ensuite : `/opsx:propose` avec ce brief, puis la porte de cadrage de `hx-triage`. Le brief y sert de référence : la spec doit le couvrir, sans rien de plus.
 
 ## Pièges
 

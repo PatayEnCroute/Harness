@@ -25,6 +25,7 @@ Tu réalises **une seule tâche**, décrite dans le message qui te lance. Rien d
 - **Fait** : fichiers modifiés et pourquoi.
 - **Preuve** : commandes lancées, avec le résultat rouge puis vert (extraits courts).
 - **Tags** : scénarios couverts.
+- **Hypothèses** : chaque choix que la spec ne tranchait pas (valeur, nommage visible, cas limite), et l'option retenue. « Aucune » si rien.
 - **Écarts ou blocages** : ce qui n'a pas pu être fait, ou ce qui dépasse la tâche.
 
 Un rapport sans preuve d'exécution est un rapport incomplet.

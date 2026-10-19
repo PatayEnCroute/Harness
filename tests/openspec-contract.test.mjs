@@ -55,10 +55,11 @@ describe(`contrat OpenSpec ${pinned}`, () => {
     assert.deepEqual(missing, []);
   });
 
-  test('new change : .openspec.yaml plat, x-track accepté par validate --strict', () => {
+  test('new change : .openspec.yaml plat, x-track et x-validated acceptés par validate --strict', () => {
     assert.equal(openspec('new change add-mult').status, 0);
-    fs.appendFileSync(path.join(root, change, '.openspec.yaml'), 'x-track: M\n');
+    fs.appendFileSync(path.join(root, change, '.openspec.yaml'), 'x-track: M\nx-validated: 2026-10-18\n');
     assert.equal(readChangeMeta(path.join(root, change))['x-track'], 'M');
+    assert.equal(readChangeMeta(path.join(root, change))['x-validated'], '2026-10-18');
     write(`${change}/proposal.md`, '## Why\nNeed multiplication for invoice totals in the app.\n\n## What Changes\n- Add multiplication\n\n## Capabilities\n\n### New Capabilities\n- `calc`: arithmetic\n\n### Modified Capabilities\n\n## Impact\nNone\n');
     write(`${change}/specs/calc/spec.md`, '## Purpose\nArithmetic operations used to compute invoice lines and totals.\n\n## ADDED Requirements\n\n### Requirement: Multiplication\nThe system SHALL multiply two integers.\n\n#### Scenario: Multiply two numbers\n- **WHEN** multiplying 2 and 3\n- **THEN** the result is 6\n');
     write(`${change}/tasks.md`, '## 1. Multiplication\n\n- [x] 1.1 Write the test\n- [ ] 1.2 Implement\n');

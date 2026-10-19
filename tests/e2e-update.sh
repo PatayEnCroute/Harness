@@ -57,7 +57,7 @@ hx doctor --no-run
 git_commit "après update v2" || true
 cd "$work/tmpl"
 sed -i 's/^  default: "[0-9.]*"$/  default: "9.9.9"/' copier.yml
-sed -i 's#"Bash(openspec \*)"#"Bash(openspec *)",\n      "Bash(git status)"#' template/.claude/settings.json
+sed -i 's#"Bash(openspec \*)"#"Bash(openspec *)",\n      "Bash(git stash list)"#' template/.claude/settings.json
 git_commit "v3"
 git tag v3
 cd "$work/proj"

@@ -14,7 +14,7 @@ Garder une trace durable de l'intention (exigences, scénarios testables, change
 | Point de couplage | Où | Ce qui casse si le format change |
 |---|---|---|
 | Markdown des specs et des deltas (`## ADDED Requirements`, `#### Scenario:`) | `parseScenarios`, `collectScenarios` (`hx.mjs`) | `hx trace`, la couverture de la CI |
-| `.openspec.yaml` plat et clé maison `x-track` | `readChangeMeta`, `checkPolicy` | Contrôle des pistes, contexte de session |
+| `.openspec.yaml` plat et clés maison `x-track`, `x-validated` | `readChangeMeta`, `checkPolicy` | Contrôle des pistes, contexte de session |
 | Cases de `tasks.md` | `taskProgress` | Contexte de session |
 | CLI : `init`, `update`, `validate`, `list --json`, `instructions apply --json`, `archive` | `copier.yml`, `hx check`, skills `hx-implement` et `hx-ship` | Installation, `hx check`, le workflow M |
 

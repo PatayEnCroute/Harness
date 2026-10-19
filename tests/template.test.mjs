@@ -139,6 +139,14 @@ describe('cohérence et budgets', () => {
     }
   });
 
+  test('settings.json : git local sans confirmation pendant un run (commit par tâche, diff des relecteurs), push confirmé', () => {
+    const { allow } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
+    for (const command of ['git add *', 'git commit *', 'git diff', 'git diff *', 'git status', 'git status *']) {
+      assert.ok(allow.includes(`Bash(${command})`), command);
+    }
+    assert.deepEqual(allow.filter((rule) => /git (push|reset|rebase|checkout|clean)/.test(rule)), []);
+  });
+
   test('les budgets internes des hooks restent sous les délais de settings.json', async () => {
     const { LINT_FILE_TIMEOUT_MS, STOP_BUDGET_MS } = await import(pathToFileURL(path.join(template, '.harness', 'hooks.mjs')).href);
     const settings = JSON.parse(read(path.join(claude, 'settings.json')));
