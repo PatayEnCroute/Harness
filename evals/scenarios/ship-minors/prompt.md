@@ -25,4 +25,4 @@ Ta décision sur les mineurs, puis /hx-ship add-mult
 
 ---
 
-Ouvre la PR.
+Livre-le : archive OpenSpec, puis PR. Ce dépôt de démo n'a pas de remote : arrête-toi avant le push.

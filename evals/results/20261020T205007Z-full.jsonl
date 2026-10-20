@@ -1,0 +1,1 @@
+{"date":"2026-10-20T20:50:48Z","sha":"4f75ea7","scenario":"ship-minors","variant":"full","run":1,"pass":false,"verdict":"FAIL","reason":"1 appel(s) refusé(s) faute de permission : Bash(git branch -a && gh repo view 2>&1 | head -3)","duration_s":32,"cost_usd":0.23,"claude_version":"2.1.304 (Claude Code)","model":"claude-sonnet-5-5","kept_dir":"/tmp/hx-evals.kU7D9Y/ship-minors-1"}

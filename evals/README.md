@@ -7,7 +7,7 @@ Chaque scénario lance un agent Claude Code **headless** (`claude -p`) sur un pr
 | `setup` | `/hx-setup` personnalise le projet sans intervention | part du contrat vide ; carte remplie, profil d'architecture, commande test réelle (un test canari en échec doit la faire échouer), `hx doctor` sans erreur |
 | `tdd-s` | Une petite demande reste en piste S, test d'abord | pas de change OpenSpec ; dans le transcript, test écrit avant `src/mult.js` puis lancé **au rouge** avant le premier vert ; `mult` vérifié par la notation ; les tests échouent sur un `mult` faux ; `hx check` vert |
 | `implement-m` | `hx-implement` réalise un change OpenSpec déjà validé (`x-validated`) | tâches cochées, scénarios tagués `@scenario`, `mult(2, 3)` et `mult(7, 0)` vérifiés par la notation, pour chaque scénario, un fichier de test tagué échoue **à lui seul** quand seul son comportement est faux, `hx check` vert |
-| `ship-minors` | Mineurs décidés après la demande de PR : l'archive reste le dernier commit (deux tours) | mineur appliqué et commité, dernier commit = archive de `add-mult` et rien d'autre, aucune réécriture d'historique (`rebase`, `reset`, `amend` dans le reflog), `hx check` vert |
+| `ship-minors` | Mineurs décidés après la demande de livraison : l'archive reste le dernier commit (deux tours) | mineur appliqué et commité, dernier commit = archive de `add-mult` et rien d'autre, aucune réécriture d'historique (`rebase`, `reset`, `amend` dans le reflog), `hx check` vert |
 | `architect` | `hx-architect` reste proportionné | `hx-architect` réellement lancé, ligne finale unique `Niveau visé : 0` ou `1`, aucun fichier modifié hors `docs/` et `openspec/changes/` depuis le commit initial (un commit de l'agent ne cache rien) |
 
 ```bash
