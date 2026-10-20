@@ -35,11 +35,11 @@ Commence toute demande de changement par **`hx-triage`** : les critères de choi
 
 1. **Cadrage** (avec l'utilisateur) : `hx-clarify`, `/opsx:propose`, design en L. Il se termine par **la porte** décrite dans `hx-triage` : validation explicite, `x-validated`, puis `hx worktree <change>`.
 2. **Run** (dans le worktree du change, ou dans la session si l'utilisateur le préfère ; sans lui) : `hx-implement` → `hx-verify` → `hx-review` → rapport de fin de run. **Ne rends pas la main entre ces étapes** et ne pose pas de question en cours de route ; arrête-toi seulement sur les blocages listés dans `hx-implement`.
-3. **Livraison** (l'utilisateur) : relecture du rapport, puis `/hx-ship`.
+3. **Livraison** (l'utilisateur) : relecture du rapport, décision sur les mineurs, puis `/hx-ship`. Même avec une PR demandée d'avance, pas d'archive avant cette décision.
 
 - Le change OpenSpec porte sa piste : `x-track: M` ou `L` dans `.openspec.yaml`.
-- L'archive OpenSpec (`/opsx:archive`) est le **dernier commit de la PR**.
-- `openspec/specs/` ne change que par `/opsx:sync` ou `/opsx:archive`.
+- L'archive OpenSpec (faite par `/hx-ship`) est le **dernier commit de la PR**.
+- `openspec/specs/` ne change que par `/opsx:sync` ou l'archive.
 - Pour implémenter un change : `hx-implement`, jamais le skill `openspec-apply-change` installé par OpenSpec.
 - Après une livraison ou un incident : `hx-learn`.
 

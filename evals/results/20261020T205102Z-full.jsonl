@@ -1,0 +1,2 @@
+{"date":"2026-10-20T20:51:42Z","sha":"f9ae40f","scenario":"ship-minors","variant":"full","run":1,"pass":true,"verdict":"pass","reason":null,"duration_s":30,"cost_usd":0.2043,"claude_version":"2.1.304 (Claude Code)","model":"claude-sonnet-5-5","kept_dir":null}
+{"date":"2026-10-20T20:52:19Z","sha":"f9ae40f","scenario":"ship-minors","variant":"full","run":2,"pass":true,"verdict":"pass","reason":null,"duration_s":28,"cost_usd":0.2048,"claude_version":"2.1.304 (Claude Code)","model":"claude-sonnet-5-5","kept_dir":null}

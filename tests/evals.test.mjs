@@ -96,6 +96,14 @@ function grade(root, script, env = {}) {
   return spawnSync('bash', ['-c', `set -e; source "${path.join(lib, 'grade.sh')}"; ${script}`], { cwd: root, encoding: 'utf8', env: { ...base, ...env } });
 }
 
+// Ce que fait /opsx:archive dans le projet de démo : le change part dans openspec/changes/archive/, puis commit.
+function archiveChange(root, git) {
+  fs.mkdirSync(path.join(root, 'openspec/changes/archive'), { recursive: true });
+  fs.renameSync(path.join(root, 'openspec/changes/add-mult'), path.join(root, 'openspec/changes/archive/2026-10-20-add-mult'));
+  git('add', '-A');
+  git('commit', '-qm', 'add-mult : archive OpenSpec');
+}
+
 const BASH = spawnSync('bash', ['--version']).status === 0 && process.platform !== 'win32';
 
 describe('evals : aides de grade.sh', { skip: !BASH && 'bash indisponible' }, () => {
@@ -131,6 +139,62 @@ describe('evals : aides de grade.sh', { skip: !BASH && 'bash indisponible' }, ()
     const r = grade(root, 'no_permission_denials', { TRANSCRIPT: withResult(denied) });
     assert.equal(r.status, 1);
     assert.match(r.stderr, /2 appel\(s\) refusé\(s\).*Bash\(git worktree list\) ; WebFetch/);
+  });
+
+  test('no_permission_denials : un refus au premier tour compte aussi (scénario à plusieurs tours)', () => {
+    const { root } = demo();
+    const file = transcript([run('# fail 0')]);
+    const denied = { tool_name: 'Bash', tool_use_id: 'x', tool_input: { command: 'git push -u origin main' } };
+    fs.appendFileSync(file, `${JSON.stringify({ type: 'result', permission_denials: [denied] })}\n${JSON.stringify({ type: 'result', permission_denials: [] })}\n`);
+    const r = grade(root, 'no_permission_denials', { TRANSCRIPT: file });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /Bash\(git push -u origin main\)/);
+  });
+
+  test('archive_is_last : archive en dernier commit, sans réécriture ; un correctif après l\'archive échoue', () => {
+    const { root, git, sha } = demo();
+    fs.writeFileSync(path.join(root, 'src/mult.js'), '/** Produit de a et b. */\nexport const mult = (a, b) => a * b;');
+    git('commit', '-qam', 'mineur');
+    archiveChange(root, git);
+    assert.equal(grade(root, 'archive_is_last add-mult', { INITIAL_SHA: sha }).status, 0);
+
+    fs.appendFileSync(path.join(root, 'src/mult.js'), '\n');
+    git('commit', '-qam', 'mineur après coup');
+    let r = grade(root, 'archive_is_last add-mult', { INITIAL_SHA: sha });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /dernier commit n'est pas l'archive de add-mult : mineur après coup/);
+
+    // Remettre l'archive en dernier par rebase : historique réécrit, échec.
+    git('reset', '-q', '--hard', 'HEAD~2');
+    fs.appendFileSync(path.join(root, 'src/mult.js'), '\n');
+    git('commit', '-qam', 'mineur après coup');
+    archiveChange(root, git);
+    r = grade(root, 'archive_is_last add-mult', { INITIAL_SHA: sha });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /historique réécrit/);
+  });
+
+  test('archive_is_last : revert de l\'archive, correctif, nouvelle archive : réussi', () => {
+    const { root, git, sha } = demo();
+    archiveChange(root, git);
+    git('revert', '--no-edit', 'HEAD');
+    fs.appendFileSync(path.join(root, 'src/mult.js'), '\n');
+    git('commit', '-qam', 'correctif CI');
+    archiveChange(root, git);
+    const r = grade(root, 'archive_is_last add-mult', { INITIAL_SHA: sha });
+    assert.equal(r.status, 0, r.stderr);
+  });
+
+  test('archive_is_last : rien de commité, ou commit d\'archive qui embarque du code, ou change non archivé : échec', () => {
+    const { root, git, sha } = demo();
+    let r = grade(root, 'archive_is_last add-mult', { INITIAL_SHA: sha });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /aucun commit depuis l'état initial/);
+    fs.appendFileSync(path.join(root, 'src/mult.js'), '\n');
+    archiveChange(root, git);
+    r = grade(root, 'archive_is_last add-mult', { INITIAL_SHA: sha });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /le commit d'archive touche aussi : src\/mult\.js/);
   });
 
   test('mutant invalide ou tests déjà rouges : la notation échoue au lieu de compter un faux « détecté »', () => {

@@ -76,7 +76,7 @@ subagent_called() {
   ' "$TRANSCRIPT" "$1" 2>&1)" || fail "$msg"
 }
 
-# Aucun appel refusé faute de permission (résultat final du transcript) : chaque refus est une confirmation
+# Aucun appel refusé faute de permission (résultat de chaque tour du transcript) : chaque refus est une confirmation
 # que l'utilisateur aurait dû donner, donc un run qui n'est pas autonome avec les permissions du template.
 no_permission_denials() {
   local msg
@@ -85,11 +85,27 @@ no_permission_denials() {
     for (const line of require("fs").readFileSync(process.argv[1], "utf8").split("\n")) {
       let e;
       try { e = JSON.parse(line); } catch { continue; }
-      if (e?.type === "result") denials = e.permission_denials ?? [];
+      if (e?.type === "result") denials.push(...(e.permission_denials ?? []));
     }
     if (!denials.length) process.exit(0);
     const what = denials.map((d) => d.tool_name === "Bash" ? `Bash(${String(d.tool_input?.command ?? "").split("\n")[0].slice(0, 80)})` : d.tool_name);
     console.error(`${denials.length} appel(s) refusé(s) faute de permission : ${[...new Set(what)].join(" ; ")}`);
     process.exit(1);
   ' "$TRANSCRIPT" 2>&1)" || fail "$msg"
+}
+
+# L'archive OpenSpec de <change> est le dernier commit, sans réécriture d'historique (rebase, reset, amend).
+# Un correctif suivi d'un revert de l'archive puis d'une nouvelle archive est permis : l'historique reste intact.
+# Usage : archive_is_last add-mult
+archive_is_last() {
+  local change="$1" base="${INITIAL_SHA:?INITIAL_SHA non défini : à exporter par run.sh}" touched outside rewrites
+  [ -z "$(git status --porcelain)" ] || fail "modifications non commitées après l'archive : $(git status --porcelain | tr '\n' ' ')"
+  [ "$(git rev-parse HEAD)" != "$(git rev-parse "$base")" ] || fail "aucun commit depuis l'état initial"
+  [ ! -d "openspec/changes/$change" ] || fail "openspec/changes/$change n'est pas archivé"
+  touched="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+  echo "$touched" | grep -Eq "^openspec/changes/archive/[^/]*$change/" || fail "le dernier commit n'est pas l'archive de $change : $(git log -1 --format=%s)"
+  outside="$(echo "$touched" | grep -v '^openspec/' || true)"
+  [ -z "$outside" ] || fail "le commit d'archive touche aussi : $(echo "$outside" | tr '\n' ' ')"
+  rewrites="$(git reflog --format=%gs | grep -E '^(rebase|reset|commit \(amend\))' || true)"
+  [ -z "$rewrites" ] || fail "historique réécrit : $(echo "$rewrites" | head -n 3 | tr '\n' ' ')"
 }

@@ -12,6 +12,6 @@ paths:
 - **Piste** : `.openspec.yaml` du change porte `x-track: M` ou `x-track: L`. Une piste S ne passe pas par OpenSpec.
 - **Porte de cadrage** : `x-validated: AAAA-MM-JJ`, ajouté seulement après validation explicite de l'utilisateur (`hx-triage`). `hx-implement` ne démarre pas sans.
 - **Piste L** : `design.md` commence par le besoin, indique le niveau d'architecture visé et cite son ADR (`docs/adr/NNN-titre.md`).
-- **Specs principales** : `openspec/specs/` ne change que pendant `/opsx:sync` ou `/opsx:archive`. Écris les changements dans les delta specs du change.
+- **Specs principales** : `openspec/specs/` ne change que pendant `/opsx:sync` ou l'archive (`/hx-ship`). Écris les changements dans les delta specs du change.
 - **Concision** : le moins d'exigences possible pour couvrir le besoin. Une spec se relit en deux minutes.
 - **Valider** : `node .harness/hx.mjs openspec validate --all --strict`.

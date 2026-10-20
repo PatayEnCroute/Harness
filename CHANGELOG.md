@@ -4,7 +4,7 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
-Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que le workflow demande lui-même.
+Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que le workflow demande lui-même. L'archive OpenSpec reste le dernier commit, même quand la PR est demandée avant la décision sur les mineurs.
 
 ### Modifié
 - **Run en mode `auto`** : `hx worktree` affiche `claude --permission-mode auto "/hx-implement <change>"` (avant : `acceptEdits`, qui ne couvre pas Bash). Les chemins protégés et `git push` restent confirmés.
@@ -12,6 +12,11 @@ Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que l
 - **Permissions** : en plus, sans confirmation, `git log`/`show` seuls, `rev-parse`, `ls-files`, `ls-remote`, `blame`, `bisect`, `branch` (lecture, `-d`), `pull`, `worktree list/remove`, `gh pr create/checks/view`, `ls`, `cat`, `head`, `tail`, `wc`. Liste `ask` explicite : `git push`, `git worktree remove --force`, `git bisect run`, `gh issue create`. Un test vérifie que chaque commande citée par `CLAUDE.md`, un skill ou un agent est autorisée ou dans `ask`.
 - **Hook `PreToolUse`** : une commande Bash ne demande confirmation que si elle écrit un chemin protégé (cible de redirection, ou segment qui écrit). `git diff .harness/config.json > /tmp/d` et un message de commit contenant `->` ne demandent plus rien.
 - **Evals** : plus de règles Bash propres aux evals. Elles tournent avec les permissions du template, et un appel refusé fait échouer l'exécution. Les evals mesurent donc aussi l'autonomie réelle.
+- **Mineurs avant l'archive** ([#15](https://github.com/PatayEnCroute/Harness/issues/15)) : le rapport de fin de run de `hx-review` se termine par une question sur les mineurs (tous, une partie ou aucun). `/hx-ship` exige la réponse et les correctifs commités avant l'archive, même si la PR a été demandée d'avance. `CLAUDE.md` et `openspec/config.yaml` disent la même chose.
+- **Correctif après l'archive** (`/hx-ship`) : CI rouge ou retour tardif, sans `rebase` ni `push --force`. `git revert --no-edit` du commit d'archive (autorisé sans confirmation), correctif, puis nouvelle archive. Variante : PR ouverte sans l'archive, ajoutée en dernier commit avant le merge.
+- **Archive par la CLI** (`/hx-ship`) : `node .harness/hx.mjs openspec archive <change> -y` remplace `/opsx:archive`. La synchronisation des specs principales est déterministe, sans écriture à la main dans `openspec/specs/` ni confirmation du hook.
+- **Eval `ship-minors`** : demande de PR, puis mineur appliqué au tour suivant. L'archive doit rester le dernier commit, sans réécriture d'historique (aide `archive_is_last`, testée). `evals/run.sh` accepte un second tour (`followup.md`, `--continue`) et cumule coût, durée et refus de permission sur les tours.
+- **Evals dans un dossier non approuvé** : `claude -p` ignore `permissions.allow` d'un projet non approuvé (*trust*), ce qui est le cas de chaque dossier temporaire des evals. Toute commande non lecture seule y était refusée. `run.sh` repasse les permissions du template par `--settings`.
 - **Documentation** : le harness est éprouvé sur un vrai projet. README, PLAN et `docs/elagage.md` ne le disent plus « non éprouvé » ni n'attendent de pilote, et renvoient au dernier tag au lieu d'une version écrite en dur. Page de présentation : `docs/index.html`.
 
 ## [0.5.0] — 2026-10-19
