@@ -33,13 +33,13 @@ La CLI OpenSpec (commandes `/opsx:*`) est installée au premier démarrage de se
 
 ```
 hx-triage ─┬─ S   : hx-tdd (ou hx-debug) → hx-verify → commit
-           └─ M/L : CADRAGE (avec toi)         [hx-clarify] → /opsx:propose → porte : validation, x-validated, hx worktree
+           └─ M/L : CADRAGE (avec toi)         [hx-clarify] → /opsx:propose → porte : [contre-relecture], validation, x-validated, hx worktree
                     RUN (seul, son worktree)   hx-implement → hx-verify → hx-review → rapport de fin de run
                     LIVRAISON (toi)            /hx-ship → hx-learn
                     L : + hx-architect et hx-adr, validés à la porte
 ```
 
-`[hx-clarify]` : seulement si la demande est floue. **Un seul arrêt prévu**, la porte de cadrage : tu y vérifies que la spec dit ce que tu as demandé. Ensuite le run va jusqu'au rapport sans te solliciter, dans son propre worktree (`hx worktree <change>`) : pendant ce temps, tu cadres le change suivant dans le dossier principal. Le run ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Lance-le en mode `auto` (`--permission-mode auto`) : la commande affichée par `hx worktree` le fait. Ce mode ne demande pas de confirmation à chaque commande. Les chemins protégés et `git push` restent confirmés. Les permissions accordées dans le dossier principal (`.claude/settings.local.json`) sont reprises dans le worktree. Le rapport se termine par une question sur les mineurs : tranche-la avant `/hx-ship`, qui fait de l'archive OpenSpec le dernier commit de la PR.
+`[hx-clarify]` : seulement si la demande est floue. `[contre-relecture]` : en M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage avant la porte (garder, simplifier, retirer, changer). **Un seul arrêt prévu**, la porte de cadrage : tu y vérifies que la spec dit ce que tu as demandé, sans plus, et tu y vois les décisions retirées. Ensuite le run va jusqu'au rapport sans te solliciter, dans son propre worktree (`hx worktree <change>`) : pendant ce temps, tu cadres le change suivant dans le dossier principal. Le run ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Lance-le en mode `auto` (`--permission-mode auto`) : la commande affichée par `hx worktree` le fait. Ce mode ne demande pas de confirmation à chaque commande. Les chemins protégés et `git push` restent confirmés. Les permissions accordées dans le dossier principal (`.claude/settings.local.json`) sont reprises dans le worktree. Le rapport se termine par une question sur les mineurs : tranche-la avant `/hx-ship`, qui fait de l'archive OpenSpec le dernier commit de la PR.
 
 | | Contenu |
 |---|---|

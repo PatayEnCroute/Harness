@@ -115,6 +115,18 @@ describe('cohérence et budgets', () => {
     assert.match(frontmatter(read(path.join(claude, 'agents', 'hx-security-reviewer.md'))).data.description, /la CI/);
   });
 
+  test('porte de cadrage : hx-triage fait contester le cadrage par hx-architect, qui sait le relire', () => {
+    const triage = read(path.join(claude, 'skills', 'hx-triage', 'SKILL.md'));
+    const gate = triage.slice(triage.indexOf('## Porte de cadrage'));
+    assert.match(gate, /Contre-relecture[^\n]*`hx-architect` en \*\*relecteur\*\*/);
+    assert.match(gate, /openspec validate <change> --strict/);
+    assert.match(gate, /décisions retirées[^\n]*signal qui la ferait revenir/);
+    const architect = read(path.join(claude, 'agents', 'hx-architect.md'));
+    assert.match(architect, /## Relecture d'un change/);
+    for (const verdict of ['garder', 'simplifier', 'retirer', 'changer']) assert.match(architect, new RegExp(verdict), verdict);
+    assert.match(frontmatter(architect).data.description, /porte de cadrage/);
+  });
+
   test('les relecteurs rendent leurs constats au même format, que hx-review consolide', () => {
     for (const name of agents.filter((n) => n.endsWith('-reviewer'))) {
       assert.match(read(path.join(claude, 'agents', `${name}.md`)), /`\[bloquant\|important\|mineur\] chemin:ligne — /, name);

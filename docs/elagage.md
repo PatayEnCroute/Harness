@@ -25,6 +25,7 @@
 | `hx-implement` | Le contexte se dégrade sur un long change ; le modèle sort de la spec | eval `implement-m` | Réussite égale sans le skill, sur un change de 5 tâches ou plus |
 | `hx-verify` + hook `Stop` | Le modèle déclare « terminé » sans preuve | evals `tdd-s`, `implement-m` : `hx check` vert à la fin | Plus aucun échec de `check` en fin d'eval sans le skill |
 | Porte de cadrage (`x-validated`) | Le modèle spécifie autre chose que la demande, puis l'implémente fidèlement | corrections demandées à la porte ; hypothèses du rapport de fin de run infirmées par l'utilisateur | Aucune correction à la porte sur un trimestre |
+| Contre-relecture du cadrage (`hx-architect` relecteur, M avec `design.md` et L) | Le modèle sur-dimensionne le cadrage (scénarios, configuration, composants sans besoin exprimé) et ne le conteste pas lui-même | décisions retirées par la contre-relecture ; réécritures demandées à la porte pour sur-dimensionnement | Aucune décision retirée sur un trimestre |
 | `hx worktree` | Deux changes dans un même dossier se gênent (trace, pistes, commits) | runs interrompus par un change voisin | — (contrôle déterministe, coût quasi nul) |
 | `hx-review` + reviewers | Le modèle juge mal son propre travail | constats confirmés par revue (`hx-review`) | Moins d'un constat confirmé par PR sur un trimestre |
 | `hx-architect` + rule `architecture.md` | Le modèle sur-conçoit (patterns par réflexe) | eval `architect` | Le modèle reste proportionné sans eux |

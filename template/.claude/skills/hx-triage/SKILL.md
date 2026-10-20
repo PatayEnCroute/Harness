@@ -27,12 +27,16 @@ Le processus est proportionné au risque. Choisis **la piste la plus légère** 
 
 ## Porte de cadrage (M et L)
 
-C'est le seul arrêt prévu entre la demande et le rapport de fin de run. C'est là qu'on vérifie que la spec dit bien ce que l'utilisateur a demandé : après, le run suit la spec à la lettre.
+C'est le seul arrêt prévu entre la demande et le rapport de fin de run. C'est là qu'on vérifie que la spec dit bien ce que l'utilisateur a demandé, sans rien de plus : après, le run suit la spec à la lettre.
 
-1. **Montre**, en un seul message : la demande d'origine en une phrase ; le pourquoi et les non-objectifs de `proposal.md` ; la liste des scénarios (WHEN/THEN) ; en L, le niveau visé et la décision de `design.md`, ainsi que les ADR. Signale chaque point où tu as **déduit** au lieu de recopier la demande.
-2. **Attends une validation explicite**. Une correction : modifie la proposition et remontre-la. Ne commence jamais à coder sans validation.
-3. **Validé** : ajoute `x-validated: AAAA-MM-JJ` dans `.openspec.yaml` (en L, l'ADR passe à `Accepté`). Ne commite pas le change dans le dossier principal : `hx worktree` le commite sur sa branche, et un change commité ici y resterait.
-4. **Où lancer le run** :
+1. **Contre-relecture** (M avec `design.md`, et toute L) : qui a cadré ne juge pas son cadrage. Avant de montrer quoi que ce soit, lance **un** `hx-architect` en **relecteur** du change. Donne-lui seulement le chemin `openspec/changes/<change>/` et la demande d'origine en une phrase, pas ton analyse : il rend un verdict par décision (garder, simplifier, retirer, changer), le besoin réel qu'elle sert et le périmètre minimum suffisant.
+   - Pour chaque verdict autre que « garder », relis la partie citée et confirme-le toi-même. Écarte ce que tu ne peux pas confirmer, avec une raison d'une ligne.
+   - Applique les verdicts confirmés au change (`proposal.md`, delta specs, `design.md`, `tasks.md`), puis `node .harness/hx.mjs openspec validate <change> --strict`.
+   - Un seul passage : pas de seconde relecture du change corrigé.
+2. **Montre**, en un seul message : la demande d'origine en une phrase ; le pourquoi et les non-objectifs de `proposal.md` ; la liste des scénarios (WHEN/THEN) ; en L, le niveau visé et la décision de `design.md`, ainsi que les ADR ; après une contre-relecture, les décisions retirées ou simplifiées, chacune avec le signal qui la ferait revenir. Signale chaque point où tu as **déduit** au lieu de recopier la demande.
+3. **Attends une validation explicite**. Une correction : modifie la proposition et remontre-la. Ne commence jamais à coder sans validation.
+4. **Validé** : ajoute `x-validated: AAAA-MM-JJ` dans `.openspec.yaml` (en L, l'ADR passe à `Accepté`). Ne commite pas le change dans le dossier principal : `hx worktree` le commite sur sa branche, et un change commité ici y resterait.
+5. **Où lancer le run** :
    - **Par défaut, dans son worktree.** Le worktree part du HEAD du dossier principal : mets d'abord ce dossier à jour (`git pull`, s'il suit un dépôt distant). Lance ensuite `node .harness/hx.mjs worktree <change>`. La commande refuse un change sans `x-validated`, déplace le change et ses ADR sur leur propre branche dans un dossier frère, puis affiche la commande qui lance le run. **Donne cette commande à l'utilisateur** : le dossier principal est de nouveau libre pour cadrer le change suivant.
    - En L, si l'ADR change le niveau d'une feature (`hx-adr`, étape 6), modifie le `.harness/config.json` **du worktree** et commite-le là (`git -C <worktree> commit`). Ne le fais pas dans le dossier principal : `hx worktree` refuse un harness modifié.
    - **Si l'utilisateur préfère le run dans cette session** : pas de `hx worktree`, enchaîne `hx-implement`.
@@ -48,3 +52,4 @@ Si tu découvres un contrat public touché, une migration de données ou le beso
 | « C'est petit, je saute la spec », alors qu'un comportement observable change | Piste M |
 | « Je fais une spec complète pour un renommage » | Piste S |
 | « Je verrai l'architecture en codant », sur un nouveau contrat public | Piste L |
+| « Autant prévoir la sonde, la config, le second environnement » | Aucun besoin exprimé : retiré à la contre-relecture, avec le signal qui le ferait revenir |

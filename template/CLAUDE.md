@@ -47,7 +47,7 @@ Commence toute demande de changement par **`hx-triage`** : les critères de choi
 
 1. **Pas de « terminé » sans preuve** : une sortie fraîche de `hx check` (`hx-verify`).
 2. **Test d'abord** pour tout changement de comportement (`hx-tdd`) ; les tests qui couvrent un scénario portent `@scenario <capability>/<scénario>`.
-3. **Qui produit ne juge pas** : la relecture passe par des sous-agents indépendants (`hx-review`).
+3. **Qui produit ne juge pas** : la relecture passe par des sous-agents indépendants, pour le code (`hx-review`) comme pour le cadrage d'un change M avec design ou L (porte de cadrage de `hx-triage`).
 4. **Feature-first, proportionné au besoin** : code rangé par fonctionnalité ; aucune couche ni abstraction sans besoin nommé. Niveau déclaré dans `.harness/config.json` (`architecture`).
 5. **Petits changements**, un sujet par commit.
 6. **Aucun secret** dans le code, les logs ou les fixtures.
