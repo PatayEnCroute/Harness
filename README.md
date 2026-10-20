@@ -39,7 +39,7 @@ hx-triage ─┬─ S   : hx-tdd (ou hx-debug) → hx-verify → commit
                     L : + hx-architect et hx-adr, validés à la porte
 ```
 
-`[hx-clarify]` : seulement si la demande est floue. **Un seul arrêt prévu**, la porte de cadrage : tu y vérifies que la spec dit ce que tu as demandé. Ensuite le run va jusqu'au rapport sans te solliciter, dans son propre worktree (`hx worktree <change>`) : pendant ce temps, tu cadres le change suivant dans le dossier principal. Le run ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Lance-le avec `--permission-mode acceptEdits` : la commande affichée par `hx worktree` le fait. `/hx-ship` fait de l'archive OpenSpec le dernier commit de la PR.
+`[hx-clarify]` : seulement si la demande est floue. **Un seul arrêt prévu**, la porte de cadrage : tu y vérifies que la spec dit ce que tu as demandé. Ensuite le run va jusqu'au rapport sans te solliciter, dans son propre worktree (`hx worktree <change>`) : pendant ce temps, tu cadres le change suivant dans le dossier principal. Le run ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Lance-le en mode `auto` (`--permission-mode auto`) : la commande affichée par `hx worktree` le fait. Ce mode ne demande pas de confirmation à chaque commande. Les chemins protégés et `git push` restent confirmés. Les permissions accordées dans le dossier principal (`.claude/settings.local.json`) sont reprises dans le worktree. `/hx-ship` fait de l'archive OpenSpec le dernier commit de la PR.
 
 | | Contenu |
 |---|---|
@@ -47,7 +47,7 @@ hx-triage ─┬─ S   : hx-tdd (ou hx-debug) → hx-verify → commit
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **3 rules** | `openspec`, `testing`, `architecture` (feature-first, proportionnée au besoin) |
 | **4 hooks** | contexte de session ; confirmation avant d'écrire une spec principale ou un fichier qui décide de ce qui s'exécute (contrat, hooks, permissions, version d'OpenSpec) ; lint du fichier édité ; avant de rendre la main, d'après git : contrôles rapides des composants modifiés et signalement des chemins protégés modifiés, quel que soit l'outil |
-| **Permissions** | `node .harness/hx.mjs`, `openspec` et git local (`status`, `diff`, `log`, `show`, `grep`, `add`, `commit`) sans confirmation, `git push` confirmé ; Edit refusé sur `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier), toute autre écriture de ces fichiers demande confirmation |
+| **Permissions** | `node .harness/hx.mjs`, `openspec`, git local (lecture, `add`, `commit`, `pull`, `branch -d`, `worktree`, `bisect`), `gh pr create/checks/view` et lectures shell (`ls`, `cat`, `head`, `tail`, `wc`) sans confirmation. Confirmés exprès (`ask`) : `git push`, `git worktree remove --force`, `git bisect run`, `gh issue create`. Un test vérifie que chaque commande citée par un skill est couverte ; Edit refusé sur `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier), toute autre écriture de ces fichiers demande confirmation |
 | **`hx check`** | contrat · openspec · archives · pistes · trace `@scenario` · lint · typecheck · arch · test (jamais vert sans test), mêmes commandes en local et en CI |
 
 | Générique (mis à jour par `copier update`) | Spécifique (rempli par `/hx-setup`, jamais écrasé) |

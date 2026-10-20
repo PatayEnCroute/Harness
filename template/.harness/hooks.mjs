@@ -71,9 +71,75 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const PROTECTED_IN_COMMAND = new RegExp(`(?:^|[\\s'"=/])(${[SPECS, CONTRACT, ...EXECUTION_FILES].map(escapeRegExp).join('|')})`, 'g');
 // Lancer un script du harness (node .harness/hx.mjs …) ne l'écrit pas : ce chemin-là ne compte pas.
 const RUNS_HARNESS_SCRIPT = /\bnode\s+["']?(?:\$CLAUDE_PROJECT_DIR\/)?\.harness\/(?:hx|hooks)\.mjs["']?/g;
-// Écritures probables dans une commande shell (redirections vers /dev/null ou entre descripteurs exclues).
-const WRITES = /\btee\b|\b(sed|perl)\b[^|;&]*\s-\w*i|--in-place|\b(mv|cp|rm|truncate|dd|ln)\s|writeFile|\bopen\(|>/;
-const writes = (command) => WRITES.test(command.replace(/\d*>&\d|\d*>\s*\/dev\/null/g, ''));
+// Commandes shell qui écrivent probablement les chemins cités dans leur segment (redirections traitées à part).
+const WRITES = /\btee\b|\b(sed|perl)\b[^|;&]*\s-\w*i|--in-place|\b(mv|cp|rm|truncate|dd|ln)\s/;
+// Écriture par un script (node -e, python heredoc…) : le chemin peut être dans une variable d'une autre ligne,
+// donc toute la commande compte.
+const SCRIPT_WRITES = /writeFile|\bopen\(/;
+// Message de commit : du texte, pas une commande (« -m "lint -> eslint" » n'écrit rien).
+const COMMIT_MESSAGE = /(?:\s-m|--message)(?:=|\s+)(?:"(?:\\.|[^"\\])*"|'[^']*')/g;
+
+// Découpe une commande shell en segments (; && || | et saut de ligne, hors guillemets) et sort les cibles de
+// redirection (> et >>, hors >&N et /dev/null). Best effort, pas un parseur shell : le hook Stop rattrape le reste.
+function shellSegments(command) {
+  const segments = [];
+  let text = '';
+  let targets = [];
+  let quote = '';
+  const flush = () => {
+    segments.push({ text, targets });
+    text = '';
+    targets = [];
+  };
+  for (let i = 0; i < command.length; i += 1) {
+    const c = command[i];
+    if (quote) {
+      text += c;
+      if (c === '\\' && quote === '"') text += command[++i] ?? '';
+      else if (c === quote) quote = '';
+    } else if (c === '"' || c === "'") {
+      quote = c;
+      text += c;
+    } else if (c === '\\') {
+      text += c + (command[++i] ?? '');
+    } else if (c === ';' || c === '\n' || c === '|' || (c === '&' && command[i + 1] === '&')) {
+      if (command[i + 1] === c) i += 1;
+      flush();
+    } else if (c === '>') {
+      let j = i + 1 + (command[i + 1] === '>' ? 1 : 0);
+      if (command[j] === '&') {
+        while (/[&\d-]/.test(command[j] ?? '')) j += 1;
+      } else {
+        while (command[j] === ' ' || command[j] === '\t') j += 1;
+        let word = '';
+        if (command[j] === '"' || command[j] === "'") {
+          const end = command.indexOf(command[j], j + 1);
+          word = command.slice(j + 1, end < 0 ? undefined : end);
+          j = end < 0 ? command.length : end + 1;
+        } else {
+          while (j < command.length && !/[\s;&|<>]/.test(command[j])) word += command[j++];
+        }
+        if (word !== '/dev/null') targets.push(word);
+      }
+      text += ' ';
+      i = j - 1;
+    } else {
+      text += c;
+    }
+  }
+  flush();
+  return segments;
+}
+
+// Textes où un chemin protégé cité serait écrit : cibles de redirection, et segments entiers d'une commande qui écrit.
+function writtenByCommand(command) {
+  const shell = command.replace(RUNS_HARNESS_SCRIPT, 'node');
+  if (SCRIPT_WRITES.test(shell)) return [shell];
+  return shellSegments(shell).flatMap(({ text, targets }) => {
+    const code = /^\s*git\s/.test(text) ? text.replace(COMMIT_MESSAGE, ' ') : text;
+    return [...targets, ...(WRITES.test(code) ? [code] : [])];
+  });
+}
 
 // État de la session, hors du dépôt, une entrée par projet et session : commit de départ, et empreinte des fichiers
 // déjà vus (modifiés avant la session, ou contrôlés au vert). Écrit seulement par SessionStart et Stop.
@@ -195,12 +261,9 @@ export function preToolUse(root, input, env = process.env) {
     const skill = String(input.tool_input?.skill ?? '').replace(/^.*:/, '');
     reason = Object.hasOwn(REDIRECTED_SKILLS, skill) ? REDIRECTED_SKILLS[skill] : undefined;
   } else if (input.tool_name === 'Bash') {
-    const command = String(input.tool_input?.command ?? '');
-    if (writes(command)) {
-      // Tous les chemins protégés cités, pas seulement le premier.
-      const targets = [...command.replace(RUNS_HARNESS_SCRIPT, 'node').matchAll(PROTECTED_IN_COMMAND)].map((m) => m[1]);
-      reason = targets.map((t) => guarded.find((p) => p.test(t))?.reason).find(Boolean);
-    }
+    // Tous les chemins protégés écrits, pas seulement le premier ; un chemin seulement lu ne compte pas.
+    const targets = writtenByCommand(String(input.tool_input?.command ?? '')).flatMap((text) => [...text.matchAll(PROTECTED_IN_COMMAND)].map((m) => m[1]));
+    reason = targets.map((t) => guarded.find((p) => p.test(t))?.reason).find(Boolean);
   } else {
     const file = input.tool_input?.file_path;
     const rel = file && relative(root, file);

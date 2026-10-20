@@ -12,6 +12,7 @@ export const CHECK_STEPS = ['lint', 'typecheck', 'arch', 'test'];
 export const FAST_STEPS = ['lint', 'typecheck'];
 export const DOCTOR_STEPS = ['lint', 'typecheck', 'build', 'arch', 'test'];
 export const CONFIG_PATH = '.harness/config.json';
+const LOCAL_SETTINGS = '.claude/settings.local.json';
 
 const VALUE_FLAGS = new Set(['file', 'component', 'path', 'branch']);
 const TAIL_LINES = 60;
@@ -771,6 +772,13 @@ export function createWorktree(root, change, { target, branch = change } = {}) {
   if (fs.existsSync(dest)) return { error: `le dossier existe déjà : ${dest}` };
   const add = git(['worktree', 'add', '-q', '-b', branch, dest, 'HEAD']);
   if (add.status !== 0) return { error: `git worktree add a échoué : ${add.stderr.trim()}` };
+  // Permissions accordées dans le dossier principal (« toujours autoriser ») : non suivies par git, donc absentes
+  // du worktree. Sans elles, le run redemanderait chaque commande déjà accordée.
+  const localSettings = path.join(root, LOCAL_SETTINGS);
+  if (fs.existsSync(localSettings) && !fs.existsSync(path.join(dest, LOCAL_SETTINGS))) {
+    fs.mkdirSync(path.dirname(path.join(dest, LOCAL_SETTINGS)), { recursive: true });
+    fs.copyFileSync(localSettings, path.join(dest, LOCAL_SETTINGS));
+  }
   const moved = untracked.length > 0;
   if (moved) {
     for (const p of untracked) {
@@ -1121,8 +1129,9 @@ function cmdWorktree(root, args) {
   console.log([
     `Worktree prêt : ${result.target} (branche ${result.branch})${result.moved ? ` ; change déplacé et commité : « ${change} : proposition »` : ''}.`,
     ...(result.stayed ? [`⚠ ${change} était déjà commité : il reste aussi dans ce dossier, dont hx check restera rouge sur ses scénarios tant qu'il n'est pas mergé.`] : []),
-    'Lancer le run :',
-    `  cd ${shellQuote(result.target)} && claude --permission-mode acceptEdits "/hx-implement ${change}"`,
+    ...(fs.existsSync(path.join(result.target, LOCAL_SETTINGS)) ? [`Permissions locales (${LOCAL_SETTINGS}) reprises dans le worktree.`] : []),
+    'Lancer le run (mode auto : pas de confirmation par commande ; les chemins protégés et git push restent confirmés) :',
+    `  cd ${shellQuote(result.target)} && claude --permission-mode auto "/hx-implement ${change}"`,
     `Après le merge : git worktree remove ${shellQuote(result.target)}`,
   ].join('\n'));
   return 0;

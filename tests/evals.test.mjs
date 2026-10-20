@@ -119,6 +119,20 @@ describe('evals : aides de grade.sh', { skip: !BASH && 'bash indisponible' }, ()
     assert.equal(fs.readFileSync(path.join(root, 'src/mult.js'), 'utf8'), 'export const mult = (a, b) => a * b;', 'fichier restauré');
   });
 
+  test('no_permission_denials : un appel refusé fait échouer le run, avec la commande', () => {
+    const { root } = demo();
+    const withResult = (result) => {
+      const file = transcript([run('# fail 0')]);
+      fs.appendFileSync(file, `${JSON.stringify({ type: 'result', ...result })}\n`);
+      return file;
+    };
+    assert.equal(grade(root, 'no_permission_denials', { TRANSCRIPT: withResult({ permission_denials: [] }) }).status, 0);
+    const denied = { permission_denials: [{ tool_name: 'Bash', tool_use_id: 'x', tool_input: { command: 'git worktree list' } }, { tool_name: 'WebFetch', tool_use_id: 'y', tool_input: {} }] };
+    const r = grade(root, 'no_permission_denials', { TRANSCRIPT: withResult(denied) });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /2 appel\(s\) refusé\(s\).*Bash\(git worktree list\) ; WebFetch/);
+  });
+
   test('mutant invalide ou tests déjà rouges : la notation échoue au lieu de compter un faux « détecté »', () => {
     const { root } = demo();
     let r = grade(root, "mutant_caught src/mult.js 'export const nope = ('");

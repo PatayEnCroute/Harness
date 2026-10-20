@@ -35,7 +35,9 @@ max_turns="${EVAL_MAX_TURNS:-80}"
 variant="${without:+without:$without}"
 variant="${variant:-full}"
 copier=(uvx --from "copier==${COPIER_VERSION:-9.19.1}" copier)
-tools=(Read Edit Write Glob Grep Agent Task Skill TodoWrite "Bash(node *)" "Bash(npm *)" "Bash(npx *)" "Bash(git *)" "Bash(openspec *)" "Bash(ls *)" "Bash(cat *)")
+# Aucune règle Bash ici : les commandes passent par les seules permissions du template (.claude/settings.json),
+# comme chez l'utilisateur. Une commande refusée fait échouer l'exécution (no_permission_denials).
+tools=(Read Edit Write Glob Grep Agent Task Skill TodoWrite)
 git_env=(-c user.email=eval@example.com -c user.name=eval)
 
 claude_version="$(claude --version 2>/dev/null | head -n1 || echo inconnue)"
@@ -158,6 +160,7 @@ for scenario in "${scenarios[@]}"; do
       (
         set -e
         integrity "$dir" "$work"
+        TRANSCRIPT="$work/transcript.jsonl" bash -c 'source "$1"; no_permission_denials' grade "$evals/lib/grade.sh"
         RESULT="$work/result.txt" TRANSCRIPT="$work/transcript.jsonl" EVAL_LIB="$evals/lib" INITIAL_SHA="$(cat "$work/initial-sha")" \
           bash -c 'set -eE; trap "echo \"✗ échec : \$BASH_COMMAND\" >&2" ERR; source "$1"' grade "$dir/grade.sh"
       ) > "$work/grade.log" 2>&1
