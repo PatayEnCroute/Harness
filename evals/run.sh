@@ -141,18 +141,27 @@ for scenario in "${scenarios[@]}"; do
       # Scénario dont la tâche est d'écrire le contrat (setup) : personne ne peut confirmer en headless.
       unattended=()
       [ ! -f "$dir/config-writable" ] || unattended=(HX_ALLOW_CONFIG_EDITS=1)
-      env "${unattended[@]}" timeout "$timeout_s" claude -p "$(cat "$dir/prompt.md")" --model "$model" \
-        --output-format stream-json --verbose --permission-mode acceptEdits \
-        --max-turns "$max_turns" --allowedTools "${tools[@]}" \
-        > "$work/transcript.jsonl" 2> "$work/stderr.log" < /dev/null || rc=$?
-      [ "$rc" -ne 124 ] || echo "⚠ $scenario #$run : délai de ${timeout_s}s dépassé" >&2
+      # Un tour par prompt : prompt.md, puis followup.md s'il existe (réponse de l'utilisateur, même conversation).
+      turn=()
+      for prompt in "$dir/prompt.md" "$dir/followup.md"; do
+        [ -f "$prompt" ] || continue
+        env "${unattended[@]}" timeout "$timeout_s" claude -p "$(cat "$prompt")" "${turn[@]}" --model "$model" \
+          --output-format stream-json --verbose --permission-mode acceptEdits \
+          --max-turns "$max_turns" --allowedTools "${tools[@]}" \
+          >> "$work/transcript.jsonl" 2>> "$work/stderr.log" < /dev/null || rc=$?
+        [ "$rc" -ne 124 ] || echo "⚠ $scenario #$run : délai de ${timeout_s}s dépassé" >&2
+        [ "$rc" -eq 0 ] || break
+        turn=(--continue)
+      done
+      # Durée et coût cumulés sur les tours ; result.txt : réponse du dernier tour.
       node -e '
         const fs = require("fs");
-        const r = fs.readFileSync(process.argv[1], "utf8").split("\n").reverse()
+        const results = fs.readFileSync(process.argv[1], "utf8").split("\n")
           .map((l) => { try { return JSON.parse(l); } catch { return null; } })
-          .find((e) => e?.type === "result") ?? {};
-        fs.writeFileSync(process.argv[2], r.result ?? "");
-        console.log(((r.duration_ms ?? 0) / 1000).toFixed(0), (r.total_cost_usd ?? 0).toFixed(4));
+          .filter((e) => e?.type === "result");
+        const sum = (key) => results.reduce((n, r) => n + (r[key] ?? 0), 0);
+        fs.writeFileSync(process.argv[2], results.at(-1)?.result ?? "");
+        console.log((sum("duration_ms") / 1000).toFixed(0), sum("total_cost_usd").toFixed(4));
       ' "$work/transcript.jsonl" "$work/result.txt" > "$work/metrics" 2>> "$work/stderr.log" || echo "" > "$work/metrics"
       read -r duration cost < "$work/metrics" || true
 

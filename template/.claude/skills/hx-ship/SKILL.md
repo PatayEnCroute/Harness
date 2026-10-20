@@ -11,6 +11,7 @@ disable-model-invocation: true
 
 - `hx-verify` vert dans cette conversation, après le dernier changement de code.
 - `hx-review` sans constat bloquant restant.
+- Décision de l'utilisateur sur les mineurs du rapport de fin de run, et correctifs retenus commités. Sans réponse, pose la question et arrête-toi : l'archive vient après.
 - Aucune modification non commitée hors de `openspec/`.
 
 ## Étapes
@@ -24,5 +25,15 @@ disable-model-invocation: true
    - **Hypothèses** : celles du rapport de fin de run, avec la décision de l'utilisateur.
    - **Vérification** : résumé de la sortie de `hx check`.
    - **Traçabilité** : résumé de `hx trace`.
-4. **CI** : `gh pr checks --watch`. En cas d'échec : diagnostique (`hx-debug`), corrige, relance `hx-verify`, pousse. Ne désactive jamais un contrôle pour passer.
+4. **CI** : `gh pr checks --watch`. En cas d'échec : diagnostique (`hx-debug`), corrige (voir ci-dessous), relance `hx-verify`, pousse. Ne désactive jamais un contrôle pour passer.
 5. **Après le merge**, dans le dossier principal mis à jour (`git pull`) : `hx-learn`. Si le change avait son worktree (`hx worktree`), supprime-le ensuite avec sa branche : `git worktree remove <dossier>`, puis `git branch -d <branche>`.
+
+## Correctif après l'archive
+
+CI rouge, retour de revue, mineur décidé trop tard : jamais de `rebase` ni de `push --force` pour remettre l'archive en dernier.
+
+1. `git revert --no-edit <commit d'archive>` : le change revient dans `openspec/changes/`.
+2. Correctif, commité, puis `hx-verify`.
+3. Archive à nouveau (étape 1), puis push.
+
+**PR ouverte plus tôt** (pour lancer la CI, par exemple) : ouvre-la sans l'archive, et ajoute l'archive en dernier commit juste avant le merge.

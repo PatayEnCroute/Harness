@@ -16,6 +16,7 @@
       "Bash(git grep *)",
       "Bash(git add *)",
       "Bash(git commit *)",
+      "Bash(git revert --no-edit *)",
       "Bash(git log)",
       "Bash(git show)",
       "Bash(git rev-parse *)",

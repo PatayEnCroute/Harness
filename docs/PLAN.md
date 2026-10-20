@@ -198,7 +198,7 @@ flowchart LR
   L -.->|générique| HX[(Harness)]
 ```
 
-> **Cadrage, run, livraison.** En M et L, l'utilisateur cadre jusqu'à la porte, le seul arrêt prévu. C'est là qu'il vérifie que la spec dit ce qu'il a demandé (`x-validated` dans `.openspec.yaml`). Le run (`hx-implement` → `hx-verify` → `hx-review`) se fait ensuite sans lui, dans le worktree du change : il ne s'arrête que sur un blocage listé par `hx-implement` et finit par un rapport de fin de run (hypothèses à confirmer, revue, mineurs). Pendant ce temps, le dossier principal reste libre pour cadrer le change suivant : `trace` et `pistes` portent sur tous les changes d'un dossier, donc deux changes dans le même dossier se gêneraient.
+> **Cadrage, run, livraison.** En M et L, l'utilisateur cadre jusqu'à la porte, le seul arrêt prévu. C'est là qu'il vérifie que la spec dit ce qu'il a demandé (`x-validated` dans `.openspec.yaml`). Le run (`hx-implement` → `hx-verify` → `hx-review`) se fait ensuite sans lui, dans le worktree du change : il ne s'arrête que sur un blocage listé par `hx-implement` et finit par un rapport de fin de run (hypothèses à confirmer, revue, mineurs). La décision de l'utilisateur sur les mineurs précède l'archive, pour qu'elle reste le dernier commit. Pendant ce temps, le dossier principal reste libre pour cadrer le change suivant : `trace` et `pistes` portent sur tous les changes d'un dossier, donc deux changes dans le même dossier se gêneraient.
 >
 > Les critères de piste ne vivent que dans le skill `hx-triage`. Il lance `hx-explorer` quand l'impact n'est pas évident. Sur un projet existant sans specs, `hx-discover` dérive d'abord des specs de base depuis le code.
 
