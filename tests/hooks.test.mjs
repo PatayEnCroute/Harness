@@ -93,6 +93,21 @@ describe('hooks Claude Code', () => {
     assert.ok(asks(bash('node .harness/hx.mjs detect --json > x.json && cp x.json .harness/config.json')), 'tous les chemins cités comptent');
     assert.equal(bash('node .harness/hx.mjs check 2>&1').stdout, '');
     assert.ok(asks(bash('cp /tmp/x.json .harness/config.json')));
+    assert.ok(asks(bash(`echo '{}' >> ".claude/settings.json"`)), 'cible de redirection entre guillemets');
+    assert.ok(asks(bash('echo x | tee .harness/config.json')));
+  });
+
+  test('pre-tool-use : une lecture redirigée ou un message de commit ne demandent pas confirmation', () => {
+    const root = project({ components: {} });
+    const bash = (command) => hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command } });
+    assert.equal(bash('git diff .harness/config.json > /tmp/d.txt').stdout, '', 'lu, puis redirigé ailleurs');
+    assert.equal(bash('git add .harness/config.json && git commit -m "config : lint -> eslint"').stdout, '');
+    assert.equal(bash(`git commit -m 'rm de .claude/settings.json : inutile'`).stdout, '');
+    assert.equal(bash('cat .claude/settings.json 2>&1 | head -5 > /tmp/s.txt').stdout, '');
+    assert.equal(bash(`git log --format='%s > %an' -- openspec/specs/`).stdout, '', '> entre guillemets : pas une redirection');
+    assert.ok(asks(bash('git diff > .harness/config.json')), 'la cible compte, même si la commande lit');
+    assert.ok(asks(bash('git commit -m "x" && rm .claude/settings.json')), 'le segment suivant compte');
+    assert.ok(asks(bash("python3 - <<'EOF'\np = '.harness/config.json'\njson.dump({}, open(p, 'w'))\nEOF")), 'script : chemin dans une variable');
   });
 
   test('pre-tool-use : openspec-apply-change redirigé vers hx-implement, autres skills libres', () => {

@@ -147,6 +147,28 @@ describe('cohérence et budgets', () => {
     assert.deepEqual(allow.filter((rule) => /git (push|reset|rebase|checkout|clean)/.test(rule)), []);
   });
 
+  test('settings.json : chaque commande citée par un prompt est autorisée, ou confirmée exprès (ask)', () => {
+    const { allow, ask } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
+    // Sémantique de Claude Code : « X * » couvre « X » suivi d'arguments, pas « X » seul.
+    const matcher = (rule) => new RegExp(`^${rule.slice(5, -1).replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/ \*$/, ' .+').replace(/\*/g, '.*')}$`);
+    const allowed = allow.filter((r) => r.startsWith('Bash(')).map(matcher);
+    const confirmed = ask.filter((r) => r.startsWith('Bash(')).map(matcher);
+    // Mentions qui ne sont pas des commandes à lancer telles quelles, ou confirmation voulue hors liste.
+    const notCommands = new Set([
+      'git bisect', // la technique, pas une commande
+      'git grep', // toujours lancé avec un motif (« git grep * »)
+      'git -C <worktree> commit', // cadrage en L, utilisateur présent : « git -C * commit * » couvrirait aussi un push
+    ]);
+    const prompts = [path.join(template, 'CLAUDE.md'), ...walk(claude).filter((f) => f.endsWith('.md'))];
+    const cited = prompts.flatMap((file) => [...read(file).matchAll(/`([^`\n]+)`/g)].flatMap((m) => m[1].split('&&').map((c) => ({ file, command: c.trim() }))))
+      .filter(({ command }) => /^(git|gh|openspec) \S|^node \.harness\/hx\.mjs \S/.test(command) && !notCommands.has(command));
+    assert.ok(cited.length > 20, `commandes citées trouvées : ${cited.length}`);
+    for (const { file, command } of cited) {
+      assert.ok([...allowed, ...confirmed].some((re) => re.test(command)), `${path.relative(template, file)} : « ${command} » n'est ni autorisée ni dans ask`);
+    }
+    for (const push of ['git push', 'git push -u origin feat']) assert.ok(confirmed.some((re) => re.test(push)), `${push} reste confirmé`);
+  });
+
   test('les budgets internes des hooks restent sous les délais de settings.json', async () => {
     const { LINT_FILE_TIMEOUT_MS, STOP_BUDGET_MS } = await import(pathToFileURL(path.join(template, '.harness', 'hooks.mjs')).href);
     const settings = JSON.parse(read(path.join(claude, 'settings.json')));

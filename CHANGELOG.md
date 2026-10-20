@@ -4,7 +4,14 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
+Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que le workflow demande lui-même.
+
 ### Modifié
+- **Run en mode `auto`** : `hx worktree` affiche `claude --permission-mode auto "/hx-implement <change>"` (avant : `acceptEdits`, qui ne couvre pas Bash). Les chemins protégés et `git push` restent confirmés.
+- **`hx worktree`** reprend `.claude/settings.local.json` (permissions accordées dans le dossier principal, non suivies par git) dans le worktree.
+- **Permissions** : en plus, sans confirmation, `git log`/`show` seuls, `rev-parse`, `ls-files`, `ls-remote`, `blame`, `bisect`, `branch` (lecture, `-d`), `pull`, `worktree list/remove`, `gh pr create/checks/view`, `ls`, `cat`, `head`, `tail`, `wc`. Liste `ask` explicite : `git push`, `git worktree remove --force`, `git bisect run`, `gh issue create`. Un test vérifie que chaque commande citée par `CLAUDE.md`, un skill ou un agent est autorisée ou dans `ask`.
+- **Hook `PreToolUse`** : une commande Bash ne demande confirmation que si elle écrit un chemin protégé (cible de redirection, ou segment qui écrit). `git diff .harness/config.json > /tmp/d` et un message de commit contenant `->` ne demandent plus rien.
+- **Evals** : plus de règles Bash propres aux evals. Elles tournent avec les permissions du template, et un appel refusé fait échouer l'exécution. Les evals mesurent donc aussi l'autonomie réelle.
 - **Documentation** : le harness est éprouvé sur un vrai projet. README, PLAN et `docs/elagage.md` ne le disent plus « non éprouvé » ni n'attendent de pilote, et renvoient au dernier tag au lieu d'une version écrite en dur. Page de présentation : `docs/index.html`.
 
 ## [0.5.0] — 2026-10-19

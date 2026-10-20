@@ -75,3 +75,21 @@ subagent_called() {
     if (!ok.size) { console.error(`sous-agent ${name} lancé mais sans résultat exploitable`); process.exit(1); }
   ' "$TRANSCRIPT" "$1" 2>&1)" || fail "$msg"
 }
+
+# Aucun appel refusé faute de permission (résultat final du transcript) : chaque refus est une confirmation
+# que l'utilisateur aurait dû donner, donc un run qui n'est pas autonome avec les permissions du template.
+no_permission_denials() {
+  local msg
+  msg="$(node -e '
+    let denials = [];
+    for (const line of require("fs").readFileSync(process.argv[1], "utf8").split("\n")) {
+      let e;
+      try { e = JSON.parse(line); } catch { continue; }
+      if (e?.type === "result") denials = e.permission_denials ?? [];
+    }
+    if (!denials.length) process.exit(0);
+    const what = denials.map((d) => d.tool_name === "Bash" ? `Bash(${String(d.tool_input?.command ?? "").split("\n")[0].slice(0, 80)})` : d.tool_name);
+    console.error(`${denials.length} appel(s) refusé(s) faute de permission : ${[...new Set(what)].join(" ; ")}`);
+    process.exit(1);
+  ' "$TRANSCRIPT" 2>&1)" || fail "$msg"
+}

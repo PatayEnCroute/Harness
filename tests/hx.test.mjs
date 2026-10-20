@@ -550,6 +550,18 @@ describe('worktree : un change, une branche, un dossier', () => {
     assert.match(createWorktree(root, 'add-mult').error, /déjà commités et modifiés/);
   });
 
+  test('permissions locales (non suivies) reprises dans le worktree', () => {
+    const { root } = repoWithHarness();
+    fs.mkdirSync(path.join(root, '.claude'));
+    fs.writeFileSync(path.join(root, '.claude', 'settings.local.json'), '{ "permissions": { "allow": ["Bash(make *)"] } }\n');
+    writeChange(root, 'add-mult');
+    const r = withGitIdentity(() => createWorktree(root, 'add-mult'));
+    assert.equal(r.error, undefined);
+    assert.equal(fs.readFileSync(path.join(r.target, '.claude', 'settings.local.json'), 'utf8'), fs.readFileSync(path.join(root, '.claude', 'settings.local.json'), 'utf8'));
+    assert.equal(git(r.target, 'log', '-1', '--format=%s').stdout.trim(), 'add-mult : proposition', 'pas commitées');
+    assert.ok(!git(r.target, 'ls-files').stdout.includes('settings.local.json'));
+  });
+
   test('CLI : commande de lancement du run affichée ; usage sans change', () => {
     const { root } = repoWithHarness();
     writeChange(root, 'add-mult');
@@ -561,7 +573,7 @@ describe('worktree : un change, une branche, un dossier', () => {
     } finally {
       console.log = log;
     }
-    assert.match(lines.join('\n'), /claude --permission-mode acceptEdits "\/hx-implement add-mult"/);
+    assert.match(lines.join('\n'), /claude --permission-mode auto "\/hx-implement add-mult"/);
     assert.equal(main(['worktree'], root), 2);
   });
 });
