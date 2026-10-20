@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Installe le harness en une commande : npx github:PatayEnCroute/Harness
-// Vérifie git, installe uv au besoin (avec accord), lance Copier puis ouvre Claude Code sur /hx-setup.
+// Vérifie git, installe uv au besoin (avec accord), lance Copier puis ouvre Claude Code (Desktop par défaut) pour /hx-setup.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,9 +17,11 @@ const UV_INSTALL = WIN
 
 const HELP = `npx github:PatayEnCroute/Harness [options] [options de copier]
 
-  Installe le harness dans le dossier courant (projet nouveau ou existant), puis ouvre Claude Code sur /hx-setup.
+  Installe le harness dans le dossier courant (projet nouveau ou existant), puis ouvre Claude Code Desktop
+  sur ce dossier : il reste à y taper /hx-setup.
 
   --template <source>  template à installer (défaut : ${TEMPLATE}, dernier tag)
+  --terminal           ouvrir Claude Code dans le terminal (lance /hx-setup) au lieu de Desktop
   --no-claude          ne pas ouvrir Claude Code à la fin
   -h, --help           cette aide
 
@@ -27,11 +29,12 @@ const HELP = `npx github:PatayEnCroute/Harness [options] [options de copier]
   Sans terminal (agent, CI) : --defaults obligatoire, réponses en --data clé=valeur (voir INSTALL.md).`;
 
 export function parseArgs(argv) {
-  const opts = { template: TEMPLATE, claude: true, help: false, copier: [] };
+  const opts = { template: TEMPLATE, claude: 'desktop', help: false, copier: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--template') opts.template = argv[++i];
     else if (a === '--no-claude') opts.claude = false;
+    else if (a === '--terminal') opts.claude = opts.claude && 'terminal';
     else if (a === '-h' || a === '--help') opts.help = true;
     else opts.copier.push(a);
   }
@@ -102,11 +105,25 @@ async function main(argv) {
   const copier = run(uvx, [`copier@${COPIER_VERSION}`, 'copy', '--trust', ...opts.copier, opts.template, '.'], cwd, { stdio: 'inherit' });
   if (copier.status !== 0) return fail('copier a échoué');
 
-  if (opts.claude && process.stdin.isTTY && found('claude', ['--version'], { shell: WIN })) {
+  return openClaude(opts.claude, cwd);
+}
+
+const DESKTOP_STEP = 'Étape suivante : dans Claude Code Desktop, ouvre une nouvelle session sur ce dossier et tape /hx-setup.';
+
+// Fin d'installation : Desktop (défaut), terminal (--terminal) ou rien (--no-claude, ou sans terminal interactif).
+// Desktop n'a pas de lien qui ouvre un dossier local : « claude --desktop » (CLI récente) le fait depuis le dossier
+// courant, sans pouvoir taper /hx-setup. Sans CLI, ou si elle refuse l'option, la consigne suffit.
+export function openClaude(mode, cwd, { tty = process.stdin.isTTY, exec = run, has = found } = {}) {
+  const cli = mode && tty && has('claude', ['--version'], { shell: WIN });
+  if (cli && mode === 'terminal') {
     console.log('\nOuverture de Claude Code sur /hx-setup…');
-    return run('claude', ['/hx-setup'], cwd, { stdio: 'inherit', shell: WIN }).status ?? 1;
+    return exec('claude', ['/hx-setup'], cwd, { stdio: 'inherit', shell: WIN }).status ?? 1;
   }
-  console.log('\nÉtape suivante : ouvre Claude Code dans ce dossier et lance /hx-setup.');
+  if (cli && mode === 'desktop' && exec('claude', ['--desktop'], cwd, { stdio: 'ignore', shell: WIN, timeout: 60_000 }).status === 0) {
+    console.log('\nClaude Code Desktop s\'ouvre sur ce dossier : tape /hx-setup dans la session.');
+    return 0;
+  }
+  console.log(`\n${mode === 'terminal' ? 'Étape suivante : ouvre Claude Code dans ce dossier et lance /hx-setup.' : DESKTOP_STEP}`);
   return 0;
 }
 

@@ -32,8 +32,8 @@ flowchart LR
 
 | Étape | Commande | Durée visée |
 |---|---|---|
-| 1. Installer | `npx github:PatayEnCroute/Harness` (projet nouveau ou existant) : vérifie git, installe uv au besoin, lance Copier, ouvre Claude Code. Ou par un agent, qui suit [`INSTALL.md`](../INSTALL.md) | 1 min |
-| 2. Personnaliser pour la stack | `/hx-setup`, ouvert par le lanceur : il détecte, propose, **exécute chaque commande pour la vérifier**, établit le profil d'architecture, tu valides, et il finit par `hx doctor` | 10–20 min |
+| 1. Installer | Par un agent dans Claude Code Desktop, qui suit [`INSTALL.md`](../INSTALL.md). Ou `npx github:PatayEnCroute/Harness` (projet nouveau ou existant) : vérifie git, installe uv au besoin, lance Copier, ouvre Claude Code Desktop sur le dossier (`--terminal` : le terminal) | 1 min |
+| 2. Personnaliser pour la stack | `/hx-setup`, tapé dans une nouvelle session : il détecte, propose, **exécute chaque commande pour la vérifier**, établit le profil d'architecture, tu valides, et il finit par `hx doctor` | 10–20 min |
 | Mettre à jour plus tard | `uvx copier@9.19.1 update --trust` (tes personnalisations sont conservées) | 1 min |
 
 > `--trust` autorise les tâches post-génération : `openspec init` à l'installation, `openspec update` et `hx migrate` à chaque mise à jour. Python (via `uv`) n'est requis **qu'à l'installation et à la mise à jour**.
@@ -126,7 +126,7 @@ C'est la seule interface entre le harness et la stack. Il gère aussi les projet
 | `hx trace [--json]` | Scénarios OpenSpec ↔ tests tagués `@scenario` |
 | `hx doctor` | Installation saine (fichiers, versions, `settings.json` lisible et hooks câblés, aucun reste de conflit de fusion dans les fichiers du harness, fichiers principaux non ignorés par git, retard sur le dernier tag) et les commandes `lint`, `typecheck`, `build`, `arch`, `test` **passent** |
 | `hx migrate` | Ajoute à `config.json` les clés nouvelles du template, sans rien remplacer (lancé par `copier update`) |
-| `hx worktree <change>` | Branche et worktree frère pour le run d'un change validé ; y déplace et commite le change (et ses ADR) s'il n'est pas encore suivi ; affiche la commande qui lance le run |
+| `hx worktree <change>` | Branche et worktree frère pour le run d'un change validé ; y déplace et commite le change (et ses ADR) s'il n'est pas encore suivi ; affiche comment lancer le run (Desktop, ou commande terminal) |
 | `hx openspec <args>` | Appelle la version épinglée d'OpenSpec, télémétrie coupée |
 
 ### 3.3 `/hx-setup` : la personnalisation assistée

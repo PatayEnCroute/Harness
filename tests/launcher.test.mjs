@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { COPIER_VERSION, findUvx, parseArgs, preflight } from '../bin/harness.mjs';
+import { COPIER_VERSION, findUvx, openClaude, parseArgs, preflight } from '../bin/harness.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'hx-launcher-'));
@@ -19,6 +19,33 @@ describe('lanceur npx', () => {
     assert.equal(opts.template, '/tmp/h');
     assert.deepEqual(opts.copier, ['--vcs-ref', 'v0.4.0', '--defaults']);
     assert.equal(parseArgs([]).template, 'gh:PatayEnCroute/Harness');
+    assert.equal(parseArgs([]).claude, 'desktop');
+    assert.equal(parseArgs(['--terminal']).claude, 'terminal');
+    assert.equal(parseArgs(['--terminal', '--no-claude']).claude, false);
+    assert.equal(parseArgs(['--no-claude', '--terminal']).claude, false);
+  });
+
+  test('fin : Desktop par défaut, terminal sur demande, consigne si la CLI manque ou refuse --desktop', () => {
+    const outcome = (mode, { tty = true, cli = true, status = 0 } = {}) => {
+      const calls = [];
+      const lines = [];
+      const log = console.log;
+      console.log = (msg) => lines.push(msg);
+      try {
+        const code = openClaude(mode, '/p', { tty, has: () => cli, exec: (cmd, args) => (calls.push(args.join(' ')), { status }) });
+        return { code, calls, out: lines.join('\n') };
+      } finally {
+        console.log = log;
+      }
+    };
+    assert.deepEqual(outcome('desktop').calls, ['--desktop']);
+    assert.match(outcome('desktop').out, /Desktop s'ouvre.*\/hx-setup/);
+    assert.deepEqual(outcome('terminal').calls, ['/hx-setup']);
+    for (const r of [outcome('desktop', { status: 1 }), outcome('desktop', { cli: false }), outcome('desktop', { tty: false }), outcome(false)]) {
+      assert.equal(r.code, 0);
+      assert.match(r.out, /Claude Code Desktop, ouvre une nouvelle session sur ce dossier et tape \/hx-setup/);
+    }
+    assert.deepEqual(outcome(false).calls, []);
   });
 
   test('dépôt : dossier vide → git init ; hors git, arbre sale ou déjà installé → refus', () => {
