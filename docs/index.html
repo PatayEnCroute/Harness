@@ -175,7 +175,7 @@ pre .k{color:var(--peach)} pre .s{color:var(--sage)} pre .c{color:#9C978B}
 footer{padding:56px 0 72px;border-top:1px solid var(--line);color:var(--ink-2);font-size:15px}
 footer .wrap{display:flex;flex-wrap:wrap;gap:20px 40px;justify-content:space-between;align-items:flex-start}
 footer ul{display:flex;flex-wrap:wrap;gap:8px 22px;list-style:none;margin:0;padding:0}
-.status{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px}
+.status{text-decoration:none;display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px}
 .status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--clay)}
 </style>
 </head>
@@ -582,7 +582,7 @@ footer ul{display:flex;flex-wrap:wrap;gap:8px 22px;list-style:none;margin:0;padd
 
 <footer>
   <div class="wrap">
-    <div><span class="status">v0.4.0 — pas encore éprouvée sur un vrai projet</span><p style="margin:14px 0 0;max-width:34em">La v1.0 attend le pilote : 3 changes M de bout en bout et une traçabilité ≥ 80 %.</p></div>
+    <div><a class="status" id="version" href="https://github.com/PatayEnCroute/Harness/tags">Versions du template</a><p style="margin:14px 0 0;max-width:34em">Les projets suivent les tags : <code>copier update</code> prend le dernier.</p></div>
     <ul>
       <li><a href="https://github.com/PatayEnCroute/Harness">Dépôt</a></li>
       <li><a href="https://github.com/PatayEnCroute/Harness/blob/main/README.md">README</a></li>
@@ -595,6 +595,15 @@ footer ul{display:flex;flex-wrap:wrap;gap:8px 22px;list-style:none;margin:0;padd
 </footer>
 
 <script>
+// Dernier tag du template, lu à l'affichage : la page n'écrit aucune version en dur.
+fetch('https://api.github.com/repos/PatayEnCroute/Harness/tags?per_page=100')
+  .then(function (r) { return r.ok ? r.json() : []; })
+  .then(function (tags) {
+    var v = tags.map(function (t) { return t.name; }).filter(function (n) { return /^v\d+\.\d+\.\d+$/.test(n); })
+      .sort(function (a, b) { a = a.slice(1).split('.').map(Number); b = b.slice(1).split('.').map(Number); return b[0] - a[0] || b[1] - a[1] || b[2] - a[2]; })[0];
+    if (v) document.getElementById('version').textContent = 'Dernière version · ' + v;
+  })
+  .catch(function () {});
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
     var done = function () { b.textContent = 'Copié ✓'; setTimeout(function () { b.textContent = 'Copier'; }, 1600); };
