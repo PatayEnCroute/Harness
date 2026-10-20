@@ -23,7 +23,7 @@ const HELP = `npx github:PatayEnCroute/Harness [options] [options de copier]
   --no-claude          ne pas ouvrir Claude Code à la fin
   -h, --help           cette aide
 
-  Les autres options vont à copier, par exemple --vcs-ref v0.4.0 ou --defaults.
+  Les autres options vont à copier, par exemple --vcs-ref vX.Y.Z ou --defaults.
   Sans terminal (agent, CI) : --defaults obligatoire, réponses en --data clé=valeur (voir INSTALL.md).`;
 
 export function parseArgs(argv) {

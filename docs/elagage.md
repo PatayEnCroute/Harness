@@ -36,9 +36,9 @@
 
 Les contrôles déterministes (`hx check`, trace, pistes, archives) coûtent peu et ne dépendent pas du modèle : ils restent.
 
-## Candidats en attente du pilote
+## Candidats non construits
 
-Trous possibles du workflow, **non construits** : on n'ajoute un composant que si le pilote (3 changes M de bout en bout, [PLAN §9](PLAN.md)) en montre le besoin, avec une mesure.
+Trous possibles du workflow, **non construits** : on n'ajoute un composant que si l'usage en montre le besoin, avec une mesure.
 
 | Candidat | Signal qui le justifierait |
 |---|---|

@@ -15,6 +15,7 @@ Un change M ou L se fait désormais en trois temps : cadrage avec l'utilisateur,
 - **Run sans interruption** : `hx-implement` enchaîne `hx-verify` et `hx-review` sans rendre la main, et liste les seuls arrêts autorisés. Les mineurs de `hx-review` vont dans le rapport au lieu d'être posés en question.
 - **Permissions** : git local (`status`, `diff`, `log`, `show`, `grep`, `add`, `commit`) sans confirmation. Un commit par tâche et le `git diff` des relecteurs ne demandent plus d'accord à chaque fois. `git push` reste confirmé.
 - L'eval `implement-m` part d'un change validé (`x-validated`).
+- **Statut** : le pilote est fait (3 changes M de bout en bout, traçabilité ≥ 80 %). README, PLAN et `docs/elagage.md` ne disent plus le harness non éprouvé ; ils renvoient au dernier tag au lieu d'une version écrite en dur.
 
 ### Mise à jour
 - Un change en cours créé avant cette version n'a pas `x-validated` : `hx-implement` refusera de le reprendre. Passe la porte de cadrage, ou ajoute la clé si la proposition a déjà été relue.
