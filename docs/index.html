@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness — Claude Code × OpenSpec</title>
+<meta name="description" content="Harness : un template de harness engineering pour Claude Code, autour d'OpenSpec. Skills, agents, rules, hooks et contrôles CI, quelle que soit la stack.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 10 88 30 50 50 12 30Z' fill='%23FBE6D9' stroke='%232E2C27' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M12 30 50 50 50 92 12 72Z' fill='%23F6CDB4' stroke='%232E2C27' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M88 30 50 50 50 92 88 72Z' fill='%23E9B497' stroke='%232E2C27' stroke-width='5' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F1EA; --paper:#FBFAF6; --line:#E2DCCF; --ink:#2E2C27; --ink-2:#5C5850; --ink-3:#8E897E;
+  --clay:#C96442; --peach:#F6CDB4; --sage:#CFE0C6; --sky:#C8DAEC; --lav:#DCD3EE; --butter:#F4E4A6; --rose:#F0CACB;
+  --serif:"Source Serif 4",Georgia,serif; --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace; --hand:Caveat,"Comic Sans MS",cursive;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.6 var(--sans);-webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(rgba(46,44,39,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(46,44,39,.035) 1px,transparent 1px);
+  background-size:28px 28px}
+a{color:inherit;text-decoration-color:var(--clay);text-underline-offset:3px}
+a:hover{color:var(--clay)}
+code{font-family:var(--mono);font-size:.86em}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+@media (max-width:640px){.wrap{padding:0 16px}}
+
+/* nav */
+nav{position:sticky;top:0;z-index:10;background:rgba(244,241,234,.86);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:24px;height:60px}
+.brand{display:flex;align-items:center;gap:10px;font:600 18px var(--serif);text-decoration:none}
+nav ul{display:flex;gap:22px;list-style:none;margin:0 0 0 auto;padding:0;font-size:14px;color:var(--ink-2)}
+nav ul a{text-decoration:none}
+@media (max-width:860px){nav ul li:not(:last-child){display:none}}
+
+/* typo */
+.eyebrow{font:600 12px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--clay);margin:0 0 14px}
+h1,h2,h3{font-family:var(--serif);font-weight:500;letter-spacing:-.015em;margin:0}
+h1{font-size:clamp(46px,7vw,84px);line-height:1}
+h2{font-size:clamp(30px,4vw,44px);line-height:1.1;max-width:20ch}
+h3{font-size:22px;line-height:1.25}
+.lede{font-size:clamp(18px,2vw,21px);color:var(--ink-2);max-width:34em}
+.hand{font-family:var(--hand);font-size:1.35em;color:var(--clay);font-weight:500}
+p{margin:0 0 1em}
+
+section{padding:96px 0;border-top:1px solid var(--line)}
+section > .wrap > header{display:grid;grid-template-columns:1fr 1fr;gap:24px 48px;align-items:end;margin-bottom:48px}
+section > .wrap > header p{color:var(--ink-2);margin:0}
+@media (max-width:860px){section{padding:72px 0}section > .wrap > header{grid-template-columns:1fr}}
+
+/* héros */
+.hero{padding:64px 0 88px;border:0}
+.hero .wrap{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:40px;align-items:center}
+.hero h1 .hand{font-size:.42em;display:block;margin-top:14px;font-weight:600}
+.hero .lede{margin:28px 0 32px}
+.hero-art{width:100%;height:auto;overflow:visible}
+@media (max-width:860px){.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero-art{max-width:520px;margin:0 auto}}
+
+.cmd{display:flex;align-items:center;gap:12px;background:var(--ink);color:#F4F1EA;border-radius:14px;padding:14px 14px 14px 20px;max-width:520px;font:500 15px var(--mono)}
+.cmd span{flex:1;min-width:0;overflow-x:auto;white-space:nowrap}
+.cmd span::before{content:"$ ";color:var(--peach)}
+.cmd button{font:500 13px var(--sans);background:rgba(255,255,255,.1);color:inherit;border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:7px 12px;cursor:pointer}
+.cmd button:hover{background:rgba(255,255,255,.18)}
+.cta{display:flex;flex-wrap:wrap;gap:12px 22px;margin-top:20px;font-size:15px;color:var(--ink-2)}
+
+/* cartes */
+.grid{display:grid;gap:20px}
+.g4{grid-template-columns:repeat(4,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
+@media (max-width:960px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}}
+@media (max-width:560px){.g4,.g2{grid-template-columns:1fr}}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:26px;box-shadow:0 1px 0 rgba(46,44,39,.04),0 8px 24px -18px rgba(46,44,39,.25)}
+.card h3{margin:12px 0 8px}
+.card p{color:var(--ink-2);font-size:15.5px;margin:0}
+.card .ico{display:block}
+.tint{position:relative;overflow:hidden}
+.tint::before{content:"";position:absolute;inset:0 0 auto 0;height:6px;background:var(--c)}
+
+/* diagrammes */
+.figure{background:var(--paper);border:1px solid var(--line);border-radius:24px;padding:28px;overflow-x:auto}
+.diagram{display:block;width:100%;height:auto;min-width:760px}
+.figure figcaption{font-size:14px;color:var(--ink-3);margin-top:12px}
+.construct path,.construct circle{fill:none;stroke:var(--ink);stroke-opacity:.22;stroke-width:1;stroke-dasharray:4 6}
+.arr{fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linecap:round}
+.arr.dashed{stroke-dasharray:7 6}
+.arr.clay{stroke:var(--clay)}
+.t-mono{font:500 15px var(--mono);fill:var(--ink)}
+.t-mono.sm{font-size:12.5px;fill:var(--ink-2)}
+.t-mono.big{font-size:19px}
+.t-sans{font:500 15px var(--sans);fill:var(--ink)}
+.t-serif{font:500 23px var(--serif);fill:var(--ink)}
+.t-hand{font:500 19px var(--hand);fill:var(--ink-2)}
+.t-hand.big{font-size:25px;font-weight:600;fill:var(--ink)}
+.t-hand.clay{fill:var(--clay)}
+.t-band{font:600 12px var(--sans);letter-spacing:.13em;fill:var(--ink-2)}
+
+.legend{display:flex;flex-wrap:wrap;gap:10px 26px;margin:0 0 20px;padding:0;list-style:none;font-size:14.5px;color:var(--ink-2)}
+.legend li{display:flex;align-items:center;gap:8px}
+
+.steps{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:8px 16px 8px 8px;font-size:14.5px;display:flex;align-items:center;gap:10px}
+.steps li::before{content:counter(s);display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--peach);font:600 13px var(--sans)}
+.steps li b{font-weight:600}
+
+/* pistes */
+.track{display:flex;flex-direction:column}
+.track .solids{height:130px;position:relative;margin-bottom:6px}
+.track .solids svg{position:absolute;bottom:0}
+.track .size{font:600 64px/1 var(--serif);color:var(--clay);float:right;margin-top:-6px}
+.track ul{margin:14px 0 0;padding:0;list-style:none;font-size:15px;color:var(--ink-2)}
+.track li{padding:7px 0;border-top:1px dashed var(--line)}
+.track li::before{content:"→ ";color:var(--clay)}
+
+/* boîte à outils */
+.kit .count{font:500 44px/1 var(--serif)}
+.kit .head{display:flex;align-items:center;justify-content:space-between}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 8px;font-size:12.5px;color:var(--ink-2)}
+
+/* hooks */
+.timeline{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.timeline::before{content:"";position:absolute;left:4%;right:4%;top:46px;border-top:2px dashed var(--ink-3);opacity:.5}
+.hook{position:relative;text-align:center}
+.hook .ico{display:block;margin:0 auto 10px;background:var(--bg);border-radius:50%}
+.hook code{display:inline-block;background:var(--ink);color:var(--bg);border-radius:8px;padding:3px 10px;font-size:13px}
+.hook p{font-size:15px;color:var(--ink-2);margin:12px 0 0}
+@media (max-width:860px){.timeline{grid-template-columns:1fr 1fr}.timeline::before{display:none}}
+@media (max-width:480px){.timeline{grid-template-columns:1fr}}
+.golden{margin-top:44px;display:flex;gap:20px;align-items:center;background:var(--butter);border-radius:20px;padding:22px 26px}
+.golden p{margin:0;font:500 clamp(19px,2.2vw,24px)/1.35 var(--serif)}
+.golden .hand{display:block;font-size:22px;margin-bottom:2px}
+
+/* tour hx check */
+.check{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:center}
+@media (max-width:860px){.check{grid-template-columns:1fr}}
+.tower{list-style:none;margin:0;padding:0 0 0 18px;display:flex;flex-direction:column-reverse;gap:6px;position:relative}
+.brick{position:relative;display:flex;align-items:baseline;gap:12px;background:var(--c);border:1.6px solid var(--ink);border-radius:6px;padding:9px 14px;
+  width:calc(78% + (var(--i) * 0px));transform:translateX(calc(var(--i) * 2.4%)) rotate(calc((var(--i) - 4) * .25deg));
+  box-shadow:4px 4px 0 rgba(46,44,39,.12)}
+.brick:nth-child(even){transform:translateX(calc(var(--i) * 2.4% - 3%)) rotate(.4deg)}
+.brick code{font-weight:500;font-size:14.5px}
+.brick span{font-size:13.5px;color:var(--ink-2)}
+.brick em{margin-left:auto;font:600 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;font-style:normal;background:var(--ink);color:var(--bg);border-radius:6px;padding:2px 7px}
+.flag{position:relative;height:64px;margin-left:calc(18px + 8 * 2.4% + 30%)}
+.flag svg{position:absolute;bottom:-6px;left:0}
+.facts{list-style:none;margin:0;padding:0}
+.facts li{display:flex;gap:16px;padding:18px 0;border-top:1px solid var(--line)}
+.facts li:first-child{border-top:0}
+.facts b{font:500 22px var(--serif);display:block;margin-bottom:2px}
+.facts span{color:var(--ink-2);font-size:15.5px}
+.facts .n{font:600 28px/1 var(--hand);color:var(--clay);min-width:28px}
+
+/* générique / spécifique */
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:stretch}
+@media (max-width:960px){.split{grid-template-columns:1fr}}
+.files{list-style:none;margin:14px 0 0;padding:0}
+.files li{font:400 13px var(--mono);padding:6px 0;border-top:1px dashed var(--line);color:var(--ink-2);word-break:break-all}
+pre{margin:14px 0 0;background:var(--ink);color:#EDE8DC;border-radius:14px;padding:16px 18px;font:400 12px/1.6 var(--mono);overflow-x:auto}
+pre .k{color:var(--peach)} pre .s{color:var(--sage)} pre .c{color:#9C978B}
+
+/* principes */
+.principles{counter-reset:p;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;list-style:none;margin:0;padding:0}
+.principles li{counter-increment:p;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.principles li::before{content:"P" counter(p);font:600 13px var(--mono);color:var(--clay)}
+.principles b{display:block;font:500 18px/1.3 var(--serif);margin:4px 0 4px}
+.principles span{font-size:14.5px;color:var(--ink-2)}
+
+/* installer */
+.install .num{font:600 15px var(--mono);color:var(--clay)}
+.install .time{float:right;font:500 13px var(--sans);color:var(--ink-3)}
+.install pre{margin:14px 0 12px}
+.agent-note{margin-top:22px;display:flex;gap:16px;align-items:center;background:var(--sky);border-radius:20px;padding:20px 24px;font-size:15.5px}
+
+footer{padding:56px 0 72px;border-top:1px solid var(--line);color:var(--ink-2);font-size:15px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:20px 40px;justify-content:space-between;align-items:flex-start}
+footer ul{display:flex;flex-wrap:wrap;gap:8px 22px;list-style:none;margin:0;padding:0}
+.status{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--clay)}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<defs>
+  <filter id="pencil" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="pencil-l" filterUnits="userSpaceOnUse" x="-200" y="-200" width="1600" height="1200">
+    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(40)">
+    <line x1="0" y1="0" x2="0" y2="5" stroke="#2E2C27" stroke-width="1" stroke-opacity=".3"/>
+  </pattern>
+  <marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
+    <path d="M1.5 1.5 L10.5 6 L1.5 10.5" fill="none" stroke="#2E2C27" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="ahc" viewBox="0 0 12 12" refX="10" refY="6" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
+    <path d="M1.5 1.5 L10.5 6 L1.5 10.5" fill="none" stroke="#C96442" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+
+  <symbol id="s-cube" viewBox="0 0 100 100">
+    <g filter="url(#pencil)">
+      <path d="M50 10 88 30 50 50 12 30Z" fill="currentColor"/>
+      <path d="M50 10 88 30 50 50 12 30Z" fill="#fff" opacity=".5"/>
+      <path d="M12 30 50 50 50 92 12 72Z" fill="currentColor"/>
+      <path d="M88 30 50 50 50 92 88 72Z" fill="currentColor"/>
+      <path d="M88 30 50 50 50 92 88 72Z" fill="url(#hatch)"/>
+      <path d="M50 10 88 30 88 72 50 92 12 72 12 30Z M12 30 50 50 88 30 M50 50 50 92" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M51 9 89 31 87 73 49 93 11 71 13 29Z M13 31 51 49 87 31 M49 51 51 91" fill="none" stroke="#2E2C27" stroke-width="1" stroke-opacity=".35"/>
+    </g>
+  </symbol>
+
+  <symbol id="s-cyl" viewBox="0 0 100 100">
+    <g filter="url(#pencil)">
+      <path d="M15 25 V78 A35 12 0 0 0 85 78 V25Z" fill="currentColor"/>
+      <path d="M70 34.8 V87.8 A35 12 0 0 0 85 78 V25 A35 12 0 0 1 70 34.8Z" fill="url(#hatch)"/>
+      <ellipse cx="50" cy="25" rx="35" ry="12" fill="currentColor"/>
+      <ellipse cx="50" cy="25" rx="35" ry="12" fill="#fff" opacity=".5"/>
+      <path d="M15 78 A35 12 0 0 1 85 78" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 5" stroke-opacity=".45"/>
+      <path d="M15 25 V78 A35 12 0 0 0 85 78 V25" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      <ellipse cx="50" cy="25" rx="35" ry="12" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M16 24 V79 A35 12 0 0 0 84 79 V24" fill="none" stroke="#2E2C27" stroke-width="1" stroke-opacity=".35"/>
+      <ellipse cx="51" cy="24" rx="34" ry="12.5" fill="none" stroke="#2E2C27" stroke-width="1" stroke-opacity=".35"/>
+    </g>
+  </symbol>
+
+  <symbol id="s-pyr" viewBox="0 0 100 100">
+    <g filter="url(#pencil)">
+      <path d="M50 8 12 72 50 92Z" fill="currentColor"/>
+      <path d="M50 8 12 72 50 92Z" fill="#fff" opacity=".45"/>
+      <path d="M50 8 50 92 88 72Z" fill="currentColor"/>
+      <path d="M50 8 50 92 88 72Z" fill="url(#hatch)"/>
+      <path d="M12 72 50 56 88 72 M50 8 50 56" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 5" stroke-opacity=".45"/>
+      <path d="M50 8 12 72 50 92 88 72Z M50 8 50 92" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M49 9 13 71 51 91 87 73Z" fill="none" stroke="#2E2C27" stroke-width="1" stroke-opacity=".35"/>
+    </g>
+  </symbol>
+
+  <symbol id="s-sph" viewBox="0 0 100 100">
+    <g filter="url(#pencil)">
+      <circle cx="50" cy="52" r="38" fill="currentColor"/>
+      <ellipse cx="38" cy="38" rx="14" ry="9" fill="#fff" opacity=".6" transform="rotate(-30 38 38)"/>
+      <path d="M80 30 A38 38 0 0 1 30 86 Q68 72 80 30Z" fill="url(#hatch)"/>
+      <ellipse cx="50" cy="52" rx="38" ry="11" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 5" stroke-opacity=".45"/>
+      <circle cx="50" cy="52" r="38" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="51" cy="51" r="38.6" fill="none" stroke="#2E2C27" stroke-width="1" stroke-opacity=".35"/>
+    </g>
+  </symbol>
+
+  <symbol id="s-rule" viewBox="0 0 100 100">
+    <g filter="url(#pencil)">
+      <path d="M8 52 62 22 92 38 38 68Z" fill="currentColor"/>
+      <path d="M8 52 62 22 92 38 38 68Z" fill="#fff" opacity=".45"/>
+      <path d="M8 52 38 68 38 77 8 61Z" fill="currentColor"/>
+      <path d="M38 68 92 38 92 47 38 77Z" fill="currentColor"/>
+      <path d="M38 68 92 38 92 47 38 77Z" fill="url(#hatch)"/>
+      <path d="M41 66.3 L36.6 64 M44 64.7 L39.6 62.3 M47 63 L39.1 58.8 M50 61.3 L45.6 59 M53 59.7 L48.6 57.3 M56 58 L48.1 53.8 M59 56.3 L54.6 54 M62 54.7 L57.6 52.3 M65 53 L57.1 48.8 M68 51.3 L63.6 49 M71 49.7 L66.6 47.3 M74 48 L66.1 43.8 M77 46.3 L72.6 44 M80 44.7 L75.6 42.3 M83 43 L75.1 38.8 M86 41.3 L81.6 39 M89 39.7 L84.6 37.3 " fill="none" stroke="#2E2C27" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M8 52 62 22 92 38 92 47 38 77 8 61Z M8 52 38 68 92 38 M38 68 38 77" fill="none" stroke="#2E2C27" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M9 51 63 21 91 39 37 69Z" fill="none" stroke="#2E2C27" stroke-width="1" stroke-opacity=".35"/>
+    </g>
+  </symbol>
+</defs>
+</svg>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><svg class="ico" viewBox="0 0 100 100" width="28" height="28" aria-hidden="true"><use href="#s-cube" color="#F6CDB4"/></svg> Harness</a>
+    <ul>
+      <li><a href="#cycle">Cycle de vie</a></li>
+      <li><a href="#workflow">Workflow</a></li>
+      <li><a href="#boite">Boîte à outils</a></li>
+      <li><a href="#controles">Contrôles</a></li>
+      <li><a href="#installer">Installer</a></li>
+      <li><a href="https://github.com/PatayEnCroute/Harness">GitHub ↗</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main id="top">
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">Claude Code × OpenSpec</p>
+      <h1>Harness<span class="hand">un échafaudage pour coder avec un agent</span></h1>
+      <p class="lede">Un template qui pose, dans chaque projet, la même charpente autour de Claude Code : <b>skills</b>, <b>agents</b>, <b>rules</b>, <b>hooks</b> et <b>contrôles CI</b>. Quelle que soit la stack.</p>
+      <div class="cmd"><span>npx github:PatayEnCroute/Harness</span><button type="button" data-copy="npx github:PatayEnCroute/Harness">Copier</button></div>
+      <div class="cta"><a href="#workflow">Voir le workflow ↓</a><a href="https://github.com/PatayEnCroute/Harness/blob/main/docs/PLAN.md">Plan directeur ↗</a><a href="https://github.com/PatayEnCroute/Harness/blob/main/INSTALL.md">INSTALL.md ↗</a></div>
+    </div>
+    
+<svg class="hero-art" viewBox="0 0 560 470" role="img" aria-label="Croquis au crayon : un cube (les skills) surmonté d'une pyramide (les hooks), un cylindre (le contrat et les specs), des sphères (les agents) et une règle (les rules).">
+  <g class="construct">
+    <path d="M10 404 H550"/>
+    <path d="M145 60 V400 M330 40 V420"/>
+    <path d="M330 40 m-120 0 a120 120 0 0 0 240 0" />
+    <circle cx="452" cy="126" r="70"/>
+  </g>
+  <ellipse cx="290" cy="404" rx="250" ry="26" fill="#2E2C27" opacity=".05"/>
+  <use href="#s-cube" x="40" y="190" width="210" height="210" color="#F6CDB4"/>
+  <use href="#s-pyr" x="80" y="157" width="130" height="130" color="#F4E4A6"/>
+  <use href="#s-cyl" x="262" y="244" width="165" height="165" color="#C8DAEC"/>
+  <use href="#s-sph" x="397" y="68" width="110" height="110" color="#DCD3EE"/>
+  <use href="#s-sph" x="482" y="190" width="46" height="46" color="#F0CACB"/>
+  <use href="#s-rule" x="352" y="296" width="175" height="175" color="#CFE0C6"/>
+  <g class="notes">
+    <text x="22" y="112" class="t-hand big" text-anchor="start">4 hooks</text>
+    <path d="M70 120 Q92 150 112 182" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+    <text x="4" y="446" class="t-hand big" text-anchor="start">12 skills</text>
+    <path d="M44 424 Q50 380 82 352" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+    <text x="232" y="214" class="t-hand big" text-anchor="start">le contrat</text>
+    <path d="M268 222 Q288 240 300 262" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+    <text x="470" y="42" class="t-hand big" text-anchor="start">7 agents</text>
+    <path d="M490 50 Q486 64 476 76" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+    <text x="470" y="462" class="t-hand big" text-anchor="end">3 rules</text>
+    <path d="M474 452 Q492 440 492 420" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  </g>
+</svg>
+  </div>
+</section>
+
+<section id="principe">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">01 — En bref</p><h2>Quatre idées tiennent toute la charpente</h2></div>
+      <p>Le harness ne remplace ni Claude Code ni OpenSpec : il les assemble en un processus outillé, vérifiable et proportionné au besoin.</p>
+    </header>
+    <div class="grid g4">
+      <div class="card tint" style="--c:var(--peach)"><svg class="ico" viewBox="0 0 100 100" width="52" height="52" aria-hidden="true"><use href="#s-cube" color="#F6CDB4"/></svg><h3>Quoi</h3><p>Une couche de harness autour d’OpenSpec : skills, agents, rules, hooks, contrôles CI.</p></div>
+      <div class="card tint" style="--c:var(--sky)"><svg class="ico" viewBox="0 0 100 100" width="52" height="52" aria-hidden="true"><use href="#s-cyl" color="#C8DAEC"/></svg><h3>Agnostique</h3><p>Le générique ignore la stack. Le spécifique tient dans quelques fichiers remplis par <code>/hx-setup</code>.</p></div>
+      <div class="card tint" style="--c:var(--lav)"><svg class="ico" viewBox="0 0 100 100" width="52" height="52" aria-hidden="true"><use href="#s-sph" color="#DCD3EE"/></svg><h3>Copier</h3><p>Installe et met à jour les projets par fusion à 3 voies. Tes personnalisations restent.</p></div>
+      <div class="card tint" style="--c:var(--butter)"><svg class="ico" viewBox="0 0 100 100" width="52" height="52" aria-hidden="true"><use href="#s-pyr" color="#F4E4A6"/></svg><h3>Règle d’or</h3><p>Tout contrôle existe en CI. Les hooks locaux ne font qu’accélérer le retour.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="cycle">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">02 — Cycle de vie</p><h2>Un template qui descend, des leçons qui remontent</h2></div>
+      <p>Le repo Harness est versionné par tags. Chaque projet le reçoit par Copier, l’adapte une fois à sa stack, puis suit ses mises à jour. Ce qui s’apprend sur le terrain remonte dans le template.</p>
+    </header>
+    <figure class="figure" style="margin:0">
+      
+<svg class="diagram" viewBox="0 0 1000 390" role="img" aria-label="Cycle de vie : le repo Harness installe le projet par copier copy, /hx-setup le personnalise à la stack, copier update le met à jour, hx-learn remonte les améliorations génériques vers Harness.">
+  <use href="#s-cyl" x="70" y="92" width="130" height="130" color="#C8DAEC"/>
+  <text x="135" y="250" text-anchor="middle" class="t-serif">Repo Harness</text>
+  <text x="135" y="274" class="t-hand" text-anchor="middle">template versionné · tags</text>
+
+  <use href="#s-cube" x="450" y="98" width="110" height="110" color="#F6CDB4"/>
+  <text x="505" y="250" text-anchor="middle" class="t-mono big">/hx-setup</text>
+  <text x="505" y="274" class="t-hand" text-anchor="middle">détecte · propose · vérifie</text>
+
+  <use href="#s-cube" x="795" y="126" width="92" height="92" color="#CFE0C6"/>
+  <use href="#s-pyr" x="810" y="88" width="70" height="70" color="#F4E4A6"/>
+  <use href="#s-cyl" x="868" y="150" width="74" height="74" color="#DCD3EE"/>
+  <text x="868" y="250" text-anchor="middle" class="t-serif">Projet prêt</text>
+  <text x="868" y="274" class="t-hand" text-anchor="middle">hx doctor ✓</text>
+
+  <path d="M215 168 L425 168" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <text x="320" y="154" text-anchor="middle" class="t-mono sm">copier copy</text>
+  <path d="M585 168 L780 168" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <text x="682" y="154" class="t-hand" text-anchor="middle">adapté à la stack</text>
+
+  <path d="M860 80 Q500 -14 150 86" class="arr clay" marker-end="url(#ahc)" filter="url(#pencil-l)"/>
+  <text x="500" y="30" class="t-hand clay" text-anchor="middle">hx-learn : l’amélioration générique remonte</text>
+
+  <path d="M115 290 Q500 400 880 290" class="arr dashed" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <text x="500" y="378" text-anchor="middle" class="t-mono sm">copier update — fusion à 3 voies, tes personnalisations restent</text>
+</svg>
+    </figure>
+    <ol class="steps" aria-label="Étapes de /hx-setup">
+      <li><b>Détecter</b>&nbsp;les manifestes</li>
+      <li><b>Proposer</b>&nbsp;composants et commandes</li>
+      <li><b>Exécuter</b>&nbsp;chaque commande (preuve)</li>
+      <li><b>Rédiger</b>&nbsp;rules, carte, setup CI</li>
+      <li><b>Valider</b>&nbsp;: tu relis le diff</li>
+    </ol>
+  </div>
+</section>
+
+<section id="workflow">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">03 — Le workflow</p><h2>Un seul arrêt prévu : la porte de cadrage</h2></div>
+      <p>Tu cadres avec l’agent jusqu’à une spec qui dit ce que tu as demandé. Ensuite le run va seul jusqu’au rapport, dans son propre worktree, pendant que tu cadres le change suivant.</p>
+    </header>
+    <ul class="legend">
+      <li><svg class="ico" viewBox="0 0 100 100" width="26" height="26" aria-hidden="true"><use href="#s-cube" color="#F6CDB4"/></svg> skill</li>
+      <li><svg class="ico" viewBox="0 0 100 100" width="26" height="26" aria-hidden="true"><use href="#s-sph" color="#DCD3EE"/></svg> sous-agents</li>
+      <li><svg class="ico" viewBox="0 0 100 100" width="26" height="26" aria-hidden="true"><use href="#s-cyl" color="#C8DAEC"/></svg> registre OpenSpec / template</li>
+      <li><svg width="34" height="12" aria-hidden="true"><path d="M2 6 H30" stroke="#2E2C27" stroke-width="1.6" stroke-dasharray="6 5"/></svg> optionnel</li>
+    </ul>
+    <figure class="figure" style="margin:0">
+      
+<svg class="diagram" viewBox="0 0 1000 660" role="img" aria-label="Workflow : hx-triage oriente vers la piste S (hx-tdd, hx-verify, commit) ou M/L : cadrage avec toi jusqu'à la porte de cadrage, run autonome dans un worktree (hx-implement, hx-verify, hx-review, rapport), puis livraison (/hx-ship, hx-learn) qui remonte vers Harness.">
+  <rect x="300" y="24" width="660" height="130" rx="22" fill="#CFE0C6" fill-opacity=".55"/><text x="322" y="51" class="t-band">S · CORRECTIF — SANS SPEC</text>
+  <g><rect x="14" y="66" width="112" height="44" rx="22" fill="#F4E4A6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><text x="70" y="93" text-anchor="middle" class="t-sans">Intention</text></g>
+  <path d="M127 88 L140 88" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <path d="M142 88 L210 46 L278 88 L210 130Z" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/>
+  <text x="210" y="93" text-anchor="middle" class="t-mono sm">hx-triage</text>
+  <path d="M280 88 L330 88" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g><rect x="335" y="66" width="170" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><use href="#s-cube" x="344" y="74" width="28" height="28" color="#F6CDB4"/><text x="434" y="93" text-anchor="middle" class="t-mono">hx-tdd</text><text x="420" y="134" text-anchor="middle" class="t-hand">ou hx-debug</text></g>
+  <path d="M507 88 L560 88" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g><rect x="562" y="66" width="156" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><use href="#s-cube" x="571" y="74" width="28" height="28" color="#F6CDB4"/><text x="654" y="93" text-anchor="middle" class="t-mono">hx-verify</text><text x="640" y="134" text-anchor="middle" class="t-hand">preuve fraîche</text></g>
+  <path d="M720 88 L790 88" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g><rect x="795" y="66" width="130" height="44" rx="22" fill="#fff" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><text x="860" y="93" text-anchor="middle" class="t-mono">commit ✓</text></g>
+
+  <path d="M210 132 L210 230" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <text x="222" y="172" class="t-hand clay big" text-anchor="start">M · L</text>
+
+  <rect x="40" y="180" width="920" height="135" rx="22" fill="#F6CDB4" fill-opacity=".55"/><text x="240" y="207" class="t-band">1 · CADRAGE — AVEC TOI</text>
+  <g><rect x="135" y="234" width="150" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#pencil)"/><text x="210" y="261" text-anchor="middle" class="t-mono">hx-clarify</text><text x="210" y="302" text-anchor="middle" class="t-hand">si la demande est floue</text></g>
+  <path d="M287 256 L357 256" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g><rect x="359" y="234" width="182" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><use href="#s-cyl" x="368" y="242" width="28" height="28" color="#C8DAEC"/><text x="464" y="261" text-anchor="middle" class="t-mono">/opsx:propose</text><text x="450" y="302" text-anchor="middle" class="t-hand">L : + hx-architect · hx-adr</text></g>
+  <path d="M543 256 L684 256" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g filter="url(#pencil)" stroke="#2E2C27" stroke-width="1.6">
+    <rect x="688" y="198" width="144" height="16" rx="3" fill="#F4E4A6"/>
+    <rect x="700" y="214" width="16" height="80" fill="#FBFAF6"/>
+    <rect x="804" y="214" width="16" height="80" fill="#FBFAF6"/>
+  </g>
+  <text x="760" y="246" class="t-hand clay big" text-anchor="middle">porte de</text>
+  <text x="760" y="270" class="t-hand clay big" text-anchor="middle">cadrage</text>
+  <text x="940" y="240" class="t-hand" text-anchor="end">le seul arrêt</text>
+  <text x="940" y="262" class="t-hand" text-anchor="end">prévu</text>
+
+  <path d="M760 296 L760 390" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <text x="748" y="333" text-anchor="end" class="t-mono sm">x-validated · hx worktree</text>
+
+  <rect x="40" y="340" width="920" height="135" rx="22" fill="#C8DAEC" fill-opacity=".55"/><text x="62" y="367" class="t-band">2 · RUN — SEUL, DANS SON WORKTREE</text>
+  <text x="372" y="368" class="t-hand clay" text-anchor="start">— s’arrête seulement sur un vrai blocage</text>
+  <g><rect x="670" y="394" width="180" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><use href="#s-cube" x="679" y="402" width="28" height="28" color="#F6CDB4"/><text x="774" y="421" text-anchor="middle" class="t-mono">hx-implement</text><text x="760" y="462" text-anchor="middle" class="t-hand">1 sous-agent / tâche</text></g>
+  <path d="M668 416 L622 416" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g><rect x="462" y="394" width="156" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><use href="#s-cube" x="471" y="402" width="28" height="28" color="#F6CDB4"/><text x="554" y="421" text-anchor="middle" class="t-mono">hx-verify</text><text x="540" y="462" text-anchor="middle" class="t-hand">preuves fraîches</text></g>
+  <path d="M460 416 L402 416" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g><rect x="242" y="394" width="156" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><use href="#s-sph" x="251" y="402" width="28" height="28" color="#DCD3EE"/><text x="334" y="421" text-anchor="middle" class="t-mono">hx-review</text><text x="320" y="462" text-anchor="middle" class="t-hand">reviewers indépendants</text></g>
+  <path d="M240 416 L178 416" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g><rect x="55" y="394" width="120" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><text x="115" y="421" text-anchor="middle" class="t-sans">rapport</text></g>
+
+  <path d="M115 440 L115 556 Q115 576 135 576 L136 576" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+
+  <rect x="40" y="500" width="920" height="140" rx="22" fill="#DCD3EE" fill-opacity=".55"/><text x="150" y="527" class="t-band">3 · LIVRAISON — TOI</text>
+  <g><rect x="140" y="554" width="150" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><use href="#s-cube" x="149" y="562" width="28" height="28" color="#F6CDB4"/><text x="229" y="581" text-anchor="middle" class="t-mono">/hx-ship</text><text x="215" y="622" text-anchor="middle" class="t-hand">archive · PR · CI</text></g>
+  <path d="M292 576 L392 576" class="arr" marker-end="url(#ah)" filter="url(#pencil-l)"/>
+  <g><rect x="395" y="554" width="150" height="44" rx="22" fill="#FBFAF6" stroke="#2E2C27" stroke-width="1.6" filter="url(#pencil)"/><use href="#s-cube" x="404" y="562" width="28" height="28" color="#F6CDB4"/><text x="484" y="581" text-anchor="middle" class="t-mono">hx-learn</text><text x="470" y="622" text-anchor="middle" class="t-hand">erreur répétée → règle</text></g>
+  <path d="M547 576 L690 576" class="arr dashed clay" marker-end="url(#ahc)" filter="url(#pencil-l)"/>
+  <text x="618" y="564" class="t-hand clay" text-anchor="middle">générique</text>
+  <use href="#s-cyl" x="698" y="534" width="84" height="84" color="#C8DAEC"/>
+  <text x="796" y="572" class="t-serif">Harness</text>
+  <text x="796" y="596" class="t-hand" text-anchor="start">le template s’améliore</text>
+</svg>
+      <figcaption>Le run ne s’arrête que sur un vrai blocage : 3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé. <code>/hx-ship</code> fait de l’archive OpenSpec le dernier commit de la PR.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="pistes">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">04 — Pistes</p><h2>Le processus a la taille du changement</h2></div>
+      <p><code>hx-triage</code> choisit la piste avant toute ligne de code. Un correctif d’une ligne n’a pas besoin de spec ; une décision structurante a besoin d’un ADR.</p>
+    </header>
+    <div class="grid g3">
+      <div class="card track"><div class="solids"><svg viewBox="0 0 100 100" width="62" height="62" style="left:8px"><use href="#s-cube" x="0" y="0" width="100" height="100" color="#CFE0C6"/></svg></div>
+        <div><span class="size">S</span><h3>Correctif</h3><p>Petit, local, réversible.</p></div>
+        <ul><li>pas de spec</li><li><code>hx-tdd</code> ou <code>hx-debug</code></li><li><code>hx-verify</code> puis commit</li></ul></div>
+      <div class="card track"><div class="solids"><svg viewBox="0 0 200 120" width="190" height="114" style="left:0"><use href="#s-cube" x="0" y="22" width="96" height="96" color="#F6CDB4"/><use href="#s-cyl" x="82" y="36" width="84" height="84" color="#C8DAEC"/></svg></div>
+        <div><span class="size">M</span><h3>Fonctionnalité</h3><p>Le cas courant.</p></div>
+        <ul><li>spec OpenSpec, design optionnel</li><li>porte de cadrage, puis run en worktree</li><li><code>hx-review</code>, <code>/hx-ship</code></li></ul></div>
+      <div class="card track"><div class="solids"><svg viewBox="0 0 260 130" width="250" height="125" style="left:0"><use href="#s-cube" x="0" y="26" width="104" height="104" color="#DCD3EE"/><use href="#s-pyr" x="22" y="-4" width="62" height="62" color="#F4E4A6"/><use href="#s-cyl" x="92" y="40" width="90" height="90" color="#C8DAEC"/><use href="#s-sph" x="178" y="62" width="64" height="64" color="#F0CACB"/></svg></div>
+        <div><span class="size">L</span><h3>Structurant</h3><p>Difficile à défaire.</p></div>
+        <ul><li>spec + design requis</li><li><code>hx-architect</code> et ADR (<code>hx-adr</code>)</li><li>validés à la porte de cadrage</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="boite">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">05 — Boîte à outils</p><h2>Les pièces de construction</h2></div>
+      <p>Chaque forme a son rôle. Les skills décrivent une procédure ; les agents travaillent en contexte isolé ; les rules cadrent ; les hooks surveillent ; <code>hx</code> exécute.</p>
+    </header>
+    <div class="grid g3 kit">
+      <div class="card"><div class="head"><svg class="ico" viewBox="0 0 100 100" width="58" height="58" aria-hidden="true"><use href="#s-cube" color="#F6CDB4"/></svg><span class="count">12</span></div><h3>Skills</h3><p>Procédures chargées à la demande, au format standard <code>SKILL.md</code>.</p><div class="chips"><code class="chip">hx-setup</code><code class="chip">hx-triage</code><code class="chip">hx-clarify</code><code class="chip">hx-tdd</code><code class="chip">hx-implement</code><code class="chip">hx-verify</code><code class="chip">hx-review</code><code class="chip">hx-ship</code><code class="chip">hx-adr</code><code class="chip">hx-debug</code><code class="chip">hx-learn</code><code class="chip">hx-discover</code></div></div>
+      <div class="card"><div class="head"><svg class="ico" viewBox="0 0 100 100" width="58" height="58" aria-hidden="true"><use href="#s-sph" color="#DCD3EE"/></svg><span class="count">7</span></div><h3>Agents</h3><p>Sous-agents indépendants : qui produit n’évalue pas.</p><div class="chips"><code class="chip">hx-explorer</code><code class="chip">hx-implementer</code><code class="chip">hx-spec-reviewer</code><code class="chip">hx-code-reviewer</code><code class="chip">hx-security-reviewer</code><code class="chip">hx-architect</code><code class="chip">hx-verifier</code></div></div>
+      <div class="card"><div class="head"><svg class="ico" viewBox="0 0 100 100" width="58" height="58" aria-hidden="true"><use href="#s-cyl" color="#C8DAEC"/></svg><span class="count">hx</span></div><h3>CLI sans dépendance</h3><p>Seule porte vers la stack : <code>hx run test</code> plutôt que <code>npm</code> ou <code>dotnet</code>.</p><div class="chips"><code class="chip">detect</code><code class="chip">run</code><code class="chip">check</code><code class="chip">trace</code><code class="chip">doctor</code><code class="chip">migrate</code><code class="chip">worktree</code><code class="chip">openspec</code></div></div>
+      <div class="card"><div class="head"><svg class="ico" viewBox="0 0 100 100" width="58" height="58" aria-hidden="true"><use href="#s-rule" color="#CFE0C6"/></svg><span class="count">3</span></div><h3>Rules</h3><p>Ciblées par chemin, pour garder le contexte léger. Plus les rules <code>stack-*</code> du projet.</p><div class="chips"><code class="chip">openspec</code><code class="chip">testing</code><code class="chip">architecture</code></div></div>
+      <div class="card"><div class="head"><svg class="ico" viewBox="0 0 100 100" width="58" height="58" aria-hidden="true"><use href="#s-pyr" color="#F4E4A6"/></svg><span class="count">4</span></div><h3>Hooks</h3><p>Branchés sur le cycle de vie de la session Claude Code.</p><div class="chips"><code class="chip">SessionStart</code><code class="chip">PreToolUse</code><code class="chip">PostToolUse</code><code class="chip">Stop</code></div></div>
+      <div class="card"><div class="head"><svg class="ico" viewBox="0 0 100 100" width="58" height="58" aria-hidden="true"><use href="#s-rule" color="#F0CACB"/></svg><span class="count">✓</span></div><h3>Permissions</h3><p><code>hx</code>, <code>openspec</code> et git local sans confirmation. <code>git push</code> confirmé. Les fichiers gérés par Copier sont protégés.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="hooks">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">06 — Hooks</p><h2>Des garde-fous le long de la session</h2></div>
+      <p>Quatre points d’accroche, du démarrage jusqu’au moment où l’agent rend la main. Ils raccourcissent la boucle de retour ; la CI reste l’arbitre.</p>
+    </header>
+    <div class="timeline">
+      <div class="hook"><svg class="ico" viewBox="0 0 100 100" width="92" height="92" aria-hidden="true"><use href="#s-pyr" color="#CFE0C6"/></svg><code>SessionStart</code><p>Contexte de session. Installe la CLI OpenSpec si elle manque.</p></div>
+      <div class="hook"><svg class="ico" viewBox="0 0 100 100" width="92" height="92" aria-hidden="true"><use href="#s-pyr" color="#F6CDB4"/></svg><code>PreToolUse</code><p>Confirmation avant d’écrire une spec principale ou un fichier qui décide de ce qui s’exécute.</p></div>
+      <div class="hook"><svg class="ico" viewBox="0 0 100 100" width="92" height="92" aria-hidden="true"><use href="#s-pyr" color="#C8DAEC"/></svg><code>PostToolUse</code><p>Lint du fichier qui vient d’être édité.</p></div>
+      <div class="hook"><svg class="ico" viewBox="0 0 100 100" width="92" height="92" aria-hidden="true"><use href="#s-pyr" color="#DCD3EE"/></svg><code>Stop</code><p>D’après git : contrôles rapides des composants modifiés, chemins protégés signalés.</p></div>
+    </div>
+    <div class="golden"><svg class="ico" viewBox="0 0 100 100" width="64" height="64" aria-hidden="true"><use href="#s-pyr" color="#FBFAF6"/></svg><p><span class="hand">règle d’or</span>Tout contrôle existe en CI. Les hooks locaux ne font qu’accélérer le retour.</p></div>
+  </div>
+</section>
+
+<section id="controles">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">07 — Contrôles</p><h2><code style="font-size:.8em">hx check</code>, brique par brique</h2></div>
+      <p>Les mêmes commandes tournent en local et dans la CI (<code>hx-check.yml</code>). Une règle importante devient un contrôle déterministe, pas un paragraphe de prose.</p>
+    </header>
+    <div class="check">
+      <div>
+        <div class="flag"><svg width="90" height="70" viewBox="0 0 90 70" aria-hidden="true"><g filter="url(#pencil)"><path d="M6 68 V6" stroke="#2E2C27" stroke-width="2.2" stroke-linecap="round"/><path d="M6 8 L58 18 L6 30Z" fill="#C96442" stroke="#2E2C27" stroke-width="1.8" stroke-linejoin="round"/></g><text x="34" y="52" class="t-hand clay">vert</text></svg></div>
+        <ol class="tower" aria-label="Contrôles de hx check, du premier au dernier"><li class="brick" style="--c:#C8DAEC;--i:0"><code>contrat</code><span>config.json valide</span></li><li class="brick" style="--c:#DCD3EE;--i:1"><code>openspec</code><span>validate</span><em>fast</em></li><li class="brick" style="--c:#CFE0C6;--i:2"><code>archives</code><span>changes archivés</span></li><li class="brick" style="--c:#F4E4A6;--i:3"><code>pistes</code><span>S · M · L respectées</span></li><li class="brick" style="--c:#F6CDB4;--i:4"><code>trace</code><span>scénario ↔ @scenario</span></li><li class="brick" style="--c:#C8DAEC;--i:5"><code>lint</code><span>par composant</span><em>fast</em></li><li class="brick" style="--c:#DCD3EE;--i:6"><code>typecheck</code><span>par composant</span><em>fast</em></li><li class="brick" style="--c:#CFE0C6;--i:7"><code>arch</code><span>règles de dépendance</span></li><li class="brick" style="--c:#F0CACB;--i:8"><code>test</code><span>jamais vert sans test</span></li></ol>
+      </div>
+      <ul class="facts">
+        <li><span class="n">1</span><div><b>Jamais vert sans test</b><span>Un projet sans test exécuté ne passe pas : la tour n’a pas de sommet.</span></div></li>
+        <li><span class="n">2</span><div><b>Traçabilité</b><span><code>hx trace</code> relie chaque scénario OpenSpec à un test tagué <code>@scenario</code>.</span></div></li>
+        <li><span class="n">3</span><div><b>Mode rapide</b><span><code>hx check --fast</code> : validate OpenSpec, lint et typecheck. Ce que les hooks lancent en cours de route.</span></div></li>
+        <li><span class="n">4</span><div><b>Multi-stack</b><span>Chaque commande s’exécute dans le dossier de son composant : <code>api</code> en .NET, <code>web</code> en Node…</span></div></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="contrat">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">08 — Générique / spécifique</p><h2>Le cœur de l’agnosticité</h2></div>
+      <p>Ce qui vient du template est mis à jour par <code>copier update</code>. Ce qui décrit ta stack est écrit une fois par <code>/hx-setup</code> et n’est jamais écrasé. Entre les deux, une seule interface.</p>
+    </header>
+    <div class="split">
+      <div class="card tint" style="--c:var(--peach)"><svg class="ico" viewBox="0 0 100 100" width="56" height="56" aria-hidden="true"><use href="#s-cube" color="#F6CDB4"/></svg><h3>Générique</h3><p>Vient du template, s’améliore dans Harness.</p>
+        <ul class="files"><li>CLAUDE.md</li><li>.claude/skills · agents · rules</li><li>.claude/settings.json</li><li>.harness/hx.mjs · hooks.mjs</li><li>openspec/config.yaml</li><li>.github/workflows/hx-check.yml</li></ul></div>
+      <div class="card tint" style="--c:var(--sky)"><svg class="ico" viewBox="0 0 100 100" width="56" height="56" aria-hidden="true"><use href="#s-cyl" color="#C8DAEC"/></svg><h3>Le contrat</h3><p><code>.harness/config.json</code> : la seule interface entre le harness et la stack.</p>
+<pre><span class="c">// un composant par stack</span>
+<span class="k">"api"</span>: {
+  <span class="k">"path"</span>: <span class="s">"src/Api"</span>,
+  <span class="k">"commands"</span>: { <span class="k">"test"</span>: <span class="s">"dotnet test"</span> }
+},
+<span class="k">"web"</span>: {
+  <span class="k">"path"</span>: <span class="s">"web"</span>,
+  <span class="k">"commands"</span>: { <span class="k">"lint"</span>: <span class="s">"npm run lint"</span> }
+}</pre></div>
+      <div class="card tint" style="--c:var(--sage)"><svg class="ico" viewBox="0 0 100 100" width="56" height="56" aria-hidden="true"><use href="#s-rule" color="#CFE0C6"/></svg><h3>Spécifique</h3><p>Rempli par <code>/hx-setup</code>, jamais écrasé.</p>
+        <ul class="files"><li>.harness/config.json</li><li>.harness/project.md</li><li>.harness/ci/setup/action.yml</li><li>.claude/rules/stack-*.md</li><li>.github/dependabot.yml</li><li>.github/CODEOWNERS</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="principes">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">09 — Principes</p><h2>Onze règles de chantier</h2></div>
+      <p>Chacune a une conséquence concrète dans le template. Un composant qui ne prouve pas son gain est retiré (<a href="https://github.com/PatayEnCroute/Harness/blob/main/docs/elagage.md">élagage</a>).</p>
+    </header>
+    <ol class="principles"><li><b>Générique / spécifique séparés</b><span>Les skills n’écrivent jamais npm ou dotnet : ils passent par hx run.</span></li><li><b>OpenSpec, registre de l’intention</b><span>Étendu sans fork : config.yaml, clés x-*, CI.</span></li><li><b>Contrôles déterministes > prose</b><span>Une règle importante devient un lint, un test ou un check.</span></li><li><b>Le contexte est un budget</b><span>CLAUDE.md est une carte (≤ 100 lignes) ; rules ciblées par chemin.</span></li><li><b>Qui produit n’évalue pas</b><span>Les reviewers sont des sous-agents indépendants.</span></li><li><b>Pas de « terminé » sans preuve</b><span>hx-verify exige une sortie de commande fraîche.</span></li><li><b>Processus proportionné</b><span>Pistes S / M / L : un correctif n’a pas besoin de spec.</span></li><li><b>Boucle de pilotage</b><span>Une erreur récurrente devient rule, contrôle ou skill.</span></li><li><b>Élaguer</b><span>Un composant sans gain mesurable est retiré.</span></li><li><b>Architecture proportionnée</b><span>Feature-first ; une couche seulement pour un besoin nommé.</span></li><li><b>Standard quand c’est gratuit</b><span>Skills au format SKILL.md, portables vers un autre outil.</span></li></ol>
+  </div>
+</section>
+
+<section id="installer">
+  <div class="wrap">
+    <header>
+      <div><p class="eyebrow">10 — Installer</p><h2>Trois commandes, une demi-heure</h2></div>
+      <p>Prérequis : <code>git</code> et Node ≥ 20.19. Dans un dossier vide ou un dépôt git propre, nouveau projet ou existant.</p>
+    </header>
+    <div class="grid g3 install">
+      <div class="card"><span class="time">1 min</span><span class="num">01</span><h3>Installer</h3><pre>npx github:PatayEnCroute/Harness</pre><p>Vérifie git, installe uv au besoin, lance Copier, ouvre Claude Code.</p></div>
+      <div class="card"><span class="time">10–20 min</span><span class="num">02</span><h3>Personnaliser</h3><pre>/hx-setup</pre><p>Détecte la stack, vérifie chaque commande en l’exécutant, finit par <code>hx doctor</code>.</p></div>
+      <div class="card"><span class="time">1 min</span><span class="num">03</span><h3>Mettre à jour</h3><pre>uvx copier@9.19.1 update --trust</pre><p>Fusion à 3 voies. Le spécifique n’est jamais réécrit ; <code>hx migrate</code> ajoute les clés nouvelles.</p></div>
+    </div>
+    <div class="agent-note"><svg class="ico" viewBox="0 0 100 100" width="48" height="48" aria-hidden="true"><use href="#s-sph" color="#FBFAF6"/></svg><div><b>Par un agent :</b> dis à Claude Code « Installe le harness github.com/PatayEnCroute/Harness en suivant son INSTALL.md ».</div></div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><span class="status">v0.4.0 — pas encore éprouvée sur un vrai projet</span><p style="margin:14px 0 0;max-width:34em">La v1.0 attend le pilote : 3 changes M de bout en bout et une traçabilité ≥ 80 %.</p></div>
+    <ul>
+      <li><a href="https://github.com/PatayEnCroute/Harness">Dépôt</a></li>
+      <li><a href="https://github.com/PatayEnCroute/Harness/blob/main/README.md">README</a></li>
+      <li><a href="https://github.com/PatayEnCroute/Harness/blob/main/docs/PLAN.md">Plan directeur</a></li>
+      <li><a href="https://github.com/PatayEnCroute/Harness/tree/main/docs/adr">ADR</a></li>
+      <li><a href="https://github.com/PatayEnCroute/Harness/blob/main/evals/README.md">Evals</a></li>
+      <li><a href="https://github.com/PatayEnCroute/Harness/blob/main/CHANGELOG.md">Changelog</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var done = function () { b.textContent = 'Copié ✓'; setTimeout(function () { b.textContent = 'Copier'; }, 1600); };
+    if (navigator.clipboard) navigator.clipboard.writeText(b.dataset.copy).then(done, function () {});
+  });
+});
+</script>
+</body>
+</html>
