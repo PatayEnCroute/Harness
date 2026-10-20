@@ -4,7 +4,10 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
-Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que le workflow demande lui-même. L'archive OpenSpec reste le dernier commit, même quand la PR est demandée avant la décision sur les mineurs.
+Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que le workflow demande lui-même. L'archive OpenSpec reste le dernier commit, même quand la PR est demandée avant la décision sur les mineurs. Le cadrage d'un change M avec design ou L est contesté par un relecteur avant la porte.
+
+### Ajouté
+- **Contre-relecture du cadrage** ([#14](https://github.com/PatayEnCroute/Harness/issues/14)) : en M avec `design.md` et en L, `hx-triage` lance un `hx-architect` neuf en relecteur du change avant la porte. Verdict par décision (garder, simplifier, retirer, changer), besoin réel servi, périmètre minimum. Les verdicts confirmés sont appliqués, puis `openspec validate --strict`. La porte montre les décisions retirées et le signal qui les ferait revenir. Un seul sous-agent, en lecture seule. « Qui produit ne juge pas » couvre désormais le cadrage (`CLAUDE.md`).
 
 ### Modifié
 - **Run en mode `auto`** : `hx worktree` affiche `claude --permission-mode auto "/hx-implement <change>"` (avant : `acceptEdits`, qui ne couvre pas Bash). Les chemins protégés et `git push` restent confirmés.

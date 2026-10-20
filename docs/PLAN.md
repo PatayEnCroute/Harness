@@ -55,7 +55,7 @@ flowchart LR
 | P2 | **OpenSpec = registre de l'intention** | OpenSpec `config.yaml`, contrat JSON | On l'étend sans le forker : `config.yaml`, skills voisins, clés `x-*`, CI. |
 | P3 | **Contrôles déterministes > prose** | Böckeler, OpenAI | Une règle importante devient un lint, un test ou un check. |
 | P4 | **Le contexte est un budget** | Anthropic, étude ETH | `CLAUDE.md` = une carte (≤ 100 lignes). Rules ciblées par chemin. |
-| P5 | **Qui produit n'évalue pas** | Anthropic, superpowers | Les reviewers sont des sous-agents indépendants. |
+| P5 | **Qui produit n'évalue pas** | Anthropic, superpowers | Les reviewers sont des sous-agents indépendants, pour le code comme pour le cadrage (contre-relecture à la porte). |
 | P6 | **Pas de « terminé » sans preuve** | superpowers | `hx-verify` exige une sortie de commande fraîche. |
 | P7 | **Processus proportionné** | critiques du SDD (Böckeler, Marmelab) | Pistes S/M/L. |
 | P8 | **Boucle de pilotage** | Hashimoto, Compound Engineering | Une erreur récurrente devient une rule, un contrôle ou un skill, remonté dans Harness. |
@@ -189,7 +189,7 @@ flowchart LR
   T -->|S : correctif| TDD["hx-tdd<br/>(ou hx-debug)"]
   TDD --> VS[hx-verify] --> CM([commit])
   T -->|M / L| C["hx-clarify<br/>si la demande est floue"] --> P["/opsx:propose<br/>(L : hx-architect + hx-adr)"]
-  P --> G{{"Porte de cadrage<br/>validation · x-validated<br/>hx worktree"}}
+  P --> G{{"Porte de cadrage<br/>contre-relecture (hx-architect, M+design / L)<br/>validation · x-validated<br/>hx worktree"}}
   G --> IM["hx-implement<br/>1 sous-agent / tâche"]
   IM --> V["hx-verify<br/>preuves"]
   V --> RV["hx-review<br/>reviewers indépendants"]
@@ -275,7 +275,7 @@ src/
 |---|---|
 | `.harness/config.json › architecture` | Niveau du projet, niveaux par feature, profil (taille, durée de vie, complexité métier). Rempli par `/hx-setup`, revu par `hx-architect`. |
 | `.claude/rules/architecture.md` | Forme du code, règle de dépendance, « pas de besoin, pas de couche » ; chargée sur les fichiers source |
-| `hx-architect` (agent) | Analyse besoin → options → décision. Appelé en piste L, par `/hx-setup` sur un projet neuf dont le besoin dépasse le niveau 1, et quand un signal de changement de niveau apparaît. |
+| `hx-architect` (agent) | Analyse besoin → options → décision. Appelé en piste L, en relecteur du change à la porte de cadrage (M avec `design.md`, et L), par `/hx-setup` sur un projet neuf dont le besoin dépasse le niveau 1, et quand un signal de changement de niveau apparaît. |
 | `hx-adr` (skill) | Gabarit ADR « besoin d'abord » (ci-dessous) |
 | `openspec/config.yaml › rules.design` | `design.md` commence par le besoin, indique le niveau visé et liste les options |
 | `hx-code-reviewer` | Signale la **sur-ingénierie** (abstraction sans besoin cité) autant que les **violations** de la règle de dépendance |
