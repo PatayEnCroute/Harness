@@ -1,4 +1,4 @@
-# Fin de run d'un change M : add-mult implémenté, tâches cochées, hx check vert. Reste la livraison.
+# Fin de run d'un change M : add-mult implémenté sur sa branche, tâches cochées, hx check vert. Reste la livraison.
 source "$(dirname "${BASH_SOURCE[0]}")/../../lib/configure.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/../../lib/add-mult-change.sh"
 printf '## 1. Multiplication\n\n- [x] 1.1 mult(2, 3) returns 6 (test then code in src/mult.js)\n- [x] 1.2 mult(7, 0) returns 0 (test then code)\n' > openspec/changes/add-mult/tasks.md
@@ -19,3 +19,7 @@ test('mult(7, 0) returns 0', () => {
 });
 JS
 node .harness/hx.mjs check
+# Template et contrat commités sur main ; le change va sur sa branche, dans le commit « état initial » de run.sh.
+git add -A -- . ':!openspec/changes/add-mult' ':!src/mult.js' ':!test/mult.test.js'
+git -c user.email=eval@example.com -c user.name=eval commit -qm harness
+git checkout -qb add-mult
