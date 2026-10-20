@@ -89,4 +89,4 @@ Les projets suivent les **tags** du template (`copier update` prend le dernier).
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-**Statut** : phases 0 à 5 livrées (P5 : démarrage en une commande, par une personne ou un agent), **éprouvées sur un vrai projet** : 3 changes M de bout en bout et une traçabilité ≥ 80 %. Version courante : le [dernier tag](https://github.com/PatayEnCroute/Harness/tags). Historique : [`CHANGELOG.md`](CHANGELOG.md).
+**Statut** : phases 0 à 6 livrées (P6 : runs sans interruption après la porte de cadrage), **éprouvées sur un vrai projet**. Version courante : le [dernier tag](https://github.com/PatayEnCroute/Harness/tags). Historique : [`CHANGELOG.md`](CHANGELOG.md).
