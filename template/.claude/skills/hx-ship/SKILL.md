@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 ## Étapes
 
-1. **Archive OpenSpec** (pistes M et L) : toutes les tâches doivent être cochées. Lance `/opsx:archive <change>`, qui synchronise les specs principales et déplace le change dans `openspec/changes/archive/`. Puis `node .harness/hx.mjs check` : archives validées, trace sur les specs principales. S'il est vert, commit : `<change> : archive OpenSpec`. C'est le **dernier commit** de la PR.
+1. **Archive OpenSpec** (pistes M et L) : toutes les tâches doivent être cochées. Lance `node .harness/hx.mjs openspec archive <change> -y` : la CLI synchronise les specs principales et déplace le change dans `openspec/changes/archive/`, sans écriture à la main dans `openspec/specs/` (qui demanderait une confirmation). Puis `node .harness/hx.mjs check` : archives validées, trace sur les specs principales. S'il est vert, commit : `<change> : archive OpenSpec`. C'est le **dernier commit** de la PR.
 2. **Push** : `git push -u origin <branche>`.
 3. **PR** : si `gh` est disponible, lance `gh pr create`. Sinon, donne le lien de création. Corps de la PR :
    - **Pourquoi** : repris de `proposal.md`.

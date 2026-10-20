@@ -38,8 +38,8 @@ Commence toute demande de changement par **`hx-triage`** : les critères de choi
 3. **Livraison** (l'utilisateur) : relecture du rapport, décision sur les mineurs, puis `/hx-ship`. Même avec une PR demandée d'avance, pas d'archive avant cette décision.
 
 - Le change OpenSpec porte sa piste : `x-track: M` ou `L` dans `.openspec.yaml`.
-- L'archive OpenSpec (`/opsx:archive`) est le **dernier commit de la PR**.
-- `openspec/specs/` ne change que par `/opsx:sync` ou `/opsx:archive`.
+- L'archive OpenSpec (faite par `/hx-ship`) est le **dernier commit de la PR**.
+- `openspec/specs/` ne change que par `/opsx:sync` ou l'archive.
 - Pour implémenter un change : `hx-implement`, jamais le skill `openspec-apply-change` installé par OpenSpec.
 - Après une livraison ou un incident : `hx-learn`.
 
