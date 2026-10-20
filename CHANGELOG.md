@@ -4,6 +4,11 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
+### Modifié
+- **Documentation** : le harness est éprouvé sur un vrai projet. README, PLAN et `docs/elagage.md` ne le disent plus « non éprouvé » ni n'attendent de pilote, et renvoient au dernier tag au lieu d'une version écrite en dur. Page de présentation : `docs/index.html`.
+
+## [0.5.0] — 2026-10-19
+
 Un change M ou L se fait désormais en trois temps : cadrage avec l'utilisateur, run sans lui, livraison. L'utilisateur cadre le change suivant pendant le run.
 
 ### Ajouté

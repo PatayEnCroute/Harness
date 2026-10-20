@@ -19,7 +19,7 @@ npx github:PatayEnCroute/Harness
 | lance `uvx copier@9.19.1 copy --trust` | questions : nom du projet, workflow CI (`ci`), branche par défaut (`default_branch`), relecteurs obligatoires (`codeowners`) |
 | ouvre Claude Code sur `/hx-setup` | personnalisation à la stack, vérifiée à la fin par `hx doctor` |
 
-La CLI OpenSpec (commandes `/opsx:*`) est installée au premier démarrage de session si elle est absente. Options : `--vcs-ref v0.4.0` (version précise du template), `--defaults` (sans questions), `--no-claude`, `--help`.
+La CLI OpenSpec (commandes `/opsx:*`) est installée au premier démarrage de session si elle est absente. Options : `--vcs-ref vX.Y.Z` (version précise du template), `--defaults` (sans questions), `--no-claude`, `--help`.
 
 **Projet existant** : accepte le remplacement de `CLAUDE.md`, `.claude/settings.json` et `openspec/config.yaml` s'ils existent. `/hx-setup` récupère ensuite leur contenu utile depuis git.
 
@@ -86,7 +86,7 @@ Les projets suivent les **tags** du template (`copier update` prend le dernier).
 
 ```bash
 # 1. CHANGELOG.md : la section « Non publié » devient la version
-git tag v0.4.0 && git push origin v0.4.0
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-**Statut** : v0.4.0, phases 0 à 5 livrées (P5 : démarrage en une commande, par une personne ou un agent), **pas encore éprouvées sur un vrai projet**. La v1.0 attend le pilote : 3 changes M de bout en bout et une traçabilité ≥ 80 %. Historique : [`CHANGELOG.md`](CHANGELOG.md).
+**Statut** : phases 0 à 6 livrées (P6 : runs sans interruption après la porte de cadrage), **éprouvées sur un vrai projet**. Version courante : le [dernier tag](https://github.com/PatayEnCroute/Harness/tags). Historique : [`CHANGELOG.md`](CHANGELOG.md).

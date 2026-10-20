@@ -1,6 +1,6 @@
 # Harness — Plan directeur
 
-> **Statut** : v0.4.0 · 2026-10-18 · **phases 0 à 5 livrées, P6 en cours (non publiée), pas encore éprouvées sur un vrai projet** (voir §9). La v1.0 attend le pilote.
+> **Statut** : **phases 0 à 6 livrées, éprouvées sur un vrai projet** (§9). Version courante : dernier tag du dépôt ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
 > **Nature** : un **template personnel**. On y garde sa configuration Claude Code, on l'applique à chaque projet (nouveau ou existant), puis on la met à jour depuis ce repo.
 > **Cadre** : Claude Code · projets solo · GitHub Actions · **agnostique de la stack** · OpenSpec 1.14.x (OPSX)
 > **État de l'art** → [`research/etat-de-l-art-2026-10.md`](research/etat-de-l-art-2026-10.md)
@@ -451,15 +451,15 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 
 ## 9. Roadmap
 
-| Phase | Livrables | Validé par | Reste à confirmer sur un vrai projet |
-|---|---|---|---|
-| **P0 Socle** ✅ | `copier.yml`, `template/`, `hx run / check / doctor / detect / openspec`, `/hx-setup`, fixtures, CI du template | E2E sur 5 stacks ; `copier update` conserve les personnalisations | — |
-| **P1 Boucle de base** ✅ | Skills `hx-triage`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr` ; agents `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-architect` ; rules `openspec`, `testing`, `architecture` ; hooks ; workflow `hx-check.yml` + outillage CI ; contrôles pistes et archives | Unitaires (hooks, pistes) ; E2E cycle OpenSpec ; evals `tdd-s`, `implement-m`, `architect`, `setup` | 3 changes M menés de bout en bout |
-| **P2 Qualité** ✅ | `hx trace` ; agents `hx-verifier`, `hx-security-reviewer` ; skills `hx-clarify`, `hx-debug`, `hx-learn` ; evals headless + A/B ; lint du template ; contrat OpenSpec | Unitaires ; contrat OpenSpec ; 4/4 evals (une exécution chacune) | Traçabilité ≥ 80 % sur le projet pilote |
-| **P3 Extensions** ✅ | Skill `hx-discover` (brownfield) ; revue d'élagage ([`elagage.md`](elagage.md)) ; ADR 001 à 003 (Copier ; plugin utilisateur et multi-outils non retenus) ; ADR-004 (OpenSpec) en v0.2.0 | Lint du template | Première revue d'élagage après quelques semaines d'usage |
-| **P4 Fiabilité** ✅ (v0.3.0) | Correcteurs d'evals sans faux succès et testés ; plus de faux verts (`run --file`, trace vide, délais) ; hook `Stop` fondé sur git ; chemins protégés signalés quel que soit l'outil, `permissions.deny`, `CODEOWNERS` ; prompts sans contradiction ; leçons relues | Unitaires ; contrat OpenSpec ; e2e | Evals `--runs 10` en local sur cette version ; le pilote ci-dessus |
-| **P5 Démarrage** ✅ (v0.4.0) | Lanceur `npx github:PatayEnCroute/Harness` (git, uv, Copier, Claude Code sur `/hx-setup`) ; CLI OpenSpec installée au démarrage de session si absente ; `INSTALL.md` pour une installation par un agent | Unitaires ; e2e lanceur | Installation par un agent en session cloud ; lanceur sous Windows |
-| **P6 Runs sans interruption** (non publié) | Porte de cadrage (`x-validated`) ; `hx worktree` ; run enchaîné jusqu'au rapport de fin de run (hypothèses à confirmer) ; git local sans confirmation | Unitaires ; contrat OpenSpec ; e2e cycle OpenSpec | Nombre d'interruptions par run et corrections à la porte, sur le pilote |
+| Phase | Livrables | Validé par |
+|---|---|---|
+| **P0 Socle** ✅ | `copier.yml`, `template/`, `hx run / check / doctor / detect / openspec`, `/hx-setup`, fixtures, CI du template | E2E sur 5 stacks ; `copier update` conserve les personnalisations |
+| **P1 Boucle de base** ✅ | Skills `hx-triage`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr` ; agents `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-architect` ; rules `openspec`, `testing`, `architecture` ; hooks ; workflow `hx-check.yml` + outillage CI ; contrôles pistes et archives | Unitaires (hooks, pistes) ; E2E cycle OpenSpec ; evals `tdd-s`, `implement-m`, `architect`, `setup` |
+| **P2 Qualité** ✅ | `hx trace` ; agents `hx-verifier`, `hx-security-reviewer` ; skills `hx-clarify`, `hx-debug`, `hx-learn` ; evals headless + A/B ; lint du template ; contrat OpenSpec | Unitaires ; contrat OpenSpec ; 4/4 evals (une exécution chacune) |
+| **P3 Extensions** ✅ | Skill `hx-discover` (brownfield) ; revue d'élagage ([`elagage.md`](elagage.md)) ; ADR 001 à 003 (Copier ; plugin utilisateur et multi-outils non retenus) ; ADR-004 (OpenSpec) en v0.2.0 | Lint du template |
+| **P4 Fiabilité** ✅ (v0.3.0) | Correcteurs d'evals sans faux succès et testés ; plus de faux verts (`run --file`, trace vide, délais) ; hook `Stop` fondé sur git ; chemins protégés signalés quel que soit l'outil, `permissions.deny`, `CODEOWNERS` ; prompts sans contradiction ; leçons relues | Unitaires ; contrat OpenSpec ; e2e |
+| **P5 Démarrage** ✅ (v0.4.0) | Lanceur `npx github:PatayEnCroute/Harness` (git, uv, Copier, Claude Code sur `/hx-setup`) ; CLI OpenSpec installée au démarrage de session si absente ; `INSTALL.md` pour une installation par un agent | Unitaires ; e2e lanceur |
+| **P6 Runs sans interruption** ✅ (v0.5.0) | Porte de cadrage (`x-validated`) ; `hx worktree` ; run enchaîné jusqu'au rapport de fin de run (hypothèses à confirmer) ; git local sans confirmation | Unitaires ; contrat OpenSpec ; e2e cycle OpenSpec |
 
 **Constats faits pendant la réalisation**, désormais encodés dans le harness :
 
