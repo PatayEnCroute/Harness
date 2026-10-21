@@ -170,7 +170,8 @@ function git(root, args) {
 // Racine du projet pour cet appel. CLAUDE_PROJECT_DIR reste sur le dossier principal même quand la session travaille
 // dans un worktree du même dépôt (worktree natif de Claude Code Desktop, dans .claude/worktrees/) : sans ce
 // détour, les contrôles porteraient sur le dossier principal. On suit alors le cwd de la session, au même
-// sous-dossier du dépôt. Git compare les chemins lui-même (noms courts 8.3 sous Windows).
+// sous-dossier du dépôt. Git compare les racines ; la nouvelle racine est dérivée du cwd, pas du chemin rendu par git
+// (sous Windows, git rend le nom long d'un dossier que Node et Claude Code voient sous son nom court 8.3).
 export function projectRoot(projectDir, input = {}) {
   const cwd = typeof input.cwd === 'string' && input.cwd;
   if (!cwd || realPath(cwd) === realPath(projectDir) || !fs.existsSync(cwd)) return projectDir;
@@ -179,7 +180,8 @@ export function projectRoot(projectDir, input = {}) {
   const project = where(projectDir);
   const session = where(cwd);
   if (!project || !session || project[1] === session[1] || project[2] !== session[2]) return projectDir;
-  return path.join(session[1], project[0]);
+  const top = path.resolve(cwd, ...session[0].split('/').filter(Boolean).map(() => '..'));
+  return path.join(top, project[0]);
 }
 
 // Fichiers modifiés depuis le commit base (commités ou non) et fichiers non suivis, relatifs à la racine, en « / ».
