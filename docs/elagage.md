@@ -28,6 +28,7 @@
 | Contre-relecture du cadrage (`hx-architect` relecteur, M avec `design.md` et L) | Le modèle sur-dimensionne le cadrage (scénarios, configuration, composants sans besoin exprimé) et ne le conteste pas lui-même | décisions retirées par la contre-relecture ; réécritures demandées à la porte pour sur-dimensionnement | Aucune décision retirée sur un trimestre |
 | `hx worktree` | Deux changes dans un même dossier se gênent (trace, pistes, commits) | runs interrompus par un change voisin | — (contrôle déterministe, coût quasi nul) |
 | `hx-review` + reviewers | Le modèle juge mal son propre travail | constats confirmés par revue (`hx-review`) | Moins d'un constat confirmé par PR sur un trimestre |
+| Rule `comments.md` + catégorie « Commentaires » de `hx-code-reviewer` + lint des commentaires (`hx-setup`) | Le modèle paraphrase le code en commentaires et ne les met pas à jour : ils finissent par le contredire | constats « Commentaires » confirmés par `hx-review` ; violations du lint en fin de tâche | Aucun constat confirmé sur un trimestre (le lint, déterministe, reste) |
 | `hx-architect` + rule `architecture.md` | Le modèle sur-conçoit (patterns par réflexe) | eval `architect` | Le modèle reste proportionné sans eux |
 | `hx-setup` | La personnalisation à la stack est longue et sujette à erreur | eval `setup` | — (gain de temps, pas de faiblesse du modèle) |
 | `hx trace` | Les specs et le code divergent | `hx check` en CI | — (contrôle déterministe, coût quasi nul) |
