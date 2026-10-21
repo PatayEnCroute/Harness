@@ -127,6 +127,18 @@ describe('cohérence et budgets', () => {
     assert.match(frontmatter(architect).data.description, /porte de cadrage/);
   });
 
+  test('hx-security-audit : hors workflow, lecture seule, réussi sans constat, constat seulement avec preuve', () => {
+    const dir = path.join(claude, 'skills', 'hx-security-audit');
+    const { data, body } = frontmatter(read(path.join(dir, 'SKILL.md')));
+    assert.equal(data['disable-model-invocation'], 'true', 'lancé à la demande, jamais par le workflow');
+    assert.match(body, /« Aucun constat » est un résultat valide/);
+    assert.match(body, /Pas de preuve, pas de constat/);
+    assert.match(body, /\*\*Lecture seule\*\*/);
+    assert.match(body, /version installée est dans la plage affectée/);
+    assert.match(body, /### Couverture/);
+    assert.ok(fs.existsSync(path.join(dir, 'references', 'sql-sinks.md')), 'référence des sinks SQL');
+  });
+
   test('les relecteurs rendent leurs constats au même format, que hx-review consolide', () => {
     for (const name of agents.filter((n) => n.endsWith('-reviewer'))) {
       assert.match(read(path.join(claude, 'agents', `${name}.md`)), /`\[bloquant\|important\|mineur\] chemin:ligne — /, name);

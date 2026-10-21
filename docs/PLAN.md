@@ -315,6 +315,7 @@ src/
 | `hx-adr` | ADR « besoin d'abord » (§5.4), piste L et portes à sens unique | MVP |
 | `hx-learn` | Capitaliser : leçon locale (`docs/learnings/`) ou amélioration à remonter dans Harness | v1 |
 | `hx-discover` | Brownfield : dériver des specs de base depuis le code | v2 |
+| `hx-security-audit` | Hors workflow, à la demande : CVE des dépendances installées, angles d'injection SQL ; « aucun constat » est un résultat valide | v2 |
 
 ### Agents (`.claude/agents/hx-*.md`)
 
@@ -379,7 +380,7 @@ Harness/
 │   │                     # dans le projet
 │   ├── CLAUDE.md
 │   ├── .claude/
-│   │   ├── skills/hx-*/  # 12 skills
+│   │   ├── skills/hx-*/  # 13 skills
 │   │   ├── agents/hx-*.md # 7 agents
 │   │   ├── rules/        # 4 rules
 │   │   └── settings.json # hooks, permissions
