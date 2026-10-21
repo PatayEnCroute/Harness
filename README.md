@@ -1,12 +1,14 @@
 # Harness
 
-Template personnel de *harness engineering* pour **Claude Code**, autour d'[OpenSpec](https://github.com/Fission-AI/OpenSpec) : **skills**, **agents**, **rules**, **hooks** et **contrôles CI** à appliquer dans chaque projet, **quelle que soit la stack**.
+Template personnel de *harness engineering* pour **Claude Code** (pensé pour l'app **Desktop**, le terminal reste pris en charge), autour d'[OpenSpec](https://github.com/Fission-AI/OpenSpec) : **skills**, **agents**, **rules**, **hooks** et **contrôles CI** à appliquer dans chaque projet, **quelle que soit la stack**.
 
 ## Utiliser le template
 
-> **Agent IA** : pour installer le harness à la demande d'un utilisateur, suis [`INSTALL.md`](INSTALL.md). Côté utilisateur, il suffit de dire à Claude Code : « Installe le harness github.com/PatayEnCroute/Harness en suivant son INSTALL.md ».
+**Depuis Claude Code Desktop (recommandé)** : ouvre une session sur le dossier du projet et dis « Installe le harness github.com/PatayEnCroute/Harness en suivant son INSTALL.md ». Ouvre ensuite une nouvelle session sur le même dossier et tape `/hx-setup`.
 
-Prérequis : `git` et Node ≥ 20.19. Dans le dossier du projet (vide, ou dépôt git sans changement en cours) :
+> **Agent IA** : pour installer le harness à la demande d'un utilisateur, suis [`INSTALL.md`](INSTALL.md).
+
+**Avec le lanceur** (dans un terminal, ou le terminal intégré de Desktop : Ctrl+`). Prérequis : `git` et Node ≥ 20.19. Dans le dossier du projet (vide, ou dépôt git sans changement en cours) :
 
 ```bash
 npx github:PatayEnCroute/Harness
@@ -17,9 +19,9 @@ npx github:PatayEnCroute/Harness
 | fait `git init` dans un dossier vide ; refuse un arbre git sale | `/hx-setup` retrouve dans git les fichiers que l'installation remplace |
 | installe [uv](https://docs.astral.sh/uv/) s'il manque, après accord | uv lance Copier, le moteur du template |
 | lance `uvx copier@9.19.1 copy --trust` | questions : nom du projet, workflow CI (`ci`), branche par défaut (`default_branch`), relecteurs obligatoires (`codeowners`) |
-| ouvre Claude Code sur `/hx-setup` | personnalisation à la stack, vérifiée à la fin par `hx doctor` |
+| ouvre Claude Code Desktop sur le dossier (`claude --desktop`, CLI récente), sinon dit comment faire ; tu y tapes `/hx-setup` | personnalisation à la stack, vérifiée à la fin par `hx doctor` |
 
-La CLI OpenSpec (commandes `/opsx:*`) est installée au premier démarrage de session si elle est absente. Options : `--vcs-ref vX.Y.Z` (version précise du template), `--defaults` (sans questions), `--no-claude`, `--help`.
+La CLI OpenSpec (commandes `/opsx:*`) est installée au premier démarrage de session si elle est absente. Options : `--vcs-ref vX.Y.Z` (version précise du template), `--defaults` (sans questions), `--terminal` (ouvre Claude Code dans le terminal sur `/hx-setup`, au lieu de Desktop), `--no-claude`, `--help`.
 
 **Projet existant** : accepte le remplacement de `CLAUDE.md`, `.claude/settings.json` et `openspec/config.yaml` s'ils existent. `/hx-setup` récupère ensuite leur contenu utile depuis git.
 
@@ -39,7 +41,7 @@ hx-triage ─┬─ S   : hx-tdd (ou hx-debug) → hx-verify → commit
                     L : + hx-architect et hx-adr, validés à la porte
 ```
 
-`[hx-clarify]` : seulement si la demande est floue. `[contre-relecture]` : en M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage avant la porte (garder, simplifier, retirer, changer). **Un seul arrêt prévu**, la porte de cadrage : tu y vérifies que la spec dit ce que tu as demandé, sans plus, et tu y vois les décisions retirées. Ensuite le run va jusqu'au rapport sans te solliciter, dans son propre worktree (`hx worktree <change>`) : pendant ce temps, tu cadres le change suivant dans le dossier principal. Le run ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Lance-le en mode `auto` (`--permission-mode auto`) : la commande affichée par `hx worktree` le fait. Ce mode ne demande pas de confirmation à chaque commande. Les chemins protégés et `git push` restent confirmés. Les permissions accordées dans le dossier principal (`.claude/settings.local.json`) sont reprises dans le worktree. Le rapport se termine par une question sur les mineurs : tranche-la avant `/hx-ship`, qui fait de l'archive OpenSpec le dernier commit de la PR.
+`[hx-clarify]` : seulement si la demande est floue. `[contre-relecture]` : en M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage avant la porte (garder, simplifier, retirer, changer). **Un seul arrêt prévu**, la porte de cadrage : tu y vérifies que la spec dit ce que tu as demandé, sans plus, et tu y vois les décisions retirées. Ensuite le run va jusqu'au rapport sans te solliciter, dans son propre worktree (`hx worktree <change>`) : pendant ce temps, tu cadres le change suivant dans le dossier principal. Le run ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Lance-le en mode **Auto**, comme l'indique `hx worktree` : dans Desktop, nouvelle session sur le dossier du worktree, mode Auto (Cmd/Ctrl+Shift+M), puis `/hx-implement <change>` ; dans le terminal, la commande affichée (`--permission-mode auto`). Ce mode ne demande pas de confirmation à chaque commande. Les chemins protégés et `git push` restent confirmés. Les permissions accordées dans le dossier principal (`.claude/settings.local.json`) sont reprises dans le worktree. Le rapport se termine par une question sur les mineurs : tranche-la avant `/hx-ship`, qui fait de l'archive OpenSpec le dernier commit de la PR.
 
 | | Contenu |
 |---|---|

@@ -1130,8 +1130,9 @@ function cmdWorktree(root, args) {
     `Worktree prêt : ${result.target} (branche ${result.branch})${result.moved ? ` ; change déplacé et commité : « ${change} : proposition »` : ''}.`,
     ...(result.stayed ? [`⚠ ${change} était déjà commité : il reste aussi dans ce dossier, dont hx check restera rouge sur ses scénarios tant qu'il n'est pas mergé.`] : []),
     ...(fs.existsSync(path.join(result.target, LOCAL_SETTINGS)) ? [`Permissions locales (${LOCAL_SETTINGS}) reprises dans le worktree.`] : []),
-    'Lancer le run (mode auto : pas de confirmation par commande ; les chemins protégés et git push restent confirmés) :',
-    `  cd ${shellQuote(result.target)} && claude --permission-mode auto "/hx-implement ${change}"`,
+    'Lancer le run en mode Auto (pas de confirmation par commande ; les chemins protégés et git push restent confirmés) :',
+    `  Claude Code Desktop : nouvelle session sur le dossier ${result.target}, mode Auto (Cmd/Ctrl+Shift+M), puis /hx-implement ${change}`,
+    `  Terminal : cd ${shellQuote(result.target)} && claude --permission-mode auto "/hx-implement ${change}"`,
     `Après le merge : git worktree remove ${shellQuote(result.target)}`,
   ].join('\n'));
   return 0;

@@ -10,6 +10,7 @@ Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que l
 - **Contre-relecture du cadrage** ([#14](https://github.com/PatayEnCroute/Harness/issues/14)) : en M avec `design.md` et en L, `hx-triage` lance un `hx-architect` neuf en relecteur du change avant la porte. Verdict par décision (garder, simplifier, retirer, changer), besoin réel servi, périmètre minimum. Les verdicts confirmés sont appliqués, puis `openspec validate --strict`. La porte montre les décisions retirées et le signal qui les ferait revenir. Un seul sous-agent, en lecture seule. « Qui produit ne juge pas » couvre désormais le cadrage (`CLAUDE.md`).
 
 ### Modifié
+- **Orienté Claude Code Desktop** : le lanceur ouvre Desktop sur le dossier (`claude --desktop`) ou dit comment faire, au lieu de lancer `claude /hx-setup` dans le terminal (toujours possible avec `--terminal`). `hx worktree` donne les étapes Desktop (nouvelle session sur le worktree, mode Auto, `/hx-implement <change>`) avant la commande terminal. `README.md` et `INSTALL.md` partent de Desktop.
 - **Run en mode `auto`** : `hx worktree` affiche `claude --permission-mode auto "/hx-implement <change>"` (avant : `acceptEdits`, qui ne couvre pas Bash). Les chemins protégés et `git push` restent confirmés.
 - **`hx worktree`** reprend `.claude/settings.local.json` (permissions accordées dans le dossier principal, non suivies par git) dans le worktree.
 - **Permissions** : en plus, sans confirmation, `git log`/`show` seuls, `rev-parse`, `ls-files`, `ls-remote`, `blame`, `bisect`, `branch` (lecture, `-d`), `pull`, `worktree list/remove`, `gh pr create/checks/view`, `ls`, `cat`, `head`, `tail`, `wc`. Liste `ask` explicite : `git push`, `git worktree remove --force`, `git bisect run`, `gh issue create`. Un test vérifie que chaque commande citée par `CLAUDE.md`, un skill ou un agent est autorisée ou dans `ask`.
@@ -21,6 +22,9 @@ Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que l
 - **Eval `ship-minors`** : demande de PR, puis mineur appliqué au tour suivant. L'archive doit rester le dernier commit, sans réécriture d'historique (aide `archive_is_last`, testée). `evals/run.sh` accepte un second tour (`followup.md`, `--continue`) et cumule coût, durée et refus de permission sur les tours.
 - **Evals dans un dossier non approuvé** : `claude -p` ignore `permissions.allow` d'un projet non approuvé (*trust*), ce qui est le cas de chaque dossier temporaire des evals. Toute commande non lecture seule y était refusée. `run.sh` repasse les permissions du template par `--settings`.
 - **Documentation** : le harness est éprouvé sur un vrai projet. README, PLAN et `docs/elagage.md` ne le disent plus « non éprouvé » ni n'attendent de pilote, et renvoient au dernier tag au lieu d'une version écrite en dur. Page de présentation : `docs/index.html`.
+
+### Corrigé
+- **Hooks dans un worktree natif de Desktop** (`.claude/worktrees/`) : `CLAUDE_PROJECT_DIR` y désigne le dossier principal, donc le lint, les contrôles du hook `Stop` et les chemins protégés portaient sur le mauvais dossier. Les hooks suivent désormais le `cwd` de la session quand il est dans un autre worktree du même dépôt.
 
 ## [0.5.0] — 2026-10-19
 

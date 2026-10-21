@@ -167,6 +167,23 @@ function git(root, args) {
   return r.status === 0 ? r.stdout : null;
 }
 
+// Racine du projet pour cet appel. CLAUDE_PROJECT_DIR reste sur le dossier principal même quand la session travaille
+// dans un worktree du même dépôt (worktree natif de Claude Code Desktop, dans .claude/worktrees/) : sans ce
+// détour, les contrôles porteraient sur le dossier principal. On suit alors le cwd de la session, au même
+// sous-dossier du dépôt. Git compare les racines ; la nouvelle racine est dérivée du cwd, pas du chemin rendu par git
+// (sous Windows, git rend le nom long d'un dossier que Node et Claude Code voient sous son nom court 8.3).
+export function projectRoot(projectDir, input = {}) {
+  const cwd = typeof input.cwd === 'string' && input.cwd;
+  if (!cwd || realPath(cwd) === realPath(projectDir) || !fs.existsSync(cwd)) return projectDir;
+  // [sous-dossier, racine du worktree, dépôt commun]
+  const where = (dir) => git(dir, ['rev-parse', '--show-prefix', '--path-format=absolute', '--show-toplevel', '--git-common-dir'])?.split(/\r?\n/);
+  const project = where(projectDir);
+  const session = where(cwd);
+  if (!project || !session || project[1] === session[1] || project[2] !== session[2]) return projectDir;
+  const top = path.resolve(cwd, ...session[0].split('/').filter(Boolean).map(() => '..'));
+  return path.join(top, project[0]);
+}
+
 // Fichiers modifiés depuis le commit base (commités ou non) et fichiers non suivis, relatifs à la racine, en « / ».
 // Vu par git, donc quel que soit l'outil qui a écrit (Edit, Bash, script). null hors d'un dépôt git.
 export function changedFiles(root, base = 'HEAD') {
@@ -355,6 +372,7 @@ export function runHook(event, root, input) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) {
-  const root = process.env.CLAUDE_PROJECT_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  process.exitCode = runHook(process.argv[2], root, readInput());
+  const input = readInput();
+  const root = projectRoot(process.env.CLAUDE_PROJECT_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), input);
+  process.exitCode = runHook(process.argv[2], root, input);
 }

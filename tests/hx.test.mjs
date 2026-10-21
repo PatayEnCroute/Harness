@@ -562,7 +562,7 @@ describe('worktree : un change, une branche, un dossier', () => {
     assert.ok(!git(r.target, 'ls-files').stdout.includes('settings.local.json'));
   });
 
-  test('CLI : commande de lancement du run affichée ; usage sans change', () => {
+  test('CLI : lancement du run affiché pour Desktop et le terminal ; usage sans change', () => {
     const { root } = repoWithHarness();
     writeChange(root, 'add-mult');
     const lines = [];
@@ -573,7 +573,8 @@ describe('worktree : un change, une branche, un dossier', () => {
     } finally {
       console.log = log;
     }
-    assert.match(lines.join('\n'), /claude --permission-mode auto "\/hx-implement add-mult"/);
+    assert.match(lines.join('\n'), /Desktop : nouvelle session sur le dossier .*mode Auto.*\/hx-implement add-mult$/m);
+    assert.match(lines.join('\n'), /Terminal : cd .* && claude --permission-mode auto "\/hx-implement add-mult"/);
     assert.equal(main(['worktree'], root), 2);
   });
 });

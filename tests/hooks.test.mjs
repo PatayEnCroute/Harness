@@ -161,6 +161,20 @@ describe('hooks Claude Code', () => {
     assert.equal(hook('stop', root, { ...session, stop_hook_active: true }).code, 0);
   });
 
+  test('worktree natif (Desktop) : CLAUDE_PROJECT_DIR reste sur le dossier principal, les contrôles suivent le cwd', () => {
+    const { root, git } = gitProject({ components: { app: { path: '.', commands: { lint: ko } } } }, { 'src/a.js': 'x\n' });
+    const wt = path.join(root, '.claude', 'worktrees', 'tache');
+    git('worktree', 'add', '-q', '-b', 'tache', wt);
+    const session = { session_id: `s-${Date.now()}`, cwd: path.join(wt, 'src') };
+    hook('session-start', root, session);
+    write(wt, 'src/a.js');
+    assert.equal(hook('stop', root, session).code, 2, 'le code modifié dans le worktree est contrôlé');
+    assert.equal(hook('stop', root, { ...session, cwd: undefined }).code, 0, 'sans cwd : dossier principal, rien de modifié');
+    assert.ok(asks(hook('pre-tool-use', root, { ...session, tool_input: { file_path: path.join(wt, 'openspec/specs/calc/spec.md') } })));
+    const other = gitProject({ components: {} }).root;
+    assert.equal(hook('stop', root, { ...session, cwd: other }).code, 0, 'autre dépôt : dossier principal');
+  });
+
   test('stop : un fichier modifié puis commité pendant la session est contrôlé', () => {
     const { root, git } = gitProject({ components: { app: { path: '.', commands: { lint: ko } } } }, { 'src/a.js': 'x\n' });
     const session = { session_id: `s-${Date.now()}` };

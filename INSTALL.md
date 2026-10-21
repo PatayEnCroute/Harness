@@ -1,6 +1,6 @@
 # Installer le harness : instructions pour un agent
 
-Tu es un agent (Claude Code en local ou en session cloud) et l'utilisateur t'a demandé d'installer le harness dans son projet. Suis ces étapes dans l'ordre. **Rien ne s'installe ni ne se commite sans l'accord de l'utilisateur.**
+Tu es un agent (Claude Code Desktop, terminal ou session cloud) et l'utilisateur t'a demandé d'installer le harness dans son projet. Suis ces étapes dans l'ordre. **Rien ne s'installe ni ne se commite sans l'accord de l'utilisateur.**
 
 ## 1. Vérifier
 
@@ -41,8 +41,8 @@ npx --yes github:PatayEnCroute/Harness --defaults --no-claude \
 ## 4. Après
 
 1. Montre à l'utilisateur ce que `git status` liste (fichiers créés ou remplacés). Ne commite qu'avec son accord.
-2. Dis-lui de **redémarrer la session Claude Code** dans ce dossier : `CLAUDE.md`, les hooks et les skills du harness ne se chargent qu'au démarrage. Le hook de démarrage installe aussi la CLI OpenSpec si elle manque.
-3. Dis-lui ensuite de taper **`/hx-setup`** : la personnalisation à la stack lui est réservée (tu ne peux pas lancer ce skill toi-même). Elle finit par `node .harness/hx.mjs doctor`.
+2. Dis-lui d'**ouvrir une nouvelle session** sur ce dossier (Desktop : nouvelle session, même dossier ; terminal : relancer `claude`) : `CLAUDE.md`, les hooks et les skills du harness ne se chargent qu'au démarrage. Le hook de démarrage installe aussi la CLI OpenSpec si elle manque.
+3. Dis-lui ensuite de taper **`/hx-setup`** dans cette nouvelle session : la personnalisation à la stack lui est réservée (tu ne peux pas lancer ce skill toi-même). Elle finit par `node .harness/hx.mjs doctor`.
 
 ## À ne pas faire
 
