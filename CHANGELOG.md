@@ -7,6 +7,7 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que le workflow demande lui-même. L'archive OpenSpec reste le dernier commit, même quand la PR est demandée avant la décision sur les mineurs. Le cadrage d'un change M avec design ou L est contesté par un relecteur avant la porte.
 
 ### Ajouté
+- **`/hx-security-audit`** : audit de sécurité de toute la solution, lancé à la demande, hors du workflow S/M/L. Inventorie les dépendances (version installée, lue dans le lockfile), cherche les CVE qui les touchent (outil d'audit de l'écosystème, puis osv.dev, GitHub Advisory ou NVD), confirme chaque candidat (plage affectée, usage de la fonction vulnérable), puis remonte chaque point d'exécution SQL non constant jusqu'à sa source. Lecture seule. « Aucun constat » est un résultat valide : le rapport montre la couverture, les constats prouvés, les doutes et les écartés.
 - **Contre-relecture du cadrage** ([#14](https://github.com/PatayEnCroute/Harness/issues/14)) : en M avec `design.md` et en L, `hx-triage` lance un `hx-architect` neuf en relecteur du change avant la porte. Verdict par décision (garder, simplifier, retirer, changer), besoin réel servi, périmètre minimum. Les verdicts confirmés sont appliqués, puis `openspec validate --strict`. La porte montre les décisions retirées et le signal qui les ferait revenir. Un seul sous-agent, en lecture seule. « Qui produit ne juge pas » couvre désormais le cadrage (`CLAUDE.md`).
 
 ### Modifié

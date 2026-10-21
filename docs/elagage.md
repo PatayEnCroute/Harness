@@ -33,6 +33,7 @@
 | `hx trace` | Les specs et le code divergent | `hx check` en CI | — (contrôle déterministe, coût quasi nul) |
 | Hook `PostToolUse` (lint du fichier) | Les erreurs de lint s'accumulent jusqu'à la fin | nombre d'échecs `lint` en fin de tâche | Le lint final passe toujours sans le hook |
 | Hook `Stop` (chemins protégés) | Le modèle contourne une protection par un chemin que `PreToolUse` ne voit pas (`cd`, script) | signalements à l'utilisateur sur un trimestre | — (contrôle déterministe, coût quasi nul) |
+| `hx-security-audit` | Sans procédure, l'audit gonfle le rapport (CVE non vérifiées contre la version installée, injections sans chemin depuis une entrée) ou se juge réussi au nombre de constats | part des constats que l'utilisateur confirme | Sans le skill, un audit trouve les mêmes constats sans plus de faux positifs |
 | `hx-learn` → `docs/learnings/` relu par `hx-triage` et `hx-clarify` | Les leçons d'un incident sont oubliées au change suivant | même correction demandée deux fois | Aucune leçon relue n'a changé une décision sur un trimestre |
 
 Les contrôles déterministes (`hx check`, trace, pistes, archives) coûtent peu et ne dépendent pas du modèle : ils restent.
