@@ -75,7 +75,7 @@ npm run evals           # agents headless (claude -p, ta session Claude Code, sa
 
 | Document | Contenu |
 |---|---|
-| [Page de présentation](https://patayencroute.github.io/Harness/) ([`docs/index.html`](docs/index.html)) | Le harness en schémas : cycle de vie, workflow, pièces, contrôles |
+| [Page de présentation](https://patayencroute.github.io/Harness/) ([`docs/index.html`](docs/index.html)) | Le harness en schémas : principes, cycle de vie, workflow, arbre des outils (explication dépliable par outil) |
 | [`docs/PLAN.md`](docs/PLAN.md) | Plan directeur : principes, architecture, workflow, catalogue, roadmap, décisions |
 | [`docs/elagage.md`](docs/elagage.md) | Hypothèse encodée par chaque composant, mesure, signal de retrait |
 | [`docs/adr/`](docs/adr/) | Décisions du template (Copier, Claude Code seul, pas de plugin utilisateur, OpenSpec et ses critères de sortie) |
