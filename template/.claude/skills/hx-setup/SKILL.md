@@ -1,6 +1,6 @@
 ---
 name: hx-setup
-description: Personnalise le harness pour la stack du projet. Détecte les composants, vérifie chaque commande en l'exécutant, établit le profil d'architecture, rédige les rules de stack, l'outillage CI et la carte du projet. À lancer après l'installation du template, ou pour ajouter ou corriger un composant.
+description: Personnalise le harness pour la stack du projet. Détecte les composants, vérifie chaque commande en l'exécutant, établit le profil d'architecture, active le lint des commentaires, rédige les rules de stack, l'outillage CI et la carte du projet. À lancer après l'installation du template, ou pour ajouter ou corriger un composant.
 argument-hint: "[consigne facultative, ex. « ajoute le composant web »]"
 disable-model-invocation: true
 allowed-tools: Bash(node .harness/hx.mjs *)
@@ -17,8 +17,9 @@ Tu remplis **uniquement les fichiers spécifiques au projet**. Tous les autres s
 | `.claude/rules/stack-<composant>.md` | Conventions propres à la stack d'un composant |
 | `.harness/ci/setup/action.yml` | Outillage CI de la stack |
 | Configuration `arch` du projet | Par exemple `.dependency-cruiser.cjs`, contrats import-linter, projet de tests d'architecture |
+| Configuration du linter du projet | Règles de lint des commentaires (étape 8) |
 
-Fichiers à **ne pas modifier** : `CLAUDE.md`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `.harness/config.schema.json`, `.harness/versions.json`, `openspec/config.yaml`, `.claude/settings.json`, `.claude/rules/{openspec,testing,architecture}.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.github/workflows/hx-check.yml`.
+Fichiers à **ne pas modifier** : `CLAUDE.md`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `.harness/config.schema.json`, `.harness/versions.json`, `openspec/config.yaml`, `.claude/settings.json`, `.claude/rules/{openspec,testing,architecture,comments}.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.github/workflows/hx-check.yml`.
 
 Seule exception : sur un projet existant, l'étape 1 fusionne dans `.claude/settings.json` les réglages du projet que l'installation a remplacés (`permissions`, `model`, `env`, hooks du projet). Rien d'autre n'y change, et les hooks et permissions du harness restent tels quels.
 
@@ -123,7 +124,11 @@ Renseigne `architecture` dans `.harness/config.json`. Le **besoin** décide, pas
 
 Suis `references/arch-rules.md`. Ne configure `arch` que si le besoin existe : niveau ≥ 2 pour au moins une feature, ou au moins trois features dont les frontières comptent. Vérifie que la règle échoue sur une violation volontaire, puis retire cette violation.
 
-### 8. Rules de stack
+### 8. Lint des commentaires
+
+Suis `references/comment-lint.md` pour chaque composant qui a déjà un linter : ses règles vérifient les formes interdites par `.claude/rules/comments.md` (code commenté, TODO, désactivation sans raison). Vérifie qu'elles échouent sur une violation volontaire, puis retire cette violation.
+
+### 9. Rules de stack
 
 Pour chaque composant, crée `.claude/rules/stack-<composant>.md`, avec `paths: ["<path>/**"]` en frontmatter et **30 lignes au plus**. Contenu :
 
@@ -133,15 +138,15 @@ Pour chaque composant, crée `.claude/rules/stack-<composant>.md`, avec `paths: 
 
 Rien de générique à la stack : l'agent le sait déjà.
 
-### 9. Outillage CI
+### 10. Outillage CI
 
 Si `.harness/ci/setup/action.yml` existe, remplace son étape d'avertissement par les étapes de `references/ci-setup.md` pour les stacks des composants. Node est déjà installé par le workflow.
 
-### 10. Trace sur un projet existant
+### 11. Trace sur un projet existant
 
 Si `openspec/specs/` contient déjà des scénarios sans test tagué (`node .harness/hx.mjs trace`), fixe `trace.min_coverage` à la couverture actuelle (cliquet) et dis-le à l'utilisateur. La valeur ne doit que monter ensuite.
 
-### 11. Carte du projet
+### 12. Carte du projet
 
 Réécris `.harness/project.md` en **40 lignes au plus** et **supprime le marqueur `hx:todo`** :
 
@@ -152,7 +157,7 @@ Réécris `.harness/project.md` en **40 lignes au plus** et **supprime le marque
 - **Conventions propres au projet** : seulement celles qui sont non standard.
 - **Architecture** : niveau, features en écart, écarts constatés.
 
-### 12. Conclure
+### 13. Conclure
 
 ```bash
 node .harness/hx.mjs doctor

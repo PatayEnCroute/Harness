@@ -73,7 +73,7 @@ C'est le cœur de l'agnosticité.
 
 | | **Générique** (vient du template, mis à jour par `copier update`) | **Spécifique** (personnalisé à l'intégration par `/hx-setup`) |
 |---|---|---|
-| Fichiers | `CLAUDE.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.claude/rules/{openspec,testing,architecture}.md`, `.claude/settings.json`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `.harness/config.schema.json`, `.harness/versions.json`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json` (commandes, profil d'architecture, trace), `.harness/project.md` (carte, importée par `CLAUDE.md`), `.claude/rules/stack-*.md`, `.harness/ci/setup/action.yml` (outillage CI), `.github/dependabot.yml`, `.github/CODEOWNERS`, configuration `arch` |
+| Fichiers | `CLAUDE.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.claude/rules/{openspec,testing,architecture,comments}.md`, `.claude/settings.json`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `.harness/config.schema.json`, `.harness/versions.json`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json` (commandes, profil d'architecture, trace), `.harness/project.md` (carte, importée par `CLAUDE.md`), `.claude/rules/stack-*.md`, `.harness/ci/setup/action.yml` (outillage CI), `.github/dependabot.yml`, `.github/CODEOWNERS`, configuration `arch`, règles de lint des commentaires |
 | Change… | quand le Harness s'améliore | une seule fois par projet, puis rarement |
 | Conflits `copier update` | gérés par la fusion à 3 voies | **aucun** : fichiers créés par `/hx-setup`, absents du template ou marqués `_skip_if_exists` |
 
@@ -135,7 +135,7 @@ C'est la seule interface entre le harness et la stack. Il gère aussi les projet
 flowchart LR
   D["1. Détecter<br/>manifestes : package.json,<br/>*.csproj, pyproject, go.mod…"] --> C["2. Proposer<br/>composants + commandes"]
   C --> X["3. Exécuter<br/>chaque commande<br/>(preuve)"]
-  X --> R["4. Rédiger<br/>rules stack · carte project.md<br/>setup CI"]
+  X --> R["4. Rédiger<br/>rules stack · lint commentaires<br/>carte project.md · setup CI"]
   R --> V["5. Valider<br/>tu relis le diff"]
 ```
 
@@ -336,6 +336,7 @@ src/
 | `.claude/rules/openspec.md` | `openspec/**` | template | SHALL/MUST, scénarios WHEN/THEN testables, concision |
 | `.claude/rules/testing.md` | fichiers de test | template | Tag de traçabilité `@scenario`, un comportement par test |
 | `.claude/rules/architecture.md` | fichiers source (extensions des langages courants) | template | Forme feature-first, règle de dépendance, « pas de besoin, pas de couche » |
+| `.claude/rules/comments.md` | fichiers source (mêmes extensions) | template | Par défaut aucun commentaire ; autorisés : pourquoi, contrat public, directive outil ; un commentaire qui contredit le code est bloquant. Formes vérifiées par le lint du projet (`/hx-setup`) |
 | `.claude/rules/stack-*.md` | globs de la stack | **`/hx-setup`** | Idiomes, pièges, conventions observées |
 
 ### Hooks (`.claude/settings.json` → `.harness/hooks.mjs`)
@@ -380,7 +381,7 @@ Harness/
 │   ├── .claude/
 │   │   ├── skills/hx-*/  # 12 skills
 │   │   ├── agents/hx-*.md # 7 agents
-│   │   ├── rules/        # 3 rules
+│   │   ├── rules/        # 4 rules
 │   │   └── settings.json # hooks, permissions
 │   ├── .harness/
 │   │   ├── hx.mjs  hooks.mjs

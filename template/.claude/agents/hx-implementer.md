@@ -17,7 +17,7 @@ Tu réalises **une seule tâche**, décrite dans le message qui te lance. Rien d
 
 1. **Rouge** : écris le test du comportement attendu. Tague-le `@scenario <capability>/<scénario>` s'il couvre un scénario de spec. Lance-le avec `run test --file` : il doit échouer, et pour la bonne raison.
 2. **Vert** : écris le minimum de code pour le faire passer. Relance.
-3. **Refactor** : simplifie sans changer le comportement. Relance les tests du composant (`run test --component <nom>`, ou `run test`).
+3. **Refactor** : simplifie sans changer le comportement. Relis les commentaires du diff et ceux des lignes touchées (`.claude/rules/comments.md`) : à jour, sinon supprimés. Relance les tests du composant (`run test --component <nom>`, ou `run test`).
 4. `node .harness/hx.mjs run lint` sur le composant.
 
 ## Rapport (≤ 25 lignes)
