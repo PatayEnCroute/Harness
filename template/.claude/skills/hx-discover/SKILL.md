@@ -28,7 +28,7 @@ But : une spec de base **fidèle au comportement actuel**, pour que les prochain
    - **Tu fais ces tâches toi-même**, sans `hx-implement` : `hx-implementer` refuse une tâche qui n'est qu'un test. Coche chaque tâche dans `tasks.md` après avoir vu son test passer (`node .harness/hx.mjs run test --file <chemin>`).
    - **Pas de `hx-review`** : aucun code de production ne change. La relecture est celle de l'utilisateur, sur le rapport (étape 7).
 5. **Vérifier** : `node .harness/hx.mjs openspec validate --all --strict`, puis `node .harness/hx.mjs check`. La trace doit être complète pour ce change.
-6. **Archiver** : `/opsx:archive baseline-<capability>`. La spec devient une spec principale.
+6. **Archiver** : `node .harness/hx.mjs openspec archive baseline-<capability> -y` (la CLI écrit les specs principales sans confirmation, comme dans `/hx-ship`), puis `node .harness/hx.mjs check`. La spec devient une spec principale.
 7. **Rapport** : exigences spécifiées, tests reliés ou écrits, bugs suspectés (à trancher par l'utilisateur), écarts d'architecture constatés.
 
 Si la couverture des specs principales reste partielle sur un projet existant, ajuste `trace.min_coverage` dans `.harness/config.json` à la valeur atteinte (cliquet), jamais à la baisse.
