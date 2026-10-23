@@ -1,0 +1,1 @@
+Modifie `sum` (`src/sum.js`) : quand un des deux arguments n'est pas un nombre, elle doit lever une erreur `Entrée non numérique` au lieu de renvoyer un résultat. La demande est complète : tu n'as pas de question à me poser avant de commencer.
