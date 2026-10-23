@@ -236,12 +236,25 @@ describe('hooks Claude Code', () => {
       'openspec/changes/add-mult/.openspec.yaml': 'schema: spec-driven\nx-track: M\n',
       'openspec/changes/add-mult/tasks.md': '## 1\n- [x] 1.1 a\n- [ ] 1.2 b\n',
       'openspec/changes/add-div/.openspec.yaml': 'schema: spec-driven\nx-track: M\nx-validated: 2026-10-18\n',
+      'openspec/changes/add-div/run-report.md': '## add-div : Prêt à livrer\n',
     });
     const r = hook('session-start', root);
     assert.equal(r.code, 0);
     assert.match(r.stdout, /\/hx-setup/);
     assert.match(r.stdout, /add-mult \(piste M, cadrage non validé, 1\/2 tâches\)/);
-    assert.match(r.stdout, /add-div \(piste M, cadrage validé le 2026-10-18, 0\/0 tâches\)/);
+    assert.match(r.stdout, /add-div \(piste M, cadrage validé le 2026-10-18, 0\/0 tâches, rapport : Prêt à livrer\)/);
+    assert.doesNotMatch(r.stdout, /autres worktrees/);
+  });
+
+  test('session-start : changes des autres worktrees signalés, avec leur étape', () => {
+    const { root, git } = gitProject({ components: {} });
+    const other = `${root}-add-mult`;
+    git('worktree', 'add', '-q', '-b', 'add-mult', other);
+    write(other, 'openspec/changes/add-mult/.openspec.yaml', 'x-track: M\nx-validated: 2026-10-18\n');
+    write(other, 'openspec/changes/add-mult/tasks.md', '- [x] 1.1 a\n- [ ] 1.2 b\n');
+    const r = hook('session-start', root);
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /Changes dans d'autres worktrees : add-mult \(run en cours\)\. Détail : node \.harness\/hx\.mjs status/);
   });
 
   test('session-start : CLI openspec installée si absente ; en local, une autre version est laissée', { skip: process.platform === 'win32' }, () => {

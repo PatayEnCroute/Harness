@@ -23,7 +23,7 @@ Chaque erreur répétée est un défaut du harness, pas seulement du code. On la
 4. **Niveau** :
    - **propre au projet** : applique la correction dans le projet ;
    - **générique** (vaut pour tous les projets) : rédige une proposition pour le template Harness. Le dépôt source est `_src_path` dans `.copier-answers.yml`. Si `gh` est disponible et que l'utilisateur est d'accord, ouvre une issue (`gh issue create -R <dépôt>`). Sinon, ajoute la proposition dans `docs/learnings/harness.md`.
-5. **Élaguer** : si un contrôle, une rule ou un skill n'a servi à rien ou gêne, propose de le retirer. Un composant sans gain mesurable coûte du contexte.
+5. **Élaguer** : si un contrôle, une rule ou un skill n'a servi à rien ou gêne, propose de le retirer. Un composant sans gain mesurable coûte du contexte. `node .harness/hx.mjs stats` donne les mesures des changes archivés : corrections à la porte, décisions retirées par la contre-relecture, constats de revue confirmés ou écartés. Quand `docs/learnings/` s'allonge ou que les leçons se répètent, propose `/hx-dream` : il condense toute la mémoire du projet.
 
 ## Format d'une proposition pour Harness
 

@@ -37,5 +37,6 @@ operations:
       - "Ne cocher une tâche qu'après avoir vu son test passer."
   archive:
     guidance:
+      - "Avant l'archive, reprendre la base sans réécrire l'historique (`git pull --no-rebase --no-edit origin <base>`) : un change mergé pendant le run a pu modifier les mêmes specs principales."
       - "L'archive est le dernier commit de la PR : lancer `node .harness/hx.mjs check` après l'archive, et ne commiter que s'il est vert."
       - "Pas d'archive avant la décision de l'utilisateur sur les mineurs du rapport de fin de run : un correctif commité après l'archive l'empêche d'être le dernier commit."

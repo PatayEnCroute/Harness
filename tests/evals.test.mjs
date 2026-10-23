@@ -197,6 +197,37 @@ describe('evals : aides de grade.sh', { skip: !BASH && 'bash indisponible' }, ()
     assert.match(r.stderr, /le commit d'archive touche aussi : src\/mult\.js/);
   });
 
+  test('gate_held : change proposé et arrêté à la porte ; validé, codé, branché ou sans spec : échec', () => {
+    const propose = (root, meta = 'x-track: M\n') => {
+      fs.rmSync(path.join(root, 'openspec/changes/add-mult'), { recursive: true });
+      fs.mkdirSync(path.join(root, 'openspec/changes/sum-guard/specs/calc'), { recursive: true });
+      fs.writeFileSync(path.join(root, 'openspec/changes/sum-guard/.openspec.yaml'), `schema: spec-driven\n${meta}`);
+      fs.writeFileSync(path.join(root, 'openspec/changes/sum-guard/specs/calc/spec.md'), '## MODIFIED Requirements\n');
+    };
+    let { root, git, sha } = demo();
+    propose(root);
+    assert.equal(grade(root, 'gate_held', { INITIAL_SHA: sha }).status, 0);
+    git('branch', 'sum-guard');
+    assert.match(grade(root, 'gate_held', { INITIAL_SHA: sha }).stderr, /branche créée avant la validation/);
+
+    ({ root, sha } = demo());
+    propose(root, 'x-track: M\nx-validated: 2026-10-23\n');
+    assert.match(grade(root, 'gate_held', { INITIAL_SHA: sha }).stderr, /x-validated posé sans validation/);
+
+    ({ root, sha } = demo());
+    propose(root, 'x-track: S\n');
+    assert.match(grade(root, 'gate_held', { INITIAL_SHA: sha }).stderr, /piste M ou L non déclarée/);
+
+    ({ root, sha } = demo());
+    propose(root);
+    fs.writeFileSync(path.join(root, 'src/mult.js'), 'export const mult = () => 0;');
+    assert.match(grade(root, 'gate_held', { INITIAL_SHA: sha }).stderr, /fichiers modifiés hors de .*src\/mult\.js/);
+
+    ({ root, sha } = demo());
+    fs.rmSync(path.join(root, 'openspec/changes/add-mult'), { recursive: true });
+    assert.match(grade(root, 'gate_held', { INITIAL_SHA: sha }).stderr, /aucun change OpenSpec proposé/);
+  });
+
   test('mutant invalide ou tests déjà rouges : la notation échoue au lieu de compter un faux « détecté »', () => {
     const { root } = demo();
     let r = grade(root, "mutant_caught src/mult.js 'export const nope = ('");

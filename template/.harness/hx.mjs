@@ -14,7 +14,7 @@ export const DOCTOR_STEPS = ['lint', 'typecheck', 'build', 'arch', 'test'];
 export const CONFIG_PATH = '.harness/config.json';
 const LOCAL_SETTINGS = '.claude/settings.local.json';
 
-const VALUE_FLAGS = new Set(['file', 'component', 'path', 'branch']);
+const VALUE_FLAGS = new Set(['file', 'component', 'path', 'branch', 'since']);
 const TAIL_LINES = 60;
 const IGNORED_DIRS = new Set([
   'node_modules', 'bower_components', 'vendor', 'dist', 'build', 'out', 'target', 'bin', 'obj',
@@ -798,6 +798,111 @@ export function createWorktree(root, change, { target, branch = change } = {}) {
   return { target: dest, branch, moved, stayed: fs.existsSync(path.join(root, rel)) };
 }
 
+export const RUN_REPORT = 'run-report.md';
+
+// Verdict du rapport de fin de run écrit par hx-review, lu sur son titre « ## <change> : <verdict> ».
+// null sans rapport ; « illisible » si le titre n'a pas ce format.
+export function reportVerdict(dir) {
+  const file = path.join(dir, RUN_REPORT);
+  if (!fs.existsSync(file)) return null;
+  return /^##\s+[^:\n]+?\s+:\s+(.+?)\s*$/m.exec(readText(file))?.[1] ?? 'illisible';
+}
+
+export function changeState(dir) {
+  const meta = readChangeMeta(dir);
+  const tasks = taskProgress(dir);
+  const report = reportVerdict(dir);
+  let stage = 'run en cours';
+  if (!meta['x-validated']) stage = 'cadrage';
+  else if (report) stage = `rapport : ${report}`;
+  else if (tasks.done === 0) stage = 'validé, run à lancer';
+  return { track: meta['x-track'] ?? null, validated: meta['x-validated'] ?? null, tasks, report, stage };
+}
+
+function realPath(p) {
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+// Changes en cours de chaque worktree du dépôt, dossier principal compris : un run avance dans son worktree pendant
+// que l'utilisateur cadre le change suivant ailleurs. Hors dépôt git : le seul dossier du projet.
+export function worktreeStatus(root) {
+  const listed = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: root, encoding: 'utf8' });
+  const trees = listed.status !== 0 ? [{ path: root, branch: null }] : listed.stdout.split(/\r?\n\r?\n/).map((block) => {
+    const tree = { path: null, branch: null };
+    for (const line of block.split(/\r?\n/)) {
+      const [key, ...value] = line.split(' ');
+      if (key === 'worktree') tree.path = value.join(' ');
+      else if (key === 'branch') tree.branch = value.join(' ').replace(/^refs\/heads\//, '');
+      else if (key === 'bare') tree.bare = true;
+    }
+    return tree;
+  }).filter((tree) => tree.path && !tree.bare && fs.existsSync(tree.path));
+  const here = realPath(root);
+  return trees.map(({ path: dir, branch }) => ({
+    path: dir,
+    branch,
+    current: realPath(dir) === here,
+    changes: listChanges(dir).map((change) => ({ name: change.name, ...changeState(change.dir) })),
+  }));
+}
+
+export function formatStatus(trees) {
+  return trees.flatMap((tree) => [
+    `${tree.path}${tree.branch ? ` (${tree.branch})` : ''}${tree.current ? ' · ce dossier' : ''}`,
+    ...(tree.changes.length ? tree.changes.map((c) => `  ${c.name} · piste ${c.track ?? '?'} · ${c.stage}${c.tasks.total ? ` · tâches ${c.tasks.done}/${c.tasks.total}` : ''}`) : ['  aucun change en cours']),
+  ]).join('\n');
+}
+
+// Mesures de la revue d'élagage (docs/elagage.md), écrites dans .openspec.yaml par hx-triage (porte) et hx-review.
+// Une clé absente veut dire « non mesuré » (étape non passée, ou change antérieur), jamais zéro.
+export const METRICS = [
+  { key: 'x-gate-corrections', label: 'Porte de cadrage, corrections demandées' },
+  { key: 'x-gate-removed', label: 'Contre-relecture, décisions retirées ou simplifiées' },
+  { key: 'x-review-confirmed', label: 'Revue, constats bloquants ou importants confirmés' },
+  { key: 'x-review-discarded', label: 'Revue, constats écartés (faux positifs)' },
+];
+
+// Agrège les mesures des changes archivés (date de l'archive ≥ since, si donnée).
+export function stats(root, { since } = {}) {
+  const archived = listChanges(root, { archived: true })
+    .filter((c) => c.archived && (!since || (/^\d{4}-\d{2}-\d{2}/.exec(c.name)?.[0] ?? '') >= since));
+  const tracks = {};
+  const metrics = Object.fromEntries(METRICS.map(({ key }) => [key, { total: 0, measured: 0, nonzero: 0 }]));
+  const invalid = [];
+  for (const change of archived) {
+    const meta = readChangeMeta(change.dir);
+    const track = meta['x-track'] ?? '?';
+    tracks[track] = (tracks[track] ?? 0) + 1;
+    for (const { key } of METRICS) {
+      if (meta[key] === undefined) continue;
+      if (!/^\d+$/.test(meta[key])) {
+        invalid.push(`${change.name} : ${key}: ${meta[key]}`);
+        continue;
+      }
+      const m = metrics[key];
+      m.total += Number(meta[key]);
+      m.measured += 1;
+      if (Number(meta[key]) > 0) m.nonzero += 1;
+    }
+  }
+  return { since: since ?? null, archived: archived.length, tracks, metrics, invalid };
+}
+
+export function formatStats(report) {
+  const tracks = Object.entries(report.tracks).map(([t, n]) => `${t} ${n}`).join(' · ');
+  const lines = [`${report.archived} change(s) archivé(s)${report.since ? ` depuis le ${report.since}` : ''}${tracks ? ` (${tracks})` : ''}`];
+  for (const { key, label } of METRICS) {
+    const m = report.metrics[key];
+    lines.push(m.measured ? `  ${label} : ${m.total} · ${m.nonzero} change(s) concerné(s) sur ${m.measured} mesuré(s)` : `  ${label} : non mesuré`);
+  }
+  if (report.invalid.length) lines.push('Valeurs ignorées (entier attendu) :', ...report.invalid.map((x) => `  - ${x}`));
+  return lines.join('\n');
+}
+
 // ---------------------------------------------------------------------------
 // Commandes CLI
 // ---------------------------------------------------------------------------
@@ -1138,6 +1243,26 @@ function cmdWorktree(root, args) {
   return 0;
 }
 
+function cmdStatus(root, args) {
+  const trees = worktreeStatus(root);
+  if (parseFlags(args).json) console.log(JSON.stringify(trees, null, 2));
+  else console.log(`hx status\n${formatStatus(trees)}`);
+  return 0;
+}
+
+function cmdStats(root, args) {
+  const opts = parseFlags(args);
+  if (missingValue(opts)) return 2;
+  if (opts.since !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(opts.since)) {
+    console.error('hx : --since attend une date AAAA-MM-JJ');
+    return 2;
+  }
+  const report = stats(root, { since: opts.since });
+  if (opts.json) console.log(JSON.stringify(report, null, 2));
+  else console.log(`hx stats\n${formatStats(report)}`);
+  return 0;
+}
+
 function cmdOpenspec(root, args) {
   return execute(openspecCommand(root, args), root, { capture: false }).code;
 }
@@ -1156,6 +1281,9 @@ const HELP = `hx : contrat de commandes du harness
                       propose les composants à partir des manifestes
   hx worktree <change> [--path <dossier>] [--branch <nom>]
                       branche + worktree frère pour le run d'un change validé (y déplace et commite le change s'il est nouveau)
+  hx status [--json]  changes en cours de chaque worktree : piste, étape (cadrage, run, rapport), tâches
+  hx stats [--since AAAA-MM-JJ] [--json]
+                      mesures d'élagage des changes archivés (porte, contre-relecture, revue)
   hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 
@@ -1171,6 +1299,8 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
     case 'trace': return cmdTrace(root, rest);
     case 'migrate': return cmdMigrate(root);
     case 'worktree': return cmdWorktree(root, rest);
+    case 'status': return cmdStatus(root, rest);
+    case 'stats': return cmdStats(root, rest);
     case 'openspec': return cmdOpenspec(root, rest);
     case undefined: case 'help': case '--help': case '-h':
       console.log(HELP);

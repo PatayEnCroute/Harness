@@ -49,6 +49,7 @@
       "Bash(git worktree remove --force *)",
       "Bash(git worktree remove -f *)",
       "Bash(git bisect run *)",
+      "Bash(git rm *)",
       "Bash(gh issue create *)"
     ],
     "deny": [

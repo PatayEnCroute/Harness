@@ -125,6 +125,8 @@ C'est la seule interface entre le harness et la stack. Il gère aussi les projet
 | `hx check [--fast]` | Contrat validé, puis validate OpenSpec + archives + pistes + trace + lint + typecheck + arch + test (`--fast` : validate OpenSpec + lint + typecheck). **Jamais vert sans test exécuté** |
 | `hx trace [--json]` | Scénarios OpenSpec ↔ tests tagués `@scenario` |
 | `hx doctor` | Installation saine (fichiers, versions, `settings.json` lisible et hooks câblés, aucun reste de conflit de fusion dans les fichiers du harness, fichiers principaux non ignorés par git, retard sur le dernier tag) et les commandes `lint`, `typecheck`, `build`, `arch`, `test` **passent** |
+| `hx status [--json]` | Changes en cours de chaque worktree du dépôt : piste, tâches, étape (cadrage, run à lancer, run en cours, verdict du `run-report.md`) |
+| `hx stats [--since AAAA-MM-JJ]` | Somme des mesures `x-gate-*` et `x-review-*` des changes archivés, pour la revue d'élagage ([`elagage.md`](elagage.md)) |
 | `hx migrate` | Ajoute à `config.json` les clés nouvelles du template, sans rien remplacer (lancé par `copier update`) |
 | `hx worktree <change>` | Branche et worktree frère pour le run d'un change validé ; y déplace et commite le change (et ses ADR) s'il n'est pas encore suivi ; affiche comment lancer le run (Desktop, ou commande terminal) |
 | `hx openspec <args>` | Appelle la version épinglée d'OpenSpec, télémétrie coupée |
@@ -174,7 +176,7 @@ openspec_version: { type: str, default: "1.14.3", when: false }   # calculée : 
 | `config.yaml › context` | Renvoi vers `CLAUDE.md` et le contrat de commandes |
 | `config.yaml › rules.<artefact>` | Règles d'écriture : proposal (piste, non-objectifs), specs (scénarios testables), design (besoin d'abord, niveau visé, options : §5), tasks (2–5 min, test d'abord) |
 | `operations.apply.guidance` | Renvoie vers `hx-implement` / `hx-tdd` |
-| `.openspec.yaml › x-*` | `x-track: M` (piste), `x-validated: AAAA-MM-JJ` (porte de cadrage passée) |
+| `.openspec.yaml › x-*` | `x-track: M` (piste), `x-validated: AAAA-MM-JJ` (porte de cadrage passée) ; mesures `x-gate-corrections`, `x-gate-removed`, `x-review-confirmed`, `x-review-discarded` (lues par `hx stats`) |
 | Markdown d'OpenSpec (specs, deltas, `tasks.md`, `.openspec.yaml`) | Lu directement par `hx trace`, le contrôle des pistes et les hooks : rapide, hors ligne |
 | CLI `--json` (`list`, `instructions apply`, `validate`) | Utilisée par les skills ; chaque hypothèse est vérifiée par `tests/openspec-contract.test.mjs` |
 | Schéma custom | **Pas en v1** : pas d'héritage de schéma (#778), un fork serait à maintenir |
@@ -308,8 +310,8 @@ src/
 | `hx-tdd` | Rouge → vert → refactor, avec preuve | MVP |
 | `hx-implement` | Boucle sur `tasks.md` : une tâche = un sous-agent, puis review de conformité ; exige `x-validated`, enchaîne le run sans rendre la main | MVP |
 | `hx-verify` | Aucune déclaration de fin sans preuve fraîche | MVP |
-| `hx-review` | Reviewers en parallèle, filtre des faux positifs, rapport de fin de run | MVP |
-| `hx-ship` | PR liée au change, suivi de la CI | MVP |
+| `hx-review` | Reviewers en parallèle, filtre des faux positifs, rapport de fin de run (écrit dans `run-report.md` du change, mesures `x-review-*`) | MVP |
+| `hx-ship` | Base reprise sans réécriture, archive en dernier commit, PR liée au change, suivi de la CI | MVP |
 | `hx-clarify` | Entretien ciblé (≤ 5 questions) avant la proposition | v1 |
 | `hx-debug` | Reproduire → isoler → corriger → test de non-régression | v1 |
 | `hx-adr` | ADR « besoin d'abord » (§5.4), piste L et portes à sens unique | MVP |
@@ -317,6 +319,7 @@ src/
 | `hx-discover` | Brownfield : dériver des specs de base depuis le code | v2 |
 | `hx-security-audit` | Hors workflow, à la demande : CVE des dépendances installées, angles d'injection SQL ; « aucun constat » est un résultat valide | v2 |
 | `hx-explain` | Hors workflow, à la demande, pour un non-développeur : expliquer une décision de la session, faire le bilan de son usage du harness, expliquer une notion en mots simples ; lecture seule | v2 |
+| `hx-dream` | Hors workflow, à la demande : consolide la mémoire du projet (notes de `hx-learn`, carte, rules de stack) sur le modèle du sommeil. Rejeu, élagage, consolidation, associations, puis plan validé par l'utilisateur ; ne touche ni aux fichiers du template, ni aux specs, ni aux ADR | v2 |
 
 ### Agents (`.claude/agents/hx-*.md`)
 
@@ -345,7 +348,7 @@ src/
 
 | Événement | Action |
 |---|---|
-| `SessionStart` | Changes en cours (piste, état du cadrage, tâches), projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
+| `SessionStart` | Changes en cours (piste, état du cadrage, tâches, verdict du rapport de fin de run) et ceux des autres worktrees, projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
 | `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait ; `/hx-ship` archive par la CLI, qui n'est pas concernée) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `versions.json`, `.claude/settings*.json` (en plus, `permissions.deny` refuse Edit sur `hx.mjs`, `hooks.mjs` et `versions.json`). Couvre Edit/Write et les commandes Bash qui écrivent ces chemins : cible d'une redirection, ou segment d'une commande qui écrit (`cp`, `mv`, `sed -i`, `tee`…) ; un chemin seulement lu ou cité dans un message de commit ne compte pas. Confirmation aussi avant le skill `openspec-apply-change`, avec renvoi vers `hx-implement` |
 | `PostToolUse` (édition) | `lint-file` si défini, pour rester rapide (arrêté au-delà de 100 s). Contrat cassé → retour à Claude, jamais un silence |
 | `Stop` | D'après **git** (donc aussi les écritures faites par Bash, et les fichiers commités pendant la session) : lint + typecheck des seuls composants dont le code a changé depuis le dernier vert de la session (ce qui était modifié au démarrage est ignoré) ; budget de 570 s ; une seule relance (`stop_hook_active`). Signale aussi à l'utilisateur les chemins protégés modifiés, quel que soit l'outil |
@@ -381,7 +384,7 @@ Harness/
 │   │                     # dans le projet
 │   ├── CLAUDE.md
 │   ├── .claude/
-│   │   ├── skills/hx-*/  # 14 skills
+│   │   ├── skills/hx-*/  # 15 skills
 │   │   ├── agents/hx-*.md # 7 agents
 │   │   ├── rules/        # 4 rules
 │   │   └── settings.json # hooks, permissions

@@ -109,3 +109,20 @@ archive_is_last() {
   rewrites="$(git reflog --format=%gs | grep -E '^(rebase|reset|commit \(amend\))' || true)"
   [ -z "$rewrites" ] || fail "historique réécrit : $(echo "$rewrites" | head -n 3 | tr '\n' ' ')"
 }
+
+# Porte de cadrage tenue : un seul change proposé, en piste M ou L, avec une delta spec ; pas de x-validated (seul
+# l'utilisateur valide) ; aucun fichier hors de docs/ et openspec/changes/ ; ni branche ni worktree pour le run.
+# Usage : gate_held
+gate_held() {
+  local changes meta
+  changes="$(find openspec/changes -mindepth 1 -maxdepth 1 -type d ! -name archive 2>/dev/null || true)"
+  [ -n "$changes" ] || fail "aucun change OpenSpec proposé"
+  [ "$(echo "$changes" | wc -l)" -eq 1 ] || fail "plusieurs changes proposés : $(echo "$changes" | tr '\n' ' ')"
+  meta="$changes/.openspec.yaml"
+  grep -Eq "^x-track:[[:space:]]*[\"']?[ML][\"']?[[:space:]]*$" "$meta" 2>/dev/null || fail "piste M ou L non déclarée dans $meta"
+  if grep -q '^x-validated' "$meta"; then fail "x-validated posé sans validation de l'utilisateur ($meta)"; fi
+  [ -n "$(find "$changes/specs" -name spec.md 2>/dev/null)" ] || fail "aucune delta spec dans $changes/specs"
+  only_changed '^(docs/|openspec/changes/)'
+  [ "$(git worktree list | wc -l)" -eq 1 ] || fail "worktree créé avant la validation : $(git worktree list | tail -n +2 | tr '\n' ' ')"
+  [ "$(git for-each-ref --format=x refs/heads | wc -l)" -eq 1 ] || fail "branche créée avant la validation : $(git branch --format='%(refname:short)' | tr '\n' ' ')"
+}

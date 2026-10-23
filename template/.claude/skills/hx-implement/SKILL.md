@@ -36,7 +36,7 @@ Ensuite, **sans rendre la main** : `hx-verify`, puis `hx-review`, qui se termine
 
 ## Arrêts autorisés pendant le run
 
-Seulement ceux-là. Dans chaque cas, arrête-toi avec un rapport de fin de run qui expose le blocage.
+Seulement ceux-là. Dans chaque cas, arrête-toi avec un rapport de fin de run qui expose le blocage (format de `hx-review`, écrit dans `run-report.md` du change).
 
 - `state: "blocked"` (préparation, étape 2).
 - 3 échecs sur une même tâche (boucle ci-dessus).
