@@ -182,6 +182,19 @@ describe('cohérence et budgets', () => {
     assert.deepEqual(allow.filter((rule) => /git (push|reset|rebase|checkout|clean)/.test(rule)), []);
   });
 
+  test('hx-dream : hors workflow, aucune invention, plan validé avant écriture, fichiers du template et specs intouchés', () => {
+    const { data, body } = frontmatter(read(path.join(claude, 'skills', 'hx-dream', 'SKILL.md')));
+    assert.equal(data['disable-model-invocation'], 'true', 'lancé à la demande, jamais par le workflow');
+    for (const phase of ['Endormissement', 'Sommeil lent', 'Homéostasie', 'Consolidation', 'Sommeil paradoxal', 'Réveil']) assert.match(body, new RegExp(`### \\d\\. ${phase}`), phase);
+    assert.match(body, /\*\*Pas de fabulation\.\*\*/);
+    assert.match(body, /« Rien à condenser » est un résultat valide/);
+    assert.match(body, /attends une validation explicite/);
+    assert.match(body, /`docs\/adr\/`, `openspec\/specs\/` .*\*\*jamais modifiés\*\*/);
+    assert.match(body, /Fichiers du template .*\*\*jamais modifiés\*\*/);
+    const { ask } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
+    assert.ok(ask.includes('Bash(git rm *)'), 'oublier une note se confirme fichier par fichier');
+  });
+
   test('settings.json : chaque commande citée par un prompt est autorisée, ou confirmée exprès (ask)', () => {
     const { allow, ask } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
     // Sémantique de Claude Code : « X * » couvre « X » suivi d'arguments, pas « X » seul.

@@ -319,6 +319,7 @@ src/
 | `hx-discover` | Brownfield : dériver des specs de base depuis le code | v2 |
 | `hx-security-audit` | Hors workflow, à la demande : CVE des dépendances installées, angles d'injection SQL ; « aucun constat » est un résultat valide | v2 |
 | `hx-explain` | Hors workflow, à la demande, pour un non-développeur : expliquer une décision de la session, faire le bilan de son usage du harness, expliquer une notion en mots simples ; lecture seule | v2 |
+| `hx-dream` | Hors workflow, à la demande : consolide la mémoire du projet (notes de `hx-learn`, carte, rules de stack) sur le modèle du sommeil. Rejeu, élagage, consolidation, associations, puis plan validé par l'utilisateur ; ne touche ni aux fichiers du template, ni aux specs, ni aux ADR | v2 |
 
 ### Agents (`.claude/agents/hx-*.md`)
 
@@ -383,7 +384,7 @@ Harness/
 │   │                     # dans le projet
 │   ├── CLAUDE.md
 │   ├── .claude/
-│   │   ├── skills/hx-*/  # 14 skills
+│   │   ├── skills/hx-*/  # 15 skills
 │   │   ├── agents/hx-*.md # 7 agents
 │   │   ├── rules/        # 4 rules
 │   │   └── settings.json # hooks, permissions
