@@ -16,7 +16,7 @@ Celui qui a écrit le code ne le juge pas. Les relecteurs n'ont pas ton contexte
    - `hx-code-reviewer`, toujours ;
    - `hx-security-reviewer`, si le diff touche des entrées externes, l'authentification, des données personnelles, des secrets, des dépendances, la CI ou l'infrastructure.
 3. **Filtre** : les trois relecteurs emploient la même échelle (`bloquant`, `important`, `mineur`). Pour chaque constat bloquant ou important, va lire la ligne citée et confirme-le toi-même. Écarte ce que tu ne peux pas confirmer, avec une raison d'une ligne.
-4. **Corrige** les constats bloquants confirmés, en TDD (`hx-tdd`), puis relance `hx-verify`.
+4. **Corrige** les constats bloquants et importants confirmés, en TDD (`hx-tdd`), puis relance `hx-verify`. Un important dont la correction sortirait du change (autre feature, refonte) n'est pas corrigé : il rejoint les mineurs proposés, marqué `important`, avec sa raison.
 5. **Mineurs** : ne les corrige pas sans l'accord de l'utilisateur, et ne lui pose pas la question en cours de run. Liste-les dans le rapport, qui se termine par la question. Tant qu'elle n'a pas de réponse, pas d'archive ni de livraison, même si l'utilisateur a demandé la PR d'avance : un correctif commité après l'archive l'empêche d'être le dernier commit.
 
 ## Rapport de fin de run
