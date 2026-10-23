@@ -4,7 +4,7 @@
 
 ## Méthode
 
-1. **Mesurer** : `evals/run.sh --runs 10 <scénario>`, puis la même commande avec `--without <skill>` (en dessous de 10 exécutions, 90 % et 70 % de réussite ne se distinguent pas). Chaque campagne écrit ses résultats dans `evals/results/` ; commite ceux qui fondent une décision.
+1. **Mesurer** : `node .harness/hx.mjs stats` dans un projet réel, pour les signaux d'usage (porte, contre-relecture, revue) ; `evals/run.sh --runs 10 <scénario>`, puis la même commande avec `--without <skill>` (en dessous de 10 exécutions, 90 % et 70 % de réussite ne se distinguent pas). Chaque campagne écrit ses résultats dans `evals/results/` ; commite ceux qui fondent une décision.
 2. **Décider** :
 
    | Résultat | Décision |
@@ -24,10 +24,11 @@
 | `hx-tdd` | Le modèle écrit le code avant le test, ou des tests qui ne peuvent pas échouer | eval `tdd-s` avec `--without hx-tdd` | Réussite égale sans le skill |
 | `hx-implement` | Le contexte se dégrade sur un long change ; le modèle sort de la spec | eval `implement-m` | Réussite égale sans le skill, sur un change de 5 tâches ou plus |
 | `hx-verify` + hook `Stop` | Le modèle déclare « terminé » sans preuve | evals `tdd-s`, `implement-m` : `hx check` vert à la fin | Plus aucun échec de `check` en fin d'eval sans le skill |
-| Porte de cadrage (`x-validated`) | Le modèle spécifie autre chose que la demande, puis l'implémente fidèlement | corrections demandées à la porte ; hypothèses du rapport de fin de run infirmées par l'utilisateur | Aucune correction à la porte sur un trimestre |
-| Contre-relecture du cadrage (`hx-architect` relecteur, M avec `design.md` et L) | Le modèle sur-dimensionne le cadrage (scénarios, configuration, composants sans besoin exprimé) et ne le conteste pas lui-même | décisions retirées par la contre-relecture ; réécritures demandées à la porte pour sur-dimensionnement | Aucune décision retirée sur un trimestre |
+| Porte de cadrage (`x-validated`) | Le modèle spécifie autre chose que la demande, puis l'implémente fidèlement | `x-gate-corrections` (`hx stats`) ; hypothèses du rapport de fin de run infirmées par l'utilisateur  | Aucune correction à la porte sur un trimestre |
+| Contre-relecture du cadrage (`hx-architect` relecteur, M avec `design.md` et L) | Le modèle sur-dimensionne le cadrage (scénarios, configuration, composants sans besoin exprimé) et ne le conteste pas lui-même | `x-gate-removed` (`hx stats`) ; réécritures demandées à la porte pour sur-dimensionnement | Aucune décision retirée sur un trimestre |
 | `hx worktree` | Deux changes dans un même dossier se gênent (trace, pistes, commits) | runs interrompus par un change voisin | — (contrôle déterministe, coût quasi nul) |
-| `hx-review` + reviewers | Le modèle juge mal son propre travail | constats confirmés par revue (`hx-review`) | Moins d'un constat confirmé par PR sur un trimestre |
+| `hx status` | L'utilisateur perd le fil des runs qui avancent dans d'autres worktrees | runs restés au rapport sans livraison | — (lecture déterministe, coût quasi nul) |
+| `hx-review` + reviewers | Le modèle juge mal son propre travail | `x-review-confirmed` et `x-review-discarded` (`hx stats`) | Moins d'un constat confirmé par PR sur un trimestre |
 | Rule `comments.md` + catégorie « Commentaires » de `hx-code-reviewer` + lint des commentaires (`hx-setup`) | Le modèle paraphrase le code en commentaires et ne les met pas à jour : ils finissent par le contredire | constats « Commentaires » confirmés par `hx-review` ; violations du lint en fin de tâche | Aucun constat confirmé sur un trimestre (le lint, déterministe, reste) |
 | `hx-architect` + rule `architecture.md` | Le modèle sur-conçoit (patterns par réflexe) | eval `architect` | Le modèle reste proportionné sans eux |
 | `hx-setup` | La personnalisation à la stack est longue et sujette à erreur | eval `setup` | — (gain de temps, pas de faiblesse du modèle) |

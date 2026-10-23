@@ -8,7 +8,7 @@ import path from 'node:path';
 import { before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { collectScenarios, listChanges, readChangeMeta, taskProgress } from '../template/.harness/hx.mjs';
+import { collectScenarios, listChanges, readChangeMeta, stats, taskProgress } from '../template/.harness/hx.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pinned = /openspec_version:[\s\S]*?default:\s*"([^"]+)"/.exec(fs.readFileSync(path.join(here, '..', 'copier.yml'), 'utf8'))[1];
@@ -55,9 +55,10 @@ describe(`contrat OpenSpec ${pinned}`, () => {
     assert.deepEqual(missing, []);
   });
 
-  test('new change : .openspec.yaml plat, x-track et x-validated acceptés par validate --strict', () => {
+  test('new change : .openspec.yaml plat, clés x-* (piste, porte, mesures) et run-report.md acceptés par validate --strict', () => {
     assert.equal(openspec('new change add-mult').status, 0);
-    fs.appendFileSync(path.join(root, change, '.openspec.yaml'), 'x-track: M\nx-validated: 2026-10-18\n');
+    fs.appendFileSync(path.join(root, change, '.openspec.yaml'), 'x-track: M\nx-validated: 2026-10-18\nx-gate-corrections: 1\nx-review-confirmed: 2\nx-review-discarded: 0\n');
+    write(`${change}/run-report.md`, '## add-mult : Prêt à livrer\n');
     assert.equal(readChangeMeta(path.join(root, change))['x-track'], 'M');
     assert.equal(readChangeMeta(path.join(root, change))['x-validated'], '2026-10-18');
     write(`${change}/proposal.md`, '## Why\nNeed multiplication for invoice totals in the app.\n\n## What Changes\n- Add multiplication\n\n## Capabilities\n\n### New Capabilities\n- `calc`: arithmetic\n\n### Modified Capabilities\n\n## Impact\nNone\n');
@@ -85,7 +86,7 @@ describe(`contrat OpenSpec ${pinned}`, () => {
     assert.deepEqual(collectScenarios(root).changes.map((s) => s.id), ['calc/multiply-two-numbers']);
   });
 
-  test('archive -y : spec principale créée avec son Purpose, même identifiant de scénario, archives valides', () => {
+  test('archive -y : spec principale créée avec son Purpose, même identifiant de scénario, archives valides, rapport et mesures conservés', () => {
     write(`${change}/tasks.md`, '## 1. Multiplication\n\n- [x] 1.1 Write the test\n- [x] 1.2 Implement\n');
     const r = openspec('archive add-mult -y');
     assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -96,6 +97,9 @@ describe(`contrat OpenSpec ${pinned}`, () => {
     assert.deepEqual(changes, []);
     assert.equal(json('validate --all --strict --json --no-interactive').summary.totals.failed, 0);
     assert.equal(openspec('validate --archived --no-interactive').status, 0);
-    assert.equal(readChangeMeta(listChanges(root, { archived: true })[0].dir)['x-track'], 'M');
+    const archived = listChanges(root, { archived: true })[0].dir;
+    assert.equal(readChangeMeta(archived)['x-track'], 'M');
+    assert.equal(stats(root).metrics['x-review-confirmed'].total, 2);
+    assert.ok(fs.existsSync(path.join(archived, 'run-report.md')));
   });
 });

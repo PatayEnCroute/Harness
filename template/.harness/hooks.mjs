@@ -21,9 +21,11 @@ import {
   readChangeMeta,
   readText,
   readVersions,
+  reportVerdict,
   resolveInvocations,
   tail,
   taskProgress,
+  worktreeStatus,
 } from './hx.mjs';
 
 const FEEDBACK = 2; // code de sortie qui renvoie stderr à Claude
@@ -258,8 +260,11 @@ export function sessionStart(root, input, env = process.env) {
     const { done, total } = taskProgress(change.dir);
     const meta = readChangeMeta(change.dir);
     const gate = meta['x-validated'] ? `cadrage validé le ${meta['x-validated']}` : 'cadrage non validé';
-    lines.push(`- Change OpenSpec en cours : ${change.name} (piste ${meta['x-track'] ?? '?'}, ${gate}, ${done}/${total} tâches)`);
+    const report = reportVerdict(change.dir);
+    lines.push(`- Change OpenSpec en cours : ${change.name} (piste ${meta['x-track'] ?? '?'}, ${gate}, ${done}/${total} tâches${report ? `, rapport : ${report}` : ''})`);
   }
+  const elsewhere = worktreeStatus(root).filter((tree) => !tree.current).flatMap((tree) => tree.changes.map((c) => `${c.name} (${c.stage})`));
+  if (elsewhere.length) lines.push(`- Changes dans d'autres worktrees : ${elsewhere.join(', ')}. Détail : node .harness/hx.mjs status`);
   if (lines.length) console.log(`Harness :\n${lines.join('\n')}`);
   return 0;
 }

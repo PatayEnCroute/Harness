@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 - `hx-verify` vert dans cette conversation, après le dernier changement de code.
 - `hx-review` sans constat bloquant restant.
-- Décision de l'utilisateur sur les mineurs du rapport de fin de run, et correctifs retenus commités. Sans réponse, pose la question et arrête-toi : l'archive vient après.
+- Décision de l'utilisateur sur les mineurs du rapport de fin de run (`openspec/changes/<change>/run-report.md` si la conversation ne l'a plus), et correctifs retenus commités. Sans réponse, pose la question et arrête-toi : l'archive vient après.
 - Aucune modification non commitée hors de `openspec/`.
 
 ## Étapes
@@ -23,7 +23,7 @@ disable-model-invocation: true
    - **Pourquoi** : repris de `proposal.md`.
    - **Quoi** : les changements, en quelques puces.
    - **Piste** : S, M ou L, et les ADR éventuels.
-   - **Hypothèses** : celles du rapport de fin de run, avec la décision de l'utilisateur.
+   - **Hypothèses** : celles du rapport de fin de run (`run-report.md`), avec la décision de l'utilisateur.
    - **Vérification** : résumé de la sortie de `hx check`.
    - **Traçabilité** : résumé de `hx trace`.
 5. **CI** : `gh pr checks --watch`. En cas d'échec : diagnostique (`hx-debug`), corrige (voir ci-dessous), relance `hx-verify`, pousse. Ne désactive jamais un contrôle pour passer.

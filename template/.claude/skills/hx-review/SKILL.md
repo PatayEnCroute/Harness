@@ -23,6 +23,12 @@ Celui qui a écrit le code ne le juge pas. Les relecteurs n'ont pas ton contexte
 
 C'est le dernier message du run : l'utilisateur doit pouvoir décider en quelques minutes, sans relire la conversation.
 
+Si un change OpenSpec est concerné, le rapport survit aussi à la session :
+
+1. Écris-le dans `openspec/changes/<change>/run-report.md` (remplacé à chaque run). `/hx-ship` le relit, `hx status` en affiche le verdict.
+2. Ajoute à son `.openspec.yaml` les mesures de la revue, lues par `hx stats` : `x-review-confirmed: <n>` (bloquants et importants confirmés) et `x-review-discarded: <n>` (écartés à l'étape 3).
+3. Commite les deux : `<change> : rapport de fin de run`.
+
 ```markdown
 ## <change> : Prêt à livrer | Bloqué : <raison en une ligne>
 

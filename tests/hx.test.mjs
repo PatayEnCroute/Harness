@@ -17,7 +17,9 @@ import {
   findComponentForFile,
   main,
   checkSettings,
+  changeState,
   createWorktree,
+  formatStats,
   mergeLeftovers,
   migrateConfig,
   nodeVersionOk,
@@ -26,7 +28,9 @@ import {
   parseFlags,
   resolveInvocations,
   shellQuote,
+  stats,
   validateConfig,
+  worktreeStatus,
 } from '../template/.harness/hx.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -576,6 +580,70 @@ describe('worktree : un change, une branche, un dossier', () => {
     assert.match(lines.join('\n'), /Desktop : nouvelle session sur le dossier .*mode Auto.*\/hx-implement add-mult$/m);
     assert.match(lines.join('\n'), /Terminal : cd .* && claude --permission-mode auto "\/hx-implement add-mult"/);
     assert.equal(main(['worktree'], root), 2);
+  });
+
+  test('status : changes de chaque worktree, étape lue sur x-validated, les tâches et le rapport de fin de run', () => {
+    const { root } = repoWithHarness();
+    writeChange(root, 'add-mult');
+    writeChange(root, 'add-div', { validated: false });
+    const r = withGitIdentity(() => createWorktree(root, 'add-mult'));
+    const changeDir = path.join(r.target, 'openspec', 'changes', 'add-mult');
+    fs.writeFileSync(path.join(changeDir, 'tasks.md'), '- [x] 1.1 a\n- [x] 1.2 b\n');
+    fs.writeFileSync(path.join(changeDir, 'run-report.md'), '## add-mult : Bloqué : spec fausse\n\nPiste M\n');
+    const trees = worktreeStatus(root);
+    assert.deepEqual(trees.map((t) => [t.current, t.changes.map((c) => [c.name, c.stage])]), [
+      [true, [['add-div', 'cadrage']]],
+      [false, [['add-mult', 'rapport : Bloqué : spec fausse']]],
+    ]);
+    assert.equal(trees[1].branch, 'add-mult');
+    assert.deepEqual(trees[1].changes[0].tasks, { done: 2, total: 2 });
+  });
+
+  test('status : validé sans tâche faite, run en cours, rapport illisible ; hors dépôt git', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-state-'));
+    const write = (rel, text) => {
+      fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+      fs.writeFileSync(path.join(dir, rel), text);
+    };
+    write('.openspec.yaml', 'x-track: M\nx-validated: 2026-10-18\n');
+    write('tasks.md', '- [ ] 1.1 a\n');
+    assert.equal(changeState(dir).stage, 'validé, run à lancer');
+    write('tasks.md', '- [x] 1.1 a\n- [ ] 1.2 b\n');
+    assert.equal(changeState(dir).stage, 'run en cours');
+    write('run-report.md', 'pas de titre\n');
+    assert.equal(changeState(dir).stage, 'rapport : illisible');
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-nogit-'));
+    assert.deepEqual(worktreeStatus(outside).map((t) => [t.path, t.current, t.changes]), [[outside, true, []]]);
+  });
+});
+
+describe('stats : mesures d\'élagage des changes archivés', () => {
+  const archive = (files) => writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-stats-')), files);
+  const root = archive({
+    'openspec/changes/archive/2026-09-01-old/.openspec.yaml': 'x-track: M\n',
+    'openspec/changes/archive/2026-10-02-add-mult/.openspec.yaml': 'x-track: M\nx-gate-corrections: 2\nx-review-confirmed: 3\nx-review-discarded: 1\n',
+    'openspec/changes/archive/2026-10-05-add-api/.openspec.yaml': 'x-track: L\nx-gate-corrections: 0\nx-gate-removed: 2\nx-review-confirmed: 0\nx-review-discarded: deux\n',
+    'openspec/changes/en-cours/.openspec.yaml': 'x-track: M\nx-gate-corrections: 5\n',
+  });
+
+  test('somme, changes concernés et mesurés ; clé absente = non mesurée ; change en cours ignoré', () => {
+    const r = stats(root);
+    assert.equal(r.archived, 3);
+    assert.deepEqual(r.tracks, { M: 2, L: 1 });
+    assert.deepEqual(r.metrics['x-gate-corrections'], { total: 2, measured: 2, nonzero: 1 });
+    assert.deepEqual(r.metrics['x-gate-removed'], { total: 2, measured: 1, nonzero: 1 });
+    assert.deepEqual(r.metrics['x-review-discarded'], { total: 1, measured: 1, nonzero: 1 });
+    assert.deepEqual(r.invalid, ['2026-10-05-add-api : x-review-discarded: deux']);
+    assert.match(formatStats(r), /Porte de cadrage, corrections demandées : 2 · 1 change\(s\) concerné\(s\) sur 2 mesuré\(s\)/);
+  });
+
+  test('--since filtre sur la date de l\'archive ; sans mesure : « non mesuré » ; date invalide refusée', () => {
+    const r = stats(root, { since: '2026-10-03' });
+    assert.equal(r.archived, 1);
+    assert.equal(r.metrics['x-gate-corrections'].measured, 1);
+    assert.match(formatStats(stats(archive({}))), /Revue, constats écartés \(faux positifs\) : non mesuré/);
+    assert.equal(main(['stats', '--since', '10/03/2026'], root), 2);
+    assert.equal(main(['stats', '--since'], root), 2);
   });
 });
 

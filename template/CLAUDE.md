@@ -18,6 +18,7 @@ N'appelle jamais directement l'outil de la stack pour installer, tester, linter 
 | Scénarios OpenSpec ↔ tests | `node .harness/hx.mjs trace` |
 | Diagnostiquer l'installation | `node .harness/hx.mjs doctor` |
 | Branche et worktree pour le run d'un change validé | `node .harness/hx.mjs worktree <change>` |
+| Où en est chaque change, dans tous les worktrees | `node .harness/hx.mjs status` |
 
 Si une commande manque ou échoue pour une raison d'outillage, signale-le au lieu de la contourner.
 
