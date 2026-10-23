@@ -139,6 +139,17 @@ describe('cohérence et budgets', () => {
     assert.ok(fs.existsSync(path.join(dir, 'references', 'sql-sinks.md')), 'référence des sinks SQL');
   });
 
+  test('hx-explain : hors workflow, lecture seule, trois modes, bilan honnête, glossaire partagé', () => {
+    const dir = path.join(claude, 'skills', 'hx-explain');
+    const { data, body } = frontmatter(read(path.join(dir, 'SKILL.md')));
+    assert.equal(data['disable-model-invocation'], 'true', 'lancé à la demande, jamais par le workflow');
+    for (const mode of ['## Mode Décision', '## Mode Bilan', '## Mode Notion']) assert.ok(body.includes(mode), mode);
+    assert.match(body, /## Lecture seule/);
+    assert.match(body, /n'en invente pas/);
+    assert.match(body, /« Rien à redire » est un résultat valide/);
+    assert.ok(fs.existsSync(path.join(dir, 'references', 'glossaire.md')), 'glossaire des termes du harness');
+  });
+
   test('les relecteurs rendent leurs constats au même format, que hx-review consolide', () => {
     for (const name of agents.filter((n) => n.endsWith('-reviewer'))) {
       assert.match(read(path.join(claude, 'agents', `${name}.md`)), /`\[bloquant\|important\|mineur\] chemin:ligne — /, name);
