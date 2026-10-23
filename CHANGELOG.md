@@ -14,6 +14,7 @@ Moins de confirmations : un run M ou L ne s'arrête plus sur des commandes que l
 
 ### Modifié
 - **`hx-review`** : les constats `important` confirmés sont corrigés pendant le run, comme les bloquants ; un important hors du périmètre du change rejoint les mineurs proposés, avec sa raison. Avant, aucune suite n'était prévue pour eux.
+- **`/hx-ship`** : reprend la base avant l'archive (`git pull --no-rebase --no-edit origin <base>`, sans réécriture d'historique), puis `hx check`. Un change mergé pendant le run a pu modifier les mêmes specs principales : le conflit se voit avant l'archive, pas au merge.
 - **`/hx-discover`** archive par la CLI (`hx openspec archive <change> -y`), comme `/hx-ship`, au lieu de `/opsx:archive`, qui demandait une confirmation pour écrire dans `openspec/specs/`.
 - **Page de présentation** (`docs/index.html`) : réduite aux sections En bref, Cycle de vie et Workflow. Nouvelle section « Les outils » : un arbre dessiné (un tronc, cinq branches, 37 feuilles : skills, CLI `hx`, agents, rules, hooks) ; cliquer une feuille déplie l'explication de l'outil (ce qu'il fait, quand il sert) dans une vue arborescente sous l'arbre.
 - **Orienté Claude Code Desktop** : le lanceur ouvre Desktop sur le dossier (`claude --desktop`) ou dit comment faire, au lieu de lancer `claude /hx-setup` dans le terminal (toujours possible avec `--terminal`). `hx worktree` donne les étapes Desktop (nouvelle session sur le worktree, mode Auto, `/hx-implement <change>`) avant la commande terminal. `README.md` et `INSTALL.md` partent de Desktop.
