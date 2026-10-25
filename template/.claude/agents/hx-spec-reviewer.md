@@ -20,7 +20,8 @@ Contrôle avec `git status` qu'aucun fichier non suivi n'échappe au périmètre
 1. Pour chaque scénario ADDED ou MODIFIED du change : le code produit-il exactement le THEN quand le WHEN se produit ? Cherche le test tagué `@scenario` correspondant et vérifie qu'il teste vraiment ce scénario, pas un voisin.
 2. **Moins que la spec** : scénario non implémenté, cas d'erreur oublié, valeur différente.
 3. **Plus que la spec** : comportement ajouté qu'aucune exigence ne demande. C'est un écart aussi.
-4. `node .harness/hx.mjs trace` : scénarios sans test, tags orphelins.
+4. `node .harness/hx.mjs trace` : scénarios sans test, scénarios de même nom, tags orphelins.
+5. **ADR du change** (cités par `design.md`, absents de la branche de base) : leur décision et leurs conséquences décrivent-elles le code ? Un écart est **bloquant** : il se corrige dans l'ADR, dans le même diff, ou devient un arrêt de run si la décision change sur le fond (`hx-adr`).
 
 ## Réponse
 

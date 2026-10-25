@@ -49,4 +49,7 @@ Signal observable qui rouvrira la décision.
 
 - Le besoin vient en premier. Sans besoin, pas d'ADR : la bonne décision est de ne rien ajouter.
 - L'option « ne rien changer » est toujours présente.
-- Un ADR accepté n'est jamais réécrit. On en crée un nouveau qui le remplace.
+- **Immuable une fois mergé** : un ADR accepté et présent sur la branche de base n'est jamais réécrit. On en crée un nouveau qui le remplace.
+- **Avant le merge**, l'ADR créé par le change (absent de la branche de base) se corrige comme le reste du change :
+  - un **détail** aligné sur le code (mécanisme, ordre, nom, conséquence) se corrige dans le même diff, sans demande à l'utilisateur ni écart laissé dans `design.md` ;
+  - un **changement de fond** (autre option retenue, autre besoin) remet en cause ce que l'utilisateur a validé à la porte de cadrage : c'est un arrêt de run (`hx-implement`), pas une correction.

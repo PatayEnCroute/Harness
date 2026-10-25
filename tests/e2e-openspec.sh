@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Cycle complet d'un change OpenSpec dans un projet installé : la trace bloque tant qu'un scénario
-# n'a pas de test, les hooks réagissent, l'archive garde la traçabilité, la dérive est détectée.
+# Cycle complet d'un change OpenSpec dans un projet installé : la trace avertit pendant le run et bloque
+# un scénario sans test une fois les tâches cochées, les hooks réagissent, l'archive garde la traçabilité, la dérive est détectée.
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,7 +21,7 @@ git -c user.email=ci@example.com -c user.name=ci commit -qm fixture
 hx detect --write
 hx run setup > /dev/null
 
-step "Change M avec un scénario sans test : hx check doit échouer sur la trace"
+step "Change M avec un scénario sans test : avertissement pendant le run, échec une fois les tâches cochées"
 hx openspec new change add-mult > /dev/null
 change=openspec/changes/add-mult
 echo 'x-track: M' >> "$change/.openspec.yaml"
@@ -57,11 +57,15 @@ The system SHALL multiply two integers.
 - **THEN** the result is 6
 EOF
 printf '## 1. Multiplication\n\n- [ ] 1.1 Write the test\n- [ ] 1.2 Implement\n' > "$change/tasks.md"
-if hx check > check.log 2>&1; then fail "check vert malgré un scénario sans test"; fi
+hx check > check.log 2>&1 || { cat check.log; fail "check rouge alors que des tâches restent"; }
+grep -q 'calc/multiply-two-numbers (add-mult)' check.log || fail "la trace ne signale pas le scénario sans test"
+sed -i 's/- \[ \]/- [x]/' "$change/tasks.md"
+if hx check > check.log 2>&1; then fail "check vert malgré un scénario sans test et toutes les tâches cochées"; fi
 grep -q 'calc/multiply-two-numbers (add-mult)' check.log || fail "la trace ne cite pas le scénario manquant"
+rm check.log
 
 step "Hooks : contexte de session et confirmation avant d'écrire une spec principale"
-hook session-start < /dev/null | grep -q 'add-mult (piste M, cadrage non validé, 0/2 tâches)' || fail "session-start"
+hook session-start < /dev/null | grep -q 'add-mult (piste M, cadrage non validé, 2/2 tâches)' || fail "session-start"
 echo "{\"tool_input\":{\"file_path\":\"$PWD/openspec/specs/calc/spec.md\"}}" | hook pre-tool-use | grep -q '"ask"' || fail "pre-tool-use"
 
 step "Test tagué puis implémentation : hx check vert"
@@ -79,7 +83,6 @@ echo 'export const mult = (a, b) => a * b;' > src/mult.js
 hx check
 
 step "Archive : la spec principale garde la traçabilité"
-sed -i 's/- \[ \]/- [x]/' "$change/tasks.md"
 hx openspec archive add-mult -y > /dev/null
 [ -f openspec/specs/calc/spec.md ] || fail "spec principale absente après archive"
 hx check
@@ -102,7 +105,8 @@ The system SHALL divide two integers.
 - **THEN** the result is 2
 EOF
 printf '## 1. Division\n\n- [ ] 1.1 div(6, 3) returns 2\n' > "$div/tasks.md"
-if hx check > div.log 2>&1; then fail "check vert malgré add-div sans test"; fi
+hx check > div.log 2>&1 || { cat div.log; fail "dossier principal rouge pendant le cadrage de add-div"; }
+grep -q 'calc/divide-two-numbers (add-div)' div.log || fail "la trace ne signale pas add-div"
 hx worktree add-div > worktree.log || { cat worktree.log; fail "hx worktree"; }
 grep -q 'hx-implement add-div' worktree.log || fail "commande de lancement du run absente"
 [ ! -e "$div" ] || fail "add-div encore dans le dossier principal"

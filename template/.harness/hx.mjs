@@ -620,6 +620,7 @@ export function taskProgress(dir) {
 }
 
 // Scénarios attendus : tous ceux des specs principales, et les ADDED / MODIFIED des changes en cours.
+// complete : toutes les tâches du change sont cochées ; avant, un scénario sans test n'est qu'un avertissement.
 // empty : specs où aucun scénario n'a été lu alors qu'il en faut (format inattendu) ; sans cela, 0 scénario vaudrait 100 %.
 export function collectScenarios(root) {
   const id = (capability, scenario) => `${capability}/${slugify(scenario)}`;
@@ -629,16 +630,30 @@ export function collectScenarios(root) {
     if (!found.length) empty.push(toPosix(path.relative(root, file)));
     return found;
   });
-  const changes = listChanges(root).flatMap((change) =>
-    specFiles(path.join(change.dir, 'specs')).flatMap(({ file, capability }) => {
+  const changes = listChanges(root).flatMap((change) => {
+    const { done, total } = taskProgress(change.dir);
+    const complete = total > 0 && done === total;
+    return specFiles(path.join(change.dir, 'specs')).flatMap(({ file, capability }) => {
       const text = readText(file);
       const found = parseScenarios(text)
         .filter((s) => s.section === 'ADDED' || s.section === 'MODIFIED')
-        .map((s) => ({ ...s, capability, id: id(capability, s.scenario), change: change.name }));
+        .map((s) => ({ ...s, capability, id: id(capability, s.scenario), change: change.name, complete }));
       if (!found.length && /^##\s+(ADDED|MODIFIED)\s+Requirements\b/im.test(text)) empty.push(toPosix(path.relative(root, file)));
       return found;
-    }));
-  return { main, changes, empty };
+    });
+  });
+  return { main, changes, empty, duplicates: duplicateIds([...main, ...changes]) };
+}
+
+// Deux scénarios d'une capability au même slug partagent un identifiant : un seul tag les couvrirait tous les deux.
+function duplicateIds(scenarios) {
+  const groups = new Map();
+  for (const s of scenarios) {
+    const key = `${s.change ?? ''}\0${s.id}`;
+    groups.set(key, [...(groups.get(key) ?? []), s]);
+  }
+  return [...groups.values()].filter((g) => g.length > 1)
+    .map((g) => ({ id: g[0].id, change: g[0].change ?? null, requirements: g.map((s) => s.requirement) }));
 }
 
 // Tags « @scenario <capability>/<scénario> » : Map id → ["fichier:ligne"].
@@ -660,29 +675,39 @@ export function collectTags(root, { testPattern = DEFAULT_TEST_PATTERN } = {}) {
 }
 
 export function trace(root, config) {
-  const { main, changes, empty } = collectScenarios(root);
+  const { main, changes, empty, duplicates } = collectScenarios(root);
   const tags = collectTags(root, { testPattern: config?.trace?.test_pattern });
   const known = new Set([...main, ...changes].map((s) => s.id));
   const uncoveredMain = main.filter((s) => !tags.has(s.id));
-  const uncoveredChanges = changes.filter((s) => !tags.has(s.id));
+  const untested = changes.filter((s) => !tags.has(s.id));
+  const uncoveredChanges = untested.filter((s) => s.complete);
+  const pendingChanges = untested.filter((s) => !s.complete);
   const orphans = [...tags].filter(([id]) => !known.has(id)).map(([id, where]) => ({ id, where }));
   const covered = main.length - uncoveredMain.length;
   const coverage = main.length ? Math.floor((covered / main.length) * 100) : 100;
   const min = config?.trace?.min_coverage ?? 100;
-  const ok = uncoveredChanges.length === 0 && orphans.length === 0 && empty.length === 0 && coverage >= min;
+  const ok = uncoveredChanges.length === 0 && duplicates.length === 0 && orphans.length === 0 && empty.length === 0 && coverage >= min;
   const outsideTests = [...tags.ignored].map(([id, where]) => ({ id, where }));
-  return { ok, scenarios: main.length, covered, coverage, min, uncoveredChanges, uncoveredMain, orphans, outsideTests, empty };
+  return {
+    ok, scenarios: main.length, covered, coverage, min,
+    changeScenarios: changes.length, changesCovered: changes.length - untested.length,
+    uncoveredChanges, pendingChanges, uncoveredMain, duplicates, orphans, outsideTests, empty,
+  };
 }
 
 export function formatTrace(report, { limit = 20 } = {}) {
   const lines = [`Specs principales : ${report.covered}/${report.scenarios} scénarios couverts (${report.coverage} %, minimum ${report.min} %)`];
+  if (report.changeScenarios) lines.push(`Changes en cours : ${report.changesCovered}/${report.changeScenarios} scénarios couverts`);
   const list = (title, items) => {
     if (!items.length) return;
     lines.push(`${title} :`, ...items.slice(0, limit).map((x) => `  - ${x}`));
     if (items.length > limit) lines.push(`  … ${items.length - limit} de plus`);
   };
   list('Specs sans aucun scénario lu (format attendu : « #### Scenario: <nom> »)', report.empty ?? []);
-  list('Scénarios de changes en cours sans test', report.uncoveredChanges.map((s) => `${s.id} (${s.change})`));
+  list('Scénarios de même nom dans une capability (un seul identifiant pour les deux : renomme l\'un)', report.duplicates.map((d) =>
+    `${d.id}${d.change ? ` (${d.change})` : ''} : ${d.requirements.map((r) => `« ${r ?? 'hors exigence'} »`).join(', ')}`));
+  list('Scénarios sans test, toutes les tâches du change cochées', report.uncoveredChanges.map((s) => `${s.id} (${s.change})`));
+  list('Scénarios sans test, tâches restantes (avertissement ; bloquant une fois toutes les tâches cochées)', report.pendingChanges.map((s) => `${s.id} (${s.change})`));
   if (report.coverage < report.min) list('Scénarios des specs sans test', report.uncoveredMain.map((s) => s.id));
   list('Tags @scenario orphelins', report.orphans.map((o) => `${o.id} → ${o.where.join(', ')}`));
   list('Tags @scenario hors fichier de test (ignorés : seul un test couvre un scénario)', report.outsideTests.map((o) => `${o.id} → ${o.where.join(', ')}`));
@@ -1005,7 +1030,7 @@ function cmdCheck(root, args) {
       }, opts));
       results.push(inProcessStep('trace', () => {
         const report = trace(root, config);
-        return { ok: report.ok, output: formatTrace(report) };
+        return { ok: report.ok, output: formatTrace(report), notice: report.pendingChanges.length > 0 };
       }, opts));
     }
   } else {
@@ -1197,7 +1222,11 @@ function cmdTrace(root, args) {
   const opts = parseFlags(args);
   const report = trace(root, loadConfig(root).config ?? {});
   if (opts.json) console.log(JSON.stringify(report, null, 2));
-  else console.log(`hx trace\n${formatTrace(report)}\n\n${report.ok ? '✓ traçabilité complète' : '✗ traçabilité incomplète'}`);
+  else {
+    const pending = report.pendingChanges.length;
+    const verdict = !report.ok ? '✗ traçabilité incomplète' : pending ? `✓ aucun échec (${pending} scénario(s) de change encore sans test)` : '✓ traçabilité complète';
+    console.log(`hx trace\n${formatTrace(report)}\n\n${verdict}`);
+  }
   return report.ok ? 0 : 1;
 }
 

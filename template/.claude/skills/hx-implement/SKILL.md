@@ -42,6 +42,7 @@ Seulement ceux-là. Dans chaque cas, arrête-toi avec un rapport de fin de run q
 - 3 échecs sur une même tâche (boucle ci-dessus).
 - Spec fausse ou incomplète : propose `/opsx:update` et retire `x-validated`. La spec modifiée repasse la porte de cadrage.
 - Nouvelle couche, contrat public ou migration découverts : la piste monte (`hx-triage`), et `x-validated` est retiré de la même façon.
+- Décision d'un ADR du change à changer sur le fond (autre option retenue) : l'ADR repasse à `Proposé`, `x-validated` est retiré, et la décision repasse la porte. Un simple détail se corrige dans l'ADR, dans le diff de la tâche (`hx-adr`).
 - Outillage cassé : une commande `hx` qui échoue pour une raison étrangère au code.
 
 Tout le reste se décide sans l'utilisateur. Le choix le plus simple qui respecte la spec est consigné comme hypothèse dans le rapport, et non posé comme question.
