@@ -666,20 +666,66 @@ describe('OpenSpec : scénarios et traçabilité', () => {
     const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), {
       'openspec/specs/calc/spec.md': mainSpec,
       'openspec/changes/add-mult/specs/calc/spec.md': deltaSpec,
+      'openspec/changes/add-mult/tasks.md': '- [x] 1.1 test\n- [x] 1.2 code\n',
       'test/add.test.js': '// @scenario calc/ajouter-deux-nombres\n',
     });
     let report = trace(root, {});
     assert.equal(report.coverage, 100);
     assert.deepEqual(report.uncoveredChanges.map((s) => s.id), ['calc/multiply-two-numbers']);
     assert.equal(report.ok, false);
+    assert.match(formatTrace(report), /Changes en cours : 0\/1 scénarios couverts/);
 
     writeFiles(root, { 'test/mult.test.js': "test('x', () => {}); // @scenario calc/multiply-two-numbers\n" });
-    assert.equal(trace(root, {}).ok, true);
+    report = trace(root, {});
+    assert.equal(report.ok, true);
+    assert.match(formatTrace(report), /Changes en cours : 1\/1 scénarios couverts/, 'la couverture des changes se voit aussi quand elle est complète');
 
     writeFiles(root, { 'test/old.test.js': '# @scenario calc/supprime\n' });
     report = trace(root, {});
     assert.deepEqual(report.orphans.map((o) => [o.id, o.where]), [['calc/supprime', ['test/old.test.js:1']]]);
     assert.equal(report.ok, false);
+  });
+
+  test('trace : un scénario de change sans test avertit tant qu\'une tâche reste, puis bloque', () => {
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), {
+      'openspec/changes/add-mult/specs/calc/spec.md': deltaSpec,
+      'openspec/changes/add-mult/tasks.md': '- [x] 1.1 test\n- [ ] 1.2 code\n',
+    });
+    let report = trace(root, {});
+    assert.equal(report.ok, true);
+    assert.deepEqual(report.pendingChanges.map((s) => s.id), ['calc/multiply-two-numbers']);
+    assert.match(formatTrace(report), /tâches restantes \(avertissement.*\n {2}- calc\/multiply-two-numbers \(add-mult\)/);
+    assert.equal(trace(writeFiles(root, { 'openspec/changes/add-mult/tasks.md': '' }), {}).ok, true, 'cadrage : tâches pas encore écrites');
+
+    writeFiles(root, { 'openspec/changes/add-mult/tasks.md': '- [x] 1.1 test\n- [X] 1.2 code\n' });
+    report = trace(root, {});
+    assert.equal(report.ok, false);
+    assert.deepEqual(report.uncoveredChanges.map((s) => s.id), ['calc/multiply-two-numbers']);
+    assert.deepEqual(report.pendingChanges, []);
+
+    writeFiles(root, { 'test/mult.test.js': '// @scenario calc/multiply-two-numbers\n' });
+    assert.equal(trace(root, {}).ok, true);
+  });
+
+  test('trace : deux scénarios de même nom dans une capability échouent, en citant leurs exigences', () => {
+    const twice = (title) => `## ADDED Requirements\n\n### Requirement: API\nThe API SHALL list.\n\n#### Scenario: ${title}\n- **WHEN** x\n- **THEN** y\n\n`
+      + '### Requirement: Panneau web\nThe panel SHALL list.\n\n#### Scenario: Dossier vide\n- **WHEN** x\n- **THEN** y\n';
+    const root = writeFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-trace-')), {
+      'openspec/changes/depot/specs/sources/spec.md': twice('Dossier vide !'),
+      'openspec/changes/autre/specs/sources/spec.md': '## ADDED Requirements\n\n### Requirement: Autre\nIt SHALL.\n\n#### Scenario: Dossier vide\n- **WHEN** x\n- **THEN** y\n',
+      'test/sources.test.js': '// @scenario sources/dossier-vide\n',
+    });
+    let report = trace(root, {});
+    assert.equal(report.ok, false);
+    assert.deepEqual(report.duplicates, [{ id: 'sources/dossier-vide', change: 'depot', requirements: ['API', 'Panneau web'] }], 'un même nom dans deux changes ne compte pas');
+    assert.match(formatTrace(report), /sources\/dossier-vide \(depot\) : « API », « Panneau web »/);
+
+    writeFiles(root, { 'openspec/changes/depot/specs/sources/spec.md': twice('Dossier vide via l\'API') });
+    report = trace(root, {});
+    assert.deepEqual(report.duplicates, []);
+
+    writeFiles(root, { 'openspec/specs/calc/spec.md': `${mainSpec}\n#### Scenario: Ajouter deux nombres\n- **WHEN** x\n- **THEN** y\n` });
+    assert.deepEqual(trace(root, {}).duplicates.map((d) => [d.id, d.change]), [['calc/ajouter-deux-nombres', null]], 'spec principale aussi');
   });
 
   test('trace : un tag dans le code de production ne couvre rien', () => {

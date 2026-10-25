@@ -10,7 +10,7 @@ description: Exige une preuve fraîche avant toute déclaration de fin en lança
 ## Étapes
 
 1. `node .harness/hx.mjs check`. Lis toute la sortie : openspec, archives, pistes, trace, lint, typecheck, arch, test.
-2. Si un change OpenSpec est concerné : aucun de ses scénarios ne doit rester sans test (étape `trace`).
+2. Si un change OpenSpec est concerné : toutes ses tâches sont cochées, et aucun de ses scénarios ne reste sans test. L'étape `trace` en fait alors un échec ; tant qu'une tâche reste, ce n'est qu'un avertissement.
 3. Si le comportement se voit à l'exécution (API, interface, CLI) : lance **`hx-verifier`** pour exercer les scénarios.
 4. Rapporte un tableau étape → résultat, avec un extrait de chaque échec.
 
