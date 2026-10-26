@@ -36,6 +36,9 @@ Plus aucune confirmation imposée par le harness : personne ne les relisait, et 
 - **Archive par la CLI** (`/hx-ship`) : `node .harness/hx.mjs openspec archive <change> -y` remplace `/opsx:archive`. La synchronisation des specs principales est déterministe, sans écriture à la main dans `openspec/specs/` ni confirmation du hook.
 - **Eval `ship-minors`** : demande de PR, puis mineur appliqué au tour suivant. L'archive doit rester le dernier commit, sans réécriture d'historique (aide `archive_is_last`, testée). `evals/run.sh` accepte un second tour (`followup.md`, `--continue`) et cumule coût, durée et refus de permission sur les tours.
 - **Evals dans un dossier non approuvé** : `claude -p` ignore `permissions.allow` d'un projet non approuvé (*trust*), ce qui est le cas de chaque dossier temporaire des evals. Toute commande non lecture seule y était refusée. `run.sh` repasse les permissions du template par `--settings`.
+- **README** réorganisé pour la lecture : promesse et bénéfices en tête, démarrage en deux étapes, workflow en schéma, détails (lanceur, permissions, désinstallation) repliés.
+- **`docs/PLAN.md`** simplifié (512 → 385 lignes) : le workflow passe avant l'architecture, ce que le README ou le code disent déjà (usage, extrait de `copier.yml`, détail des hooks) est retiré, la roadmap tient en une ligne par phase.
+- **`docs/elagage.md`** simplifié : méthode en schéma, composants groupés par rôle (workflow, cadrage, revue et mémoire, à la demande, toujours gardés), journal allégé avec ses réserves repliées.
 - **Documentation** : le harness est éprouvé sur un vrai projet. README, PLAN et `docs/elagage.md` ne le disent plus « non éprouvé » ni n'attendent de pilote, et renvoient au dernier tag au lieu d'une version écrite en dur. Page de présentation : `docs/index.html`.
 
 ### Corrigé
