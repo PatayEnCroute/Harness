@@ -37,6 +37,7 @@ Plus aucune confirmation imposée par le harness : personne ne les relisait, et 
 - **Eval `ship-minors`** : demande de PR, puis mineur appliqué au tour suivant. L'archive doit rester le dernier commit, sans réécriture d'historique (aide `archive_is_last`, testée). `evals/run.sh` accepte un second tour (`followup.md`, `--continue`) et cumule coût, durée et refus de permission sur les tours.
 - **Evals dans un dossier non approuvé** : `claude -p` ignore `permissions.allow` d'un projet non approuvé (*trust*), ce qui est le cas de chaque dossier temporaire des evals. Toute commande non lecture seule y était refusée. `run.sh` repasse les permissions du template par `--settings`.
 - **README** réorganisé pour la lecture : promesse et bénéfices en tête, démarrage en deux étapes, workflow en schéma, détails (lanceur, permissions, désinstallation) repliés.
+- **`docs/PLAN.md`** simplifié (512 → 385 lignes) : le workflow passe avant l'architecture, ce que le README ou le code disent déjà (usage, extrait de `copier.yml`, détail des hooks) est retiré, la roadmap tient en une ligne par phase.
 - **Documentation** : le harness est éprouvé sur un vrai projet. README, PLAN et `docs/elagage.md` ne le disent plus « non éprouvé » ni n'attendent de pilote, et renvoient au dernier tag au lieu d'une version écrite en dur. Page de présentation : `docs/index.html`.
 
 ### Corrigé
