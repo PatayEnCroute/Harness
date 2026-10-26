@@ -38,6 +38,7 @@ Plus aucune confirmation imposée par le harness : personne ne les relisait, et 
 - **Evals dans un dossier non approuvé** : `claude -p` ignore `permissions.allow` d'un projet non approuvé (*trust*), ce qui est le cas de chaque dossier temporaire des evals. Toute commande non lecture seule y était refusée. `run.sh` repasse les permissions du template par `--settings`.
 - **README** réorganisé pour la lecture : promesse et bénéfices en tête, démarrage en deux étapes, workflow en schéma, détails (lanceur, permissions, désinstallation) repliés.
 - **`docs/PLAN.md`** simplifié (512 → 385 lignes) : le workflow passe avant l'architecture, ce que le README ou le code disent déjà (usage, extrait de `copier.yml`, détail des hooks) est retiré, la roadmap tient en une ligne par phase.
+- **`docs/elagage.md`** simplifié : méthode en schéma, composants groupés par rôle (workflow, cadrage, revue et mémoire, à la demande, toujours gardés), journal allégé avec ses réserves repliées.
 - **Documentation** : le harness est éprouvé sur un vrai projet. README, PLAN et `docs/elagage.md` ne le disent plus « non éprouvé » ni n'attendent de pilote, et renvoient au dernier tag au lieu d'une version écrite en dur. Page de présentation : `docs/index.html`.
 
 ### Corrigé
