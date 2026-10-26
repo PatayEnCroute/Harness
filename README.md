@@ -1,95 +1,185 @@
 # Harness
 
-Template personnel de *harness engineering* pour **Claude Code** (pensé pour l'app **Desktop**, le terminal reste pris en charge), autour d'[OpenSpec](https://github.com/Fission-AI/OpenSpec) : **skills**, **agents**, **rules**, **hooks** et **contrôles CI** à appliquer dans chaque projet, **quelle que soit la stack**.
+**Un cadre de travail prêt à l'emploi pour Claude Code, quelle que soit la stack.**
 
-## Utiliser le template
+Tu décris ce que tu veux, tu valides le cadrage une fois, et Claude livre seul : spec, code testé, revue, PR. Le harness installe dans ton projet les **skills**, **agents**, **rules**, **hooks** et **contrôles CI** qui rendent ce cycle fiable, autour d'[OpenSpec](https://github.com/Fission-AI/OpenSpec).
 
-**Depuis Claude Code Desktop (recommandé)** : ouvre une session sur le dossier du projet et dis « Installe le harness github.com/PatayEnCroute/Harness en suivant son INSTALL.md ». Ouvre ensuite une nouvelle session sur le même dossier et tape `/hx-setup`.
+| | |
+|---|---|
+| 🎯 **Un seul arrêt** | Tu valides la spec à la porte de cadrage. Ensuite, le run va jusqu'au rapport sans te solliciter. |
+| ⚡ **En parallèle** | Chaque run tourne dans son propre worktree : tu cadres le change suivant pendant ce temps. |
+| ✅ **Jamais vert sans test** | `hx check` lance les mêmes contrôles en local et en CI, et relie chaque scénario de spec à un test. |
+| 🧩 **Toute stack** | `/hx-setup` adapte les commandes (lint, tests, typecheck…) à ton projet. |
 
-> **Agent IA** : pour installer le harness à la demande d'un utilisateur, suis [`INSTALL.md`](INSTALL.md).
+> Pensé pour **Claude Code Desktop** ; le terminal reste pris en charge. Statut : éprouvé sur un vrai projet. [Présentation en schémas →](https://patayencroute.github.io/Harness/)
 
-**Avec le lanceur** (dans un terminal, ou le terminal intégré de Desktop : Ctrl+`). Prérequis : `git` et Node ≥ 20.19. Dans le dossier du projet (vide, ou dépôt git sans changement en cours) :
+---
+
+## Démarrer
+
+**1. Installer** — dans Claude Code Desktop, ouvre une session sur le dossier du projet et dis :
+
+> « Installe le harness github.com/PatayEnCroute/Harness en suivant son INSTALL.md »
+
+**2. Personnaliser** — ouvre une **nouvelle** session sur le même dossier et tape `/hx-setup`. Il adapte le harness à ta stack et finit par `hx doctor`.
+
+C'est tout.
+
+<details>
+<summary><b>Installer depuis un terminal</b> (lanceur <code>npx</code>)</summary>
+
+Prérequis : `git` et Node ≥ 20.19. Dans le dossier du projet (vide, ou dépôt git sans changement en cours) :
 
 ```bash
 npx github:PatayEnCroute/Harness
 ```
 
-| Le lanceur | Pourquoi |
+| Le lanceur… | Pourquoi |
 |---|---|
 | fait `git init` dans un dossier vide ; refuse un arbre git sale | `/hx-setup` retrouve dans git les fichiers que l'installation remplace |
 | installe [uv](https://docs.astral.sh/uv/) s'il manque, après accord | uv lance Copier, le moteur du template |
-| lance `uvx copier@9.19.1 copy --trust` | questions : nom du projet, workflow CI (`ci`), branche par défaut (`default_branch`), relecteurs obligatoires (`codeowners`) |
-| ouvre Claude Code Desktop sur le dossier (`claude --desktop`, CLI récente), sinon dit comment faire ; tu y tapes `/hx-setup` | personnalisation à la stack, vérifiée à la fin par `hx doctor` |
+| lance `uvx copier@9.19.1 copy --trust` | pose 4 questions : nom du projet, workflow CI (`ci`), branche par défaut (`default_branch`), relecteurs obligatoires (`codeowners`) |
+| ouvre Desktop sur le dossier (`claude --desktop`), sinon dit comment faire | tu y tapes `/hx-setup` |
 
-La CLI OpenSpec (commandes `/opsx:*`) est installée au premier démarrage de session si elle est absente. Options : `--vcs-ref vX.Y.Z` (version précise du template), `--defaults` (sans questions), `--terminal` (ouvre Claude Code dans le terminal sur `/hx-setup`, au lieu de Desktop), `--no-claude`, `--help`.
+Options : `--vcs-ref vX.Y.Z` (version précise) · `--defaults` (sans questions) · `--terminal` (Claude Code dans le terminal au lieu de Desktop) · `--no-claude` · `--help`.
 
-**Projet existant** : accepte le remplacement de `CLAUDE.md`, `.claude/settings.json` et `openspec/config.yaml` s'ils existent. `/hx-setup` récupère ensuite leur contenu utile depuis git.
+Sans le lanceur : `uvx copier@9.19.1 copy --trust gh:PatayEnCroute/Harness .`, puis `/hx-setup`.
 
-**Sans le lanceur** : `uvx copier@9.19.1 copy --trust gh:PatayEnCroute/Harness .`, puis `/hx-setup` dans Claude Code.
+</details>
 
-**Plus tard** : `uvx copier@9.19.1 update --trust` récupère les améliorations. Copier prend le dernier tag du repo ; `hx doctor` signale un projet en retard.
+<details>
+<summary><b>Projet existant</b></summary>
 
-`--trust` autorise les tâches post-installation : `openspec init` à l'installation, puis `openspec update` et `hx migrate` (clés nouvelles ajoutées à `.harness/config.json`) à chaque mise à jour. Avec `codeowners`, un `.github/CODEOWNERS` couvre `.harness/`, `.claude/settings.json`, `.github/` et `openspec/specs/`, à combiner avec la protection de branche « Require review from Code Owners ». Copier 9.19.1 est la version testée en CI (et le minimum exigé par `copier.yml`).
+L'installation remplace `CLAUDE.md`, `.claude/settings.json` et `openspec/config.yaml` s'ils existent. Accepte : `/hx-setup` récupère ensuite leur contenu utile depuis git.
 
-## Le workflow installé
+</details>
 
+<details>
+<summary><b>Ce que fait <code>--trust</code></b></summary>
+
+Il autorise les tâches post-installation : `openspec init` à l'installation, puis `openspec update` et `hx migrate` à chaque mise à jour. La CLI OpenSpec (commandes `/opsx:*`) s'installe au premier démarrage de session si elle manque. Copier 9.19.1 est la version testée en CI et le minimum exigé.
+
+</details>
+
+> **Agent IA** : pour installer le harness à la demande d'un utilisateur, suis [`INSTALL.md`](INSTALL.md).
+
+---
+
+## Travailler avec le harness
+
+Chaque demande passe par `hx-triage`, qui choisit la piste selon sa taille.
+
+```mermaid
+flowchart LR
+    D([Demande]) --> T{hx-triage}
+    T -->|S| S1[hx-tdd / hx-debug] --> S2[hx-verify] --> S3([commit])
+    T -->|M / L| C
+
+    subgraph C [1 · CADRAGE — avec toi]
+      C1["[hx-clarify]"] --> C2["/opsx:propose"] --> C3{{Porte de cadrage}}
+    end
+    subgraph R [2 · RUN — seul, dans son worktree]
+      R1[hx-implement] --> R2[hx-verify] --> R3[hx-review] --> R4([rapport])
+    end
+    subgraph L [3 · LIVRAISON — toi]
+      L1["/hx-ship"] --> L2[hx-learn]
+    end
+    C --> R --> L
 ```
-hx-triage ─┬─ S   : hx-tdd (ou hx-debug) → hx-verify → commit
-           └─ M/L : CADRAGE (avec toi)         [hx-clarify] → /opsx:propose → porte : [contre-relecture], validation, x-validated, hx worktree
-                    RUN (seul, son worktree)   hx-implement → hx-verify → hx-review → rapport de fin de run
-                    LIVRAISON (toi)            /hx-ship → hx-learn
-                    L : + hx-architect et hx-adr, validés à la porte
-```
 
-`[hx-clarify]` : seulement si la demande est floue. `[contre-relecture]` : en M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage avant la porte (garder, simplifier, retirer, changer). **Un seul arrêt prévu**, la porte de cadrage : tu y vérifies que la spec dit ce que tu as demandé, sans plus, et tu y vois les décisions retirées. Ensuite le run va jusqu'au rapport sans te solliciter, dans son propre worktree (`hx worktree <change>`) : pendant ce temps, tu cadres le change suivant dans le dossier principal, et `hx status` te montre où en est chaque run. Le run ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Lance-le en mode **Auto**, comme l'indique `hx worktree` : dans Desktop, nouvelle session sur le dossier du worktree, mode Auto (Cmd/Ctrl+Shift+M), puis `/hx-implement <change>` ; dans le terminal, la commande affichée (`--permission-mode auto`). Ce mode ne te demande aucune confirmation : le harness n'en impose aucune, et le classifieur du mode Auto écarte seul les actions risquées. Les permissions accordées dans le dossier principal (`.claude/settings.local.json`) sont reprises dans le worktree. Le rapport est aussi écrit dans `run-report.md` du change, et se termine par une question sur les mineurs : tranche-la avant `/hx-ship`. Celui-ci reprend la base (un change mergé entre-temps a pu toucher les mêmes specs), puis fait de l'archive OpenSpec le dernier commit de la PR.
+### Les trois temps d'un change M ou L
 
-| | Contenu |
+| Temps | Qui | Ce qui se passe |
+|---|---|---|
+| **1 · Cadrage** | toi + Claude | `hx-clarify` si la demande est floue, puis proposition OpenSpec. En M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage (garder, simplifier, retirer, changer). En L : `hx-architect` et `hx-adr`. **La porte** : tu vérifies que la spec dit ce que tu as demandé, sans plus. |
+| **2 · Run** | Claude seul | `hx worktree <change>` crée sa branche et son worktree. Lance-le en **mode Auto** : Desktop → nouvelle session sur le worktree, `Cmd/Ctrl+Shift+M`, puis `/hx-implement <change>`. Il ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Le rapport finit dans `run-report.md`. |
+| **3 · Livraison** | toi | Réponds à la question du rapport sur les mineurs, puis `/hx-ship` : il reprend la base, vérifie, et fait de l'archive OpenSpec le dernier commit de la PR. |
+
+> 💡 Pendant un run, cadre le change suivant dans le dossier principal. `hx status` montre où en est chaque run.
+
+### Hors workflow, à la demande
+
+| Skill | Usage |
 |---|---|
-| **15 skills** | `hx-setup`, `hx-triage`, `hx-clarify`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr`, `hx-debug`, `hx-learn`, `hx-discover` ; hors workflow, à la demande : `hx-security-audit` (CVE des dépendances, injection SQL), `hx-explain` (pour un non-développeur : expliquer une décision, faire le bilan de son usage du harness, expliquer une notion simplement), `hx-dream` (consolider la mémoire du projet comme le sommeil : rejouer les leçons, oublier le périmé et le redondant, fusionner, hiérarchiser ; plan validé avant écriture) |
-| **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
-| **4 rules** | `openspec`, `testing`, `architecture` (feature-first, proportionnée au besoin), `comments` (par défaut aucun commentaire ; liste fermée d'exceptions) |
-| **4 hooks** | contexte de session ; rappel à Claude quand il édite une spec principale ou un fichier qui décide de ce qui s'exécute (contrat, hooks, permissions, version d'OpenSpec), `openspec-apply-change` refusé au profit de `hx-implement` ; lint du fichier édité ; avant de rendre la main, d'après git : contrôles rapides des composants modifiés et signalement des chemins protégés modifiés, quel que soit l'outil |
-| **Permissions** | `node .harness/hx.mjs`, `openspec`, git local (lecture, `add`, `commit`, `pull`, `branch -d`, `worktree list`), `gh pr create/checks/view` et lectures shell (`ls`, `cat`, `head`, `tail`, `wc`) sans confirmation. **Aucune règle `ask`** : une confirmation que personne ne relit ne protège rien, et elle interromprait aussi le mode Auto. Le reste (`git push`, `git rm`, `git worktree remove`, `git bisect`, `gh issue create`…) revient au mode de permission : en Auto, son classifieur décide. Un test vérifie que chaque commande citée par un skill est autorisée ou laissée exprès au mode ; Edit refusé sur `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier) |
-| **`hx check`** | contrat · openspec · archives · pistes · trace `@scenario` · lint · typecheck · arch · test (jamais vert sans test), mêmes commandes en local et en CI |
-| **`hx status` · `hx stats`** | état de chaque change dans tous les worktrees (cadrage, run, rapport) · mesures d'élagage des changes archivés (corrections à la porte, décisions retirées, constats de revue confirmés ou écartés) |
+| `/hx-security-audit` | CVE des dépendances, injections SQL. Lecture seule. |
+| `/hx-explain` | Pour un non-développeur : expliquer une décision, faire le bilan de son usage, expliquer une notion. |
+| `/hx-dream` | Consolider la mémoire du projet : oublier le périmé, fusionner, hiérarchiser. Plan validé avant écriture. |
 
-| Générique (mis à jour par `copier update`) | Spécifique (rempli par `/hx-setup`, jamais écrasé) |
+---
+
+## Ce qui est installé
+
+| Composant | Contenu |
+|---|---|
+| **15 skills** | Workflow : `hx-setup`, `hx-triage`, `hx-clarify`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr`, `hx-debug`, `hx-learn`, `hx-discover` · À la demande : `hx-security-audit`, `hx-explain`, `hx-dream` |
+| **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
+| **4 rules** | `openspec` · `testing` · `architecture` (feature-first, proportionnée) · `comments` (aucun par défaut, liste fermée d'exceptions) |
+| **4 hooks** | Contexte au démarrage · rappel quand Claude édite un fichier sensible (spec, contrat, hooks, permissions) · lint du fichier édité · contrôles rapides et chemins protégés avant de rendre la main |
+| **CLI `hx`** | `hx check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `hx status` (état des runs) · `hx stats` (mesures d'élagage) · `hx doctor` · `hx worktree` |
+
+<details>
+<summary><b>Permissions</b> : pourquoi aucune confirmation n'est imposée</summary>
+
+Autorisés sans confirmation : `node .harness/hx.mjs`, `openspec`, git local (lecture, `add`, `commit`, `pull`, `branch -d`, `worktree list`), `gh pr create/checks/view`, lectures shell (`ls`, `cat`, `head`, `tail`, `wc`).
+
+**Aucune règle `ask`** : une confirmation que personne ne relit ne protège rien, et elle interromprait le mode Auto. Le reste (`git push`, `git rm`, `git worktree remove`, `git bisect`, `gh issue create`…) revient au mode de permission ; en Auto, son classifieur décide. Les permissions du dossier principal (`.claude/settings.local.json`) sont reprises dans chaque worktree.
+
+Interdit : éditer `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier). Un test vérifie que chaque commande citée par un skill est autorisée ou laissée exprès au mode.
+
+</details>
+
+### Générique ou spécifique ?
+
+| 🔄 Générique — mis à jour par `copier update` | 📌 Spécifique — rempli par `/hx-setup`, jamais écrasé |
 |---|---|
 | `CLAUDE.md`, `.claude/`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json`, `.harness/project.md`, `.harness/ci/setup/action.yml`, `.github/dependabot.yml`, `.github/CODEOWNERS`, `.claude/rules/stack-*.md` |
 
-Les actions GitHub sont épinglées par SHA de commit et tenues à jour par Dependabot. Dans ce repo, les SHA de `hx-check.yml.jinja` suivent ceux de `ci.yml` (un test le vérifie).
+Un fichier générique s'améliore dans Harness, pas dans le projet.
 
-## Mettre à jour, résoudre un conflit, désinstaller
+---
 
-- **Mettre à jour** : `uvx copier@9.19.1 update --trust` sur un arbre git propre, puis `node .harness/hx.mjs doctor`. Les fichiers spécifiques ne sont jamais réécrits ; `hx migrate` ajoute à `config.json` les clés nouvelles.
-- **Conflit** : quand le template et le projet ont changé la même zone d'un fichier générique, Copier y laisse des marqueurs `<<<<<<<` / `>>>>>>>` ou un fichier `.rej`, que `hx doctor` liste. Garde la version du template sauf personnalisation voulue (un fichier générique s'améliore dans Harness, pas dans le projet), supprime les marqueurs et les `.rej`, relance `hx doctor`, puis commite.
-- **Désinstaller** : supprime `.harness/`, `.copier-answers.yml`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing`, `architecture` et `comments` de `.claude/rules/`, `.github/workflows/hx-check.yml` (et `.github/CODEOWNERS`, `.github/dependabot.yml` s'ils viennent du template). Retire de `.claude/settings.json` les hooks qui appellent `.harness/hooks.mjs`, les permissions `hx.mjs`, `openspec` et `git` du template et la variable `OPENSPEC_TELEMETRY`, et de `CLAUDE.md` les sections du harness. `openspec/` reste utilisable sans le harness : garde-le si les specs servent encore.
+## Maintenir
 
-## Développer le template
-
-```bash
-npm test                # unitaires hx, hooks et correcteurs des evals, lint du template (hermétique ; CI : Linux, macOS, Windows)
-npm run test:contract   # contrat OpenSpec, sur la version épinglée (réseau)
-npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update, lanceur npx
-npm run evals           # agents headless (claude -p, ta session Claude Code, sans clé d'API) notés de façon déterministe ; en local seulement
-```
-
-| Document | Contenu |
+| Action | Comment |
 |---|---|
-| [Page de présentation](https://patayencroute.github.io/Harness/) ([`docs/index.html`](docs/index.html)) | Le harness en schémas : principes, cycle de vie, workflow, arbre des outils (explication dépliable par outil) |
-| [`docs/PLAN.md`](docs/PLAN.md) | Plan directeur : principes, architecture, workflow, catalogue, roadmap, décisions |
-| [`docs/elagage.md`](docs/elagage.md) | Hypothèse encodée par chaque composant, mesure, signal de retrait |
-| [`docs/adr/`](docs/adr/) | Décisions du template (Copier, Claude Code seul, pas de plugin utilisateur, OpenSpec et ses critères de sortie) |
-| [`evals/README.md`](evals/README.md) | Evals comportementales et A/B |
-| [`docs/research/etat-de-l-art-2026-10.md`](docs/research/etat-de-l-art-2026-10.md) | État de l'art sourcé (octobre 2026) |
+| **Mettre à jour** | Sur un arbre git propre : `uvx copier@9.19.1 update --trust`, puis `node .harness/hx.mjs doctor`. Copier prend le dernier tag ; `hx doctor` signale un projet en retard. |
+| **Résoudre un conflit** | `hx doctor` liste les marqueurs `<<<<<<<` et fichiers `.rej`. Garde la version du template sauf personnalisation voulue, nettoie, relance `hx doctor`, commite. |
+| **Protéger le harness** | Avec `codeowners`, `.github/CODEOWNERS` couvre `.harness/`, `.claude/settings.json`, `.github/` et `openspec/specs/`. À combiner avec « Require review from Code Owners ». |
 
-## Publier une version
+<details>
+<summary><b>Désinstaller</b></summary>
 
-Les projets suivent les **tags** du template (`copier update` prend le dernier). Sur `main`, après fusion :
+1. Supprime `.harness/`, `.copier-answers.yml`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing`, `architecture` et `comments`, `.github/workflows/hx-check.yml` (et `CODEOWNERS`, `dependabot.yml` s'ils viennent du template).
+2. Dans `.claude/settings.json`, retire les hooks vers `.harness/hooks.mjs`, les permissions `hx.mjs`, `openspec` et `git` du template, et `OPENSPEC_TELEMETRY`.
+3. Dans `CLAUDE.md`, retire les sections du harness.
+
+`openspec/` reste utilisable sans le harness : garde-le si les specs servent encore.
+
+</details>
+
+---
+
+## Contribuer au template
 
 ```bash
-# 1. CHANGELOG.md : la section « Non publié » devient la version
-git tag vX.Y.Z && git push origin vX.Y.Z
+npm test                # unitaires, hermétiques (CI : Linux, macOS, Windows)
+npm run test:contract   # contrat OpenSpec sur la version épinglée (réseau)
+npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update, lanceur npx
+npm run evals           # agents headless notés de façon déterministe (local, sans clé d'API)
 ```
 
-**Statut** : phases 0 à 6 livrées (P6 : runs sans interruption après la porte de cadrage), **éprouvées sur un vrai projet**. Version courante : le [dernier tag](https://github.com/PatayEnCroute/Harness/tags). Historique : [`CHANGELOG.md`](CHANGELOG.md).
+**Publier une version** : sur `main`, la section « Non publié » de `CHANGELOG.md` devient la version, puis `git tag vX.Y.Z && git push origin vX.Y.Z`. Les projets suivent les tags.
+
+Les actions GitHub sont épinglées par SHA et tenues à jour par Dependabot ; les SHA de `hx-check.yml.jinja` suivent ceux de `ci.yml` (vérifié par un test).
+
+### Pour aller plus loin
+
+| Document | Pour… |
+|---|---|
+| [Page de présentation](https://patayencroute.github.io/Harness/) | comprendre le harness en schémas |
+| [`docs/PLAN.md`](docs/PLAN.md) | le plan directeur : principes, architecture, roadmap |
+| [`docs/adr/`](docs/adr/) | les décisions du template et leurs raisons |
+| [`docs/elagage.md`](docs/elagage.md) | savoir quand retirer un composant |
+| [`evals/README.md`](evals/README.md) | les evals comportementales et A/B |
+| [`docs/research/`](docs/research/etat-de-l-art-2026-10.md) | l'état de l'art sourcé (octobre 2026) |
+| [`CHANGELOG.md`](CHANGELOG.md) | l'historique des versions |
