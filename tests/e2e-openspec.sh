@@ -64,9 +64,10 @@ if hx check > check.log 2>&1; then fail "check vert malgré un scénario sans te
 grep -q 'calc/multiply-two-numbers (add-mult)' check.log || fail "la trace ne cite pas le scénario manquant"
 rm check.log
 
-step "Hooks : contexte de session et confirmation avant d'écrire une spec principale"
+step "Hooks : contexte de session et rappel à Claude avant d'écrire une spec principale, sans confirmation"
 hook session-start < /dev/null | grep -q 'add-mult (piste M, cadrage non validé, 2/2 tâches)' || fail "session-start"
-echo "{\"tool_input\":{\"file_path\":\"$PWD/openspec/specs/calc/spec.md\"}}" | hook pre-tool-use | grep -q '"ask"' || fail "pre-tool-use"
+out="$(echo "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$PWD/openspec/specs/calc/spec.md\"}}" | hook pre-tool-use)"
+echo "$out" | grep -q '"additionalContext"' && ! echo "$out" | grep -q permissionDecision || fail "pre-tool-use"
 
 step "Test tagué puis implémentation : hx check vert"
 cat > test/mult.test.js <<'EOF'

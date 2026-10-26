@@ -349,7 +349,7 @@ src/
 | Événement | Action |
 |---|---|
 | `SessionStart` | Changes en cours (piste, état du cadrage, tâches, verdict du rapport de fin de run) et ceux des autres worktrees, projet à personnaliser ; en session cloud, installe la CLI openspec épinglée |
-| `PreToolUse` (écriture, Bash) | **Demande confirmation** pour `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement : bloquer les casserait ; `/hx-ship` archive par la CLI, qui n'est pas concernée) et pour les fichiers qui décident de ce qui s'exécute sans confirmation : `.harness/config.json`, `hx.mjs`, `hooks.mjs`, `versions.json`, `.claude/settings*.json` (en plus, `permissions.deny` refuse Edit sur `hx.mjs`, `hooks.mjs` et `versions.json`). Couvre Edit/Write et les commandes Bash qui écrivent ces chemins : cible d'une redirection, ou segment d'une commande qui écrit (`cp`, `mv`, `sed -i`, `tee`…) ; un chemin seulement lu ou cité dans un message de commit ne compte pas. Confirmation aussi avant le skill `openspec-apply-change`, avec renvoi vers `hx-implement` |
+| `PreToolUse` (écriture, Skill) | **Ne demande jamais confirmation** : le mode de permission décide (Auto de préférence). Sur Edit/Write de `openspec/specs/**` (seuls `/opsx:sync` et `/opsx:archive` y écrivent légitimement) ou d'un fichier qui décide de ce qui s'exécute sans confirmation (`.harness/config.json`, `hx.mjs`, `hooks.mjs`, `versions.json`, `.claude/settings*.json`), ajoute un rappel au contexte de Claude (`additionalContext`). Refuse le skill `openspec-apply-change` avec renvoi vers `hx-implement` : Claude bascule seul, l'utilisateur garde `/opsx:apply`. `permissions.deny` refuse en plus Edit sur `hx.mjs`, `hooks.mjs` et `versions.json` |
 | `PostToolUse` (édition) | `lint-file` si défini, pour rester rapide (arrêté au-delà de 100 s). Contrat cassé → retour à Claude, jamais un silence |
 | `Stop` | D'après **git** (donc aussi les écritures faites par Bash, et les fichiers commités pendant la session) : lint + typecheck des seuls composants dont le code a changé depuis le dernier vert de la session (ce qui était modifié au démarrage est ignoré) ; budget de 570 s ; une seule relance (`stop_hook_active`). Signale aussi à l'utilisateur les chemins protégés modifiés, quel que soit l'outil |
 
@@ -446,7 +446,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 
 | Test | Vérifie | Où |
 |---|---|---|
-| Unitaires `hx` et hooks | Détection, résolution des commandes, trace, pistes, codes de sortie, hooks (confirmation, lint, `Stop`, session) | `npm test`, CI |
+| Unitaires `hx` et hooks | Détection, résolution des commandes, trace, pistes, codes de sortie, hooks (rappel, refus de skill, lint, `Stop`, session) | `npm test`, CI |
 | Lint du template | Standard `SKILL.md`, agents en lecture seule sans Edit/Write, rules ciblées, budgets (`CLAUDE.md` ≤ 100 lignes, skills < 500), références `hx-*` existantes, aucun Unicode invisible | `npm test`, CI |
 | Contrat OpenSpec | Chaque hypothèse sur la version épinglée : `init`, `.openspec.yaml`, `list` et `instructions apply --json`, archive, `Purpose`, chaque `/opsx:*` cité existe | `npm run test:contract` (réseau), CI |
 | E2E multi-stack | `copier copy` → `hx detect` → `doctor` → `check` sur Node, Python, .NET, Go, mixte ; YAML CI valide | CI |
@@ -469,7 +469,8 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 
 **Constats faits pendant la réalisation**, désormais encodés dans le harness :
 
-- **Pas de blocage de `openspec/specs/`** : `/opsx:sync` et `/opsx:archive` y écrivent par l'agent. Le hook demande donc une confirmation au lieu de bloquer.
+- **Pas de blocage de `openspec/specs/`** : `/opsx:sync` et `/opsx:archive` y écrivent par l'agent. Le hook rappelle la règle à Claude, et `Stop` signale le chemin à l'utilisateur.
+- **Pas de confirmation imposée** : personne ne relit une confirmation répétée, et une règle `ask` ou un `ask` de hook interrompt aussi le mode Auto. Les actions risquées reviennent au mode de permission (classifieur du mode Auto).
 - **`Purpose` d'au moins 50 caractères** pour une nouvelle capability, sinon `validate --strict` refuse la spec après l'archive (rule `openspec` + `config.yaml`).
 - **`state` décide, pas `missingPrerequisites`** : `instructions apply` liste `design` comme prérequis même quand il est facultatif. L'eval `implement-m` a révélé ce bug du skill `hx-implement`, corrigé et couvert par le contrat.
 - **Jamais de dossier `bin/`** pour les scripts du harness : les `.gitignore` .NET l'ignorent. `hx doctor` vérifie qu'aucun fichier du harness n'est ignoré.
@@ -504,7 +505,7 @@ Les scripts `hx` sont en JavaScript (`.mjs`), sans dépendance : OpenSpec impose
 | 6 | Archive OpenSpec | ✅ **Dernier commit de la PR** : `main` a toujours un code et des specs cohérents |
 | 7 | Orientation d'architecture | ✅ **Feature-first + règle de dépendance clean**, niveau proportionné à la taille et au besoin (§5) |
 | 8 | Plugin utilisateur en complément ? | ✅ **Non retenu** : les skills dépendent des fichiers du projet ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)) |
-| 9 | Hook sur `openspec/specs/` | ✅ **Confirmation** (`ask`) plutôt que blocage : l'archive y écrit légitimement |
+| 9 | Hook sur `openspec/specs/` | ✅ **Rappel à Claude** et signalement en fin de tour, ni blocage (l'archive y écrit légitimement) ni confirmation (personne ne la relit) |
 | 10 | Modèle des agents | ✅ **Hérité de la session**, sauf `hx-explorer` (`haiku`) ; réglable par projet via le champ `model` |
 | 11 | OpenSpec | ✅ **Dépendance centrale assumée**, épinglée, contrat testé, critères de sortie écrits ([ADR-004](adr/004-openspec-dependance-centrale.md)) |
 | 12 | Place de l'humain en M/L | ✅ **Une porte, au cadrage** (`x-validated`), puis un run sans interruption dans le worktree du change, et la livraison (`/hx-ship`) par l'utilisateur. Le but n'est pas un agent sans humain : l'utilisateur cadre le change suivant pendant le run |

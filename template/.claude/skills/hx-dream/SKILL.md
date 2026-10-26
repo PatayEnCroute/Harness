@@ -92,7 +92,7 @@ Charge : <lignes chargées à chaque session> → <après> · rules <avant> → 
 <propositions pour le template, contrôles à faire passer par hx-triage> | Rien
 ```
 
-Validé : applique le plan. Une note fusionnée ou oubliée se retire avec `git rm <fichier>` (confirmé à chaque fois). Si une rule ou la carte a changé, lance `node .harness/hx.mjs check`. Puis un seul commit, `hx-dream : consolidation de la mémoire`, dont le corps reprend le tableau du journal : c'est lui qui retrouve ce qui a été oublié.
+Validé : applique le plan. Une note fusionnée ou oubliée se retire avec `git rm <fichier>`. Si une rule ou la carte a changé, lance `node .harness/hx.mjs check`. Puis un seul commit, `hx-dream : consolidation de la mémoire`, dont le corps reprend le tableau du journal : c'est lui qui retrouve ce qui a été oublié.
 
 ## Pièges
 

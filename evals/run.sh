@@ -138,9 +138,6 @@ for scenario in "${scenarios[@]}"; do
     else
       cd "$work/proj"
       rc=0
-      # Scénario dont la tâche est d'écrire le contrat (setup) : personne ne peut confirmer en headless.
-      unattended=()
-      [ ! -f "$dir/config-writable" ] || unattended=(HX_ALLOW_CONFIG_EDITS=1)
       # Dossier temporaire jamais approuvé (trust) : claude -p y ignore permissions.allow du projet. On repasse les
       # permissions du template par --settings, qui s'applique toujours : mêmes règles que chez l'utilisateur, rien d'ajouté.
       permissions="$(node -e 'const s = JSON.parse(require("fs").readFileSync(".claude/settings.json", "utf8")); console.log(JSON.stringify({ permissions: s.permissions }))')"
@@ -148,7 +145,7 @@ for scenario in "${scenarios[@]}"; do
       turn=()
       for prompt in "$dir/prompt.md" "$dir/followup.md"; do
         [ -f "$prompt" ] || continue
-        env "${unattended[@]}" timeout "$timeout_s" claude -p "$(cat "$prompt")" "${turn[@]}" --settings "$permissions" --model "$model" \
+        timeout "$timeout_s" claude -p "$(cat "$prompt")" "${turn[@]}" --settings "$permissions" --model "$model" \
           --output-format stream-json --verbose --permission-mode acceptEdits \
           --max-turns "$max_turns" --allowedTools "${tools[@]}" \
           >> "$work/transcript.jsonl" 2>> "$work/stderr.log" < /dev/null || rc=$?

@@ -70,7 +70,7 @@ Grille : ne garde que les lignes que la session permet de juger.
 | Run | le laisse aller jusqu'au rapport ; cadre le change suivant pendant ce temps | l'interrompt pour suivre, relance des étapes à la main |
 | Mineurs | tranche la question avant `/hx-ship` | livre sans répondre |
 | Preuve | attend `hx check` vert avant « terminé » | accepte « c'est fait » sans preuve ; demande de sauter un test |
-| Protections | confirme un chemin protégé en sachant pourquoi | contourne une confirmation ou un hook |
+| Protections | relit le diff d'un chemin protégé signalé en fin de tour | ignore le signalement ou contourne un hook |
 | Capitaliser (`hx-learn`) | après un incident ou une correction répétée | la même correction demandée deux fois |
 
 ```markdown
