@@ -24,14 +24,12 @@
       "Bash(git ls-files *)",
       "Bash(git ls-remote *)",
       "Bash(git blame *)",
-      "Bash(git bisect *)",
       "Bash(git branch)",
       "Bash(git branch --show-current)",
       "Bash(git branch -d *)",
       "Bash(git pull)",
       "Bash(git pull *)",
       "Bash(git worktree list)",
-      "Bash(git worktree remove *)",
       "Bash(gh pr create)",
       "Bash(gh pr create *)",
       "Bash(gh pr checks *)",
@@ -42,15 +40,6 @@
       "Bash(head *)",
       "Bash(tail *)",
       "Bash(wc *)"
-    ],
-    "ask": [
-      "Bash(git push)",
-      "Bash(git push *)",
-      "Bash(git worktree remove --force *)",
-      "Bash(git worktree remove -f *)",
-      "Bash(git bisect run *)",
-      "Bash(git rm *)",
-      "Bash(gh issue create *)"
     ],
     "deny": [
       "Edit(/.harness/hx.mjs)",
@@ -68,7 +57,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|Bash|Skill",
+        "matcher": "Edit|Write|MultiEdit|Skill",
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.harness/hooks.mjs\" pre-tool-use" }
         ]

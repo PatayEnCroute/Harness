@@ -17,7 +17,7 @@ disable-model-invocation: true
 ## Étapes
 
 1. **Base à jour** (si le dépôt suit un distant) : un autre change a pu être mergé pendant le run, et son archive modifier les mêmes specs principales. Reprends la base sans réécrire l'historique : `git pull --no-rebase --no-edit origin <base>` (`default_branch` de `.copier-answers.yml`, sinon `main`). Un conflit sur `openspec/` ou sur le code du change : arrête-toi et expose-le. Puis `node .harness/hx.mjs check` : rouge, corrige avant d'archiver.
-2. **Archive OpenSpec** (pistes M et L) : toutes les tâches doivent être cochées. Lance `node .harness/hx.mjs openspec archive <change> -y` : la CLI synchronise les specs principales et déplace le change dans `openspec/changes/archive/`, sans écriture à la main dans `openspec/specs/` (qui demanderait une confirmation). Puis `node .harness/hx.mjs check` : archives validées, trace sur les specs principales. S'il est vert, commit : `<change> : archive OpenSpec`. C'est le **dernier commit** de la PR.
+2. **Archive OpenSpec** (pistes M et L) : toutes les tâches doivent être cochées. Lance `node .harness/hx.mjs openspec archive <change> -y` : la CLI synchronise les specs principales et déplace le change dans `openspec/changes/archive/`, sans écriture à la main dans `openspec/specs/`. Puis `node .harness/hx.mjs check` : archives validées, trace sur les specs principales. S'il est vert, commit : `<change> : archive OpenSpec`. C'est le **dernier commit** de la PR.
 3. **Push** : `git push -u origin <branche>`.
 4. **PR** : si `gh` est disponible, lance `gh pr create`. Sinon, donne le lien de création. Corps de la PR :
    - **Pourquoi** : repris de `proposal.md`.

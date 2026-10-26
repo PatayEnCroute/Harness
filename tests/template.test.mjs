@@ -174,12 +174,13 @@ describe('cohérence et budgets', () => {
     }
   });
 
-  test('settings.json : git local sans confirmation pendant un run (commit par tâche, diff des relecteurs), push confirmé', () => {
-    const { allow } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
+  test('settings.json : git local sans confirmation pendant un run (commit par tâche, diff des relecteurs), le reste au mode de permission', () => {
+    const { allow, ask } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
+    assert.equal(ask, undefined, 'aucune règle ask : elle interromprait aussi le mode Auto');
     for (const command of ['git add *', 'git commit *', 'git diff', 'git diff *', 'git status', 'git status *']) {
       assert.ok(allow.includes(`Bash(${command})`), command);
     }
-    assert.deepEqual(allow.filter((rule) => /git (push|reset|rebase|checkout|clean)/.test(rule)), []);
+    assert.deepEqual(allow.filter((rule) => /git (push|reset|rebase|checkout|clean|rm|bisect|worktree remove)|gh issue/.test(rule)), []);
   });
 
   test('hx-dream : hors workflow, aucune invention, plan validé avant écriture, fichiers du template et specs intouchés', () => {
@@ -191,17 +192,16 @@ describe('cohérence et budgets', () => {
     assert.match(body, /attends une validation explicite/);
     assert.match(body, /`docs\/adr\/`, `openspec\/specs\/` .*\*\*jamais modifiés\*\*/);
     assert.match(body, /Fichiers du template .*\*\*jamais modifiés\*\*/);
-    const { ask } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
-    assert.ok(ask.includes('Bash(git rm *)'), 'oublier une note se confirme fichier par fichier');
   });
 
-  test('settings.json : chaque commande citée par un prompt est autorisée, ou confirmée exprès (ask)', () => {
-    const { allow, ask } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
+  test('settings.json : chaque commande citée par un prompt est autorisée, ou laissée exprès au mode de permission', () => {
+    const { allow } = JSON.parse(read(path.join(claude, 'settings.json'))).permissions;
     // Sémantique de Claude Code : « X * » couvre « X » suivi d'arguments, pas « X » seul.
     const matcher = (rule) => new RegExp(`^${rule.slice(5, -1).replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/ \*$/, ' .+').replace(/\*/g, '.*')}$`);
     const allowed = allow.filter((r) => r.startsWith('Bash(')).map(matcher);
-    const confirmed = ask.filter((r) => r.startsWith('Bash(')).map(matcher);
-    // Mentions qui ne sont pas des commandes à lancer telles quelles, ou confirmation voulue hors liste.
+    // Effet hors du dépôt local ou perte possible : en mode Auto, le classifieur de Claude Code en décide.
+    const leftToMode = [/^git push( |$)/, /^git rm /, /^git worktree remove /, /^gh issue create /];
+    // Mentions qui ne sont pas des commandes à lancer telles quelles.
     const notCommands = new Set([
       'git bisect', // la technique, pas une commande
       'git grep', // toujours lancé avec un motif (« git grep * »)
@@ -212,9 +212,11 @@ describe('cohérence et budgets', () => {
       .filter(({ command }) => /^(git|gh|openspec) \S|^node \.harness\/hx\.mjs \S/.test(command) && !notCommands.has(command));
     assert.ok(cited.length > 20, `commandes citées trouvées : ${cited.length}`);
     for (const { file, command } of cited) {
-      assert.ok([...allowed, ...confirmed].some((re) => re.test(command)), `${path.relative(template, file)} : « ${command} » n'est ni autorisée ni dans ask`);
+      assert.ok([...allowed, ...leftToMode].some((re) => re.test(command)), `${path.relative(template, file)} : « ${command} » n'est ni autorisée ni laissée au mode`);
     }
-    for (const push of ['git push', 'git push -u origin feat']) assert.ok(confirmed.some((re) => re.test(push)), `${push} reste confirmé`);
+    for (const command of ['git push', 'git push -u origin feat', 'git rm x.md', 'git worktree remove --force x', 'git bisect run make test']) {
+      assert.ok(!allowed.some((re) => re.test(command)), `${command} reste au mode de permission`);
+    }
   });
 
   test('les budgets internes des hooks restent sous les délais de settings.json', async () => {

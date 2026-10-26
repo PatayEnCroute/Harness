@@ -48,82 +48,52 @@ const ok = 'node -e "process.exit(0)"';
 const ko = 'node -e "console.error(\'lint KO\'); process.exit(1)"';
 
 describe('hooks Claude Code', () => {
-  const asks = (r) => r.stdout !== '' && JSON.parse(r.stdout).hookSpecificOutput.permissionDecision === 'ask';
+  const decision = (r) => (r.stdout === '' ? null : JSON.parse(r.stdout).hookSpecificOutput);
+  const noted = (r) => typeof decision(r)?.additionalContext === 'string' && decision(r).permissionDecision === undefined;
 
-  test('pre-tool-use : confirmation pour openspec/specs, silence ailleurs', () => {
+  test('pre-tool-use : jamais de confirmation ; contexte pour Claude sur une spec principale, silence ailleurs', () => {
     const root = project({ components: {} });
-    assert.ok(asks(hook('pre-tool-use', root, { tool_input: { file_path: path.join(root, 'openspec/specs/calc/spec.md') } })));
-    const free = hook('pre-tool-use', root, { tool_input: { file_path: path.join(root, 'src/a.js') } });
+    const spec = hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, 'openspec/specs/calc/spec.md') } });
+    assert.ok(noted(spec));
+    assert.match(decision(spec).additionalContext, /\/opsx:sync/);
+    const free = hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, 'src/a.js') } });
     assert.equal(free.code, 0);
     assert.equal(free.stdout, '');
     const outside = path.join(path.dirname(root), 'ailleurs', 'openspec', 'specs', 'x', 'spec.md');
-    assert.equal(hook('pre-tool-use', root, { tool_input: { file_path: outside } }).stdout, '');
+    assert.equal(hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: outside } }).stdout, '');
   });
 
-  test('pre-tool-use : confirmation pour le contrat, les hooks et les permissions', () => {
+  test('pre-tool-use : contexte pour le contrat, les hooks et les permissions, sans confirmation', () => {
     const root = project({ components: {} });
     for (const rel of ['.harness/config.json', '.harness/hx.mjs', '.harness/hooks.mjs', '.harness/versions.json', '.claude/settings.json', '.claude/settings.local.json']) {
-      assert.ok(asks(hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, rel) } })), rel);
+      assert.ok(noted(hook('pre-tool-use', root, { tool_name: 'Write', tool_input: { file_path: path.join(root, rel) } })), rel);
     }
     assert.equal(hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, '.harness/project.md') } }).stdout, '');
   });
 
-  test('pre-tool-use : HX_ALLOW_CONFIG_EDITS=1 lève la confirmation sur config.json seulement', () => {
+  test('pre-tool-use : une commande Bash passe sans décision du hook (le mode de permission décide, Stop signale)', () => {
     const root = project({ components: {} });
-    const edit = (rel) => hook('pre-tool-use', root, { tool_name: 'Edit', tool_input: { file_path: path.join(root, rel) } }, { HX_ALLOW_CONFIG_EDITS: '1' });
-    assert.equal(edit('.harness/config.json').stdout, '');
-    assert.equal(hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command: `echo '{}' > .harness/config.json` } }, { HX_ALLOW_CONFIG_EDITS: '1' }).stdout, '');
-    for (const rel of ['.harness/hooks.mjs', '.harness/hx.mjs', '.claude/settings.json', 'openspec/specs/x/spec.md']) assert.ok(asks(edit(rel)), rel);
-    // Commande vue dans l'eval setup : lancer hx.mjs ne l'écrit pas, seul config.json est écrit.
-    const setupCommand = `node .harness/hx.mjs detect --write && python3 -c "open('.harness/config.json','w')"`;
-    assert.equal(hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command: setupCommand } }, { HX_ALLOW_CONFIG_EDITS: '1' }).stdout, '');
-    assert.ok(asks(hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command: setupCommand } })), 'sans la variable, confirmation');
+    for (const command of [`echo '{}' > .harness/config.json`, 'git push', 'git rm x.md']) {
+      assert.equal(hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command } }).stdout, '', command);
+    }
   });
 
-  test('pre-tool-use : une commande Bash qui écrit un fichier protégé demande confirmation, une lecture non', () => {
-    const root = project({ components: {} });
-    const bash = (command) => hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command } });
-    assert.ok(asks(bash(`echo '{}' > .harness/config.json`)));
-    assert.ok(asks(bash('sed -i s/a/b/ .claude/settings.json')));
-    assert.ok(asks(bash('cat x > openspec/specs/calc/spec.md')));
-    assert.equal(bash('cat .harness/config.json').stdout, '');
-    assert.equal(bash('grep -i test .harness/config.json').stdout, '');
-    assert.ok(asks(bash('perl -pi -e s/a/b/ .harness/hx.mjs')));
-    assert.equal(bash('node .harness/hx.mjs check > /tmp/out.txt').stdout, '', 'lancer hx.mjs ne l\'écrit pas');
-    assert.ok(asks(bash('node .harness/hx.mjs detect --json > x.json && cp x.json .harness/config.json')), 'tous les chemins cités comptent');
-    assert.equal(bash('node .harness/hx.mjs check 2>&1').stdout, '');
-    assert.ok(asks(bash('cp /tmp/x.json .harness/config.json')));
-    assert.ok(asks(bash(`echo '{}' >> ".claude/settings.json"`)), 'cible de redirection entre guillemets');
-    assert.ok(asks(bash('echo x | tee .harness/config.json')));
-  });
-
-  test('pre-tool-use : une lecture redirigée ou un message de commit ne demandent pas confirmation', () => {
-    const root = project({ components: {} });
-    const bash = (command) => hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command } });
-    assert.equal(bash('git diff .harness/config.json > /tmp/d.txt').stdout, '', 'lu, puis redirigé ailleurs');
-    assert.equal(bash('git add .harness/config.json && git commit -m "config : lint -> eslint"').stdout, '');
-    assert.equal(bash(`git commit -m 'rm de .claude/settings.json : inutile'`).stdout, '');
-    assert.equal(bash('cat .claude/settings.json 2>&1 | head -5 > /tmp/s.txt').stdout, '');
-    assert.equal(bash(`git log --format='%s > %an' -- openspec/specs/`).stdout, '', '> entre guillemets : pas une redirection');
-    assert.ok(asks(bash('git diff > .harness/config.json')), 'la cible compte, même si la commande lit');
-    assert.ok(asks(bash('git commit -m "x" && rm .claude/settings.json')), 'le segment suivant compte');
-    assert.ok(asks(bash("python3 - <<'EOF'\np = '.harness/config.json'\njson.dump({}, open(p, 'w'))\nEOF")), 'script : chemin dans une variable');
-  });
-
-  test('pre-tool-use : openspec-apply-change redirigé vers hx-implement, autres skills libres', () => {
+  test('pre-tool-use : openspec-apply-change refusé avec renvoi vers hx-implement, autres skills libres', () => {
     const root = project({ components: {} });
     const skill = (name) => hook('pre-tool-use', root, { tool_name: 'Skill', tool_input: { skill: name } });
-    assert.ok(asks(skill('openspec-apply-change')));
-    assert.match(skill('openspec-apply-change').stdout, /hx-implement/);
+    for (const name of ['openspec-apply-change', 'openspec:openspec-apply-change']) {
+      assert.equal(decision(skill(name)).permissionDecision, 'deny', name);
+    }
+    assert.match(decision(skill('openspec-apply-change')).permissionDecisionReason, /hx-implement.*\/opsx:apply/);
     assert.equal(skill('hx-implement').stdout, '');
     assert.equal(skill('openspec-propose').stdout, '');
   });
 
-  test('pre-tool-use : un lien symbolique vers le projet ne contourne pas la protection', () => {
+  test('pre-tool-use : un lien symbolique vers le projet ne fait pas manquer un chemin protégé', () => {
     const root = project({ components: {} });
     const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-link-')), 'proj');
     fs.symlinkSync(root, link);
-    assert.ok(asks(hook('pre-tool-use', link, { tool_input: { file_path: path.join(root, 'openspec/specs/x/spec.md') } })));
+    assert.ok(noted(hook('pre-tool-use', link, { tool_name: 'Edit', tool_input: { file_path: path.join(root, 'openspec/specs/x/spec.md') } })));
   });
 
   test('post-tool-use : lint-file en échec → code 2 avec la sortie ; sans lint-file ou sur un .md → rien', () => {
@@ -170,7 +140,7 @@ describe('hooks Claude Code', () => {
     write(wt, 'src/a.js');
     assert.equal(hook('stop', root, session).code, 2, 'le code modifié dans le worktree est contrôlé');
     assert.equal(hook('stop', root, { ...session, cwd: undefined }).code, 0, 'sans cwd : dossier principal, rien de modifié');
-    assert.ok(asks(hook('pre-tool-use', root, { ...session, tool_input: { file_path: path.join(wt, 'openspec/specs/calc/spec.md') } })));
+    assert.ok(noted(hook('pre-tool-use', root, { ...session, tool_name: 'Edit', tool_input: { file_path: path.join(wt, 'openspec/specs/calc/spec.md') } })));
     const other = gitProject({ components: {} }).root;
     assert.equal(hook('stop', root, { ...session, cwd: other }).code, 0, 'autre dépôt : dossier principal');
   });
