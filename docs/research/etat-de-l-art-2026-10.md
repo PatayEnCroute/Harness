@@ -37,6 +37,7 @@
 | Évaluateur séparé du générateur (« les agents louent leur propre travail ») ; contrat de « done » avant de coder ; élaguer les composants quand les modèles progressent | [Anthropic, mars 2026](https://www.anthropic.com/engineering/harness-design-long-running-apps) |
 | Fichier de progression + liste de features initialement en échec ; une feature par session | [Anthropic, nov. 2025](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) |
 | Le goulot passe de l'écriture du code à l'intégration et à l'attention humaine ; relire l'intention plutôt que chaque ligne. Répercussions : [`scion-2026-10.md`](scion-2026-10.md) | [Anthropic, oct. 2026](https://www.anthropic.com/research/redesigning-source-control) |
+| Moins de sous-agents : une boucle unique avec skills bat souvent les sous-agents ; garder ceux qui vérifient, explorent ou travaillent en parallèle. Répercussions : [`sous-agents-2026-10.md`](sous-agents-2026-10.md) | [Anthropic, oct. 2026](https://claude.com/blog/building-agents-when-to-fold-subagents-into-your-main-agent-loop) |
 | Les fichiers de contexte améliorent peu la réussite et coûtent +20 % en inférence ; utiles seulement pour le non-standard | [ETH, arXiv 2602.11988](https://arxiv.org/abs/2602.11988) |
 
 ## 4. Packs existants : rôles et phases récurrents
