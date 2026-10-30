@@ -18,6 +18,8 @@ import {
   main,
   checkSettings,
   changeState,
+  confidence,
+  formatConfidence,
   createWorktree,
   formatStats,
   mergeLeftovers,
@@ -789,5 +791,103 @@ describe('OpenSpec : scénarios et traçabilité', () => {
     assert.deepEqual(errors({}).sort(), ['hotfix x-track invalide : XS (pistes : S, M, L)', 'nospec piste M : aucune delta spec (specs/<capability>/spec.md)']);
     const strict = { tracks: { M: { design: 'required' }, XS: { spec: false } } };
     assert.deepEqual(errors(strict).sort(), ['feat piste M : design.md manquant', 'nospec piste M : aucune delta spec (specs/<capability>/spec.md)', 'nospec piste M : design.md manquant']);
+  });
+});
+
+describe('confidence : livraison automatique d\'un run terminé', () => {
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8', env });
+  const ready = 'x-track: M\nx-validated: 2026-10-18\nx-review-confirmed: 0\nx-review-discarded: 1\nx-review-minors: 0\nx-review-deferred: 0\nx-run-assumptions: 0\n';
+  // Base main commitée, puis branche du change avec ses fichiers : run terminé, prêt à livrer.
+  function run({ ship = { auto: true }, meta = ready, files = {} } = {}) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-conf-'));
+    writeFiles(root, { '.harness/config.json': JSON.stringify({ version: 1, components: {}, ship }), 'src/a.js': 'a\n' });
+    git(root, 'init', '-q', '-b', 'main');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'base');
+    git(root, 'checkout', '-qb', 'add-mult');
+    writeFiles(root, {
+      'openspec/changes/add-mult/.openspec.yaml': meta,
+      'openspec/changes/add-mult/tasks.md': '- [x] 1.1 a\n',
+      'openspec/changes/add-mult/run-report.md': '## add-mult : Prêt à livrer\n',
+      'src/mult.js': 'm\n',
+      ...files,
+    });
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'run');
+    return root;
+  }
+
+  test('run prêt, piste M, rien à signaler : livraison automatique, score 100', () => {
+    const r = confidence(run(), 'add-mult');
+    assert.deepEqual([r.auto, r.score, r.threshold, r.exclusions, r.penalties], [true, 100, 80, [], []]);
+    assert.deepEqual(r.diff, { base: 'main', files: 1 });
+    assert.match(formatConfidence(r), /score 100\/100 \(seuil 80\) · livraison automatique/);
+  });
+
+  test('pénalités : hypothèses, mineurs, constats corrigés ; le seuil tranche', () => {
+    const meta = (assumptions, minors, confirmed) => ready.replace('x-run-assumptions: 0', `x-run-assumptions: ${assumptions}`)
+      .replace('x-review-minors: 0', `x-review-minors: ${minors}`).replace('x-review-confirmed: 0', `x-review-confirmed: ${confirmed}`);
+    const atThreshold = confidence(run({ meta: meta(1, 1, 1) }), 'add-mult');
+    assert.deepEqual([atThreshold.score, atThreshold.auto], [80, true]);
+    const below = confidence(run({ meta: meta(2, 1, 0) }), 'add-mult');
+    assert.deepEqual([below.score, below.auto, below.exclusions], [75, false, []]);
+    assert.deepEqual(below.penalties.map((p) => p.points), [20, 5]);
+    assert.equal(confidence(run({ meta: meta(2, 1, 0), ship: { auto: true, min_confidence: 70 } }), 'add-mult').auto, true);
+  });
+
+  test('dépendances pénalisent, pas la taille du diff ; harness, CI et specs principales excluent', () => {
+    const deps = confidence(run({ files: { 'package.json': '{}\n', 'src/big.js': 'x\n'.repeat(2000) } }), 'add-mult');
+    assert.deepEqual(deps.penalties.map((p) => p.points), [15]);
+    assert.equal(deps.score, 85);
+    for (const file of ['.github/workflows/ci.yml', '.claude/settings.json', 'openspec/specs/calc/spec.md', 'CLAUDE.md']) {
+      const r = confidence(run({ files: { [file]: 'x\n' } }), 'add-mult');
+      assert.equal(r.auto, false, file);
+      assert.match(r.exclusions.join('\n'), new RegExp(`harness, CI ou specs principales modifiés : ${file.replace('.', '\\.')}`), file);
+    }
+  });
+
+  test('exclusions : désactivée, piste L, mesure absente, important reporté, rapport bloqué, tâches, arbre sale', () => {
+    const excluded = (opts, pattern, edit) => {
+      const root = run(opts);
+      edit?.(root);
+      const r = confidence(root, 'add-mult');
+      assert.equal(r.auto, false, String(pattern));
+      assert.match(r.exclusions.join('\n'), pattern);
+    };
+    excluded({ ship: {} }, /livraison automatique désactivée/);
+    excluded({ meta: ready.replace('x-track: M', 'x-track: L') }, /piste L : seule une piste M/);
+    excluded({ meta: ready.replace('x-run-assumptions: 0\n', '') }, /x-run-assumptions absent ou invalide/);
+    excluded({ meta: ready.replace('x-review-deferred: 0', 'x-review-deferred: 1') }, /importants reportés hors du change : 1/);
+    excluded({ meta: ready.replace('x-validated: 2026-10-18\n', '') }, /cadrage non validé/);
+    excluded({ files: { 'openspec/changes/add-mult/run-report.md': '## add-mult : Bloqué : spec fausse\n' } }, /rapport de fin de run : Bloqué : spec fausse/);
+    excluded({ files: { 'openspec/changes/add-mult/tasks.md': '- [x] 1.1 a\n- [ ] 1.2 b\n' } }, /tâches 1\/2/);
+    excluded({}, /modifications non commitées hors du change/, (root) => fs.writeFileSync(path.join(root, 'src/a.js'), 'b\n'));
+    excluded({}, /aucun commit propre au change depuis main/, (root) => git(root, 'checkout', '-qB', 'main'));
+    assert.match(confidence(run(), 'absent').exclusions.join('\n'), /change introuvable/);
+  });
+
+  test('le rapport et les mesures du change, non commités, ne bloquent pas : hx-review les commite après', () => {
+    const root = run();
+    fs.appendFileSync(path.join(root, 'openspec/changes/add-mult/run-report.md'), '\n### Livraison\n');
+    fs.writeFileSync(path.join(root, '.claude-local-untracked'), 'x');
+    assert.equal(confidence(root, 'add-mult').auto, true);
+  });
+
+  test('CLI : 0 si automatique, 1 sinon, 2 sans change identifiable ; change déduit s\'il est seul', () => {
+    const root = run();
+    assert.equal(main(['confidence', 'add-mult'], root), 0);
+    assert.equal(main(['confidence'], root), 0);
+    assert.equal(main(['confidence', 'add-mult'], run({ ship: { auto: false } })), 1);
+    writeFiles(root, { 'openspec/changes/autre/.openspec.yaml': 'x-track: M\n' });
+    assert.equal(main(['confidence'], root), 2);
+  });
+
+  test('contrat : ship.auto booléen, min_confidence entier de 0 à 100', () => {
+    const errors = (ship) => validateConfig({ version: 1, components: { app: { path: '.', commands: { test: 'x' } } }, ship }, repo).filter((i) => i.label === 'Livraison');
+    assert.deepEqual(errors({ auto: true, min_confidence: 80 }), []);
+    assert.equal(errors({ auto: 'oui' }).length, 1);
+    assert.equal(errors({ min_confidence: 101 }).length, 1);
+    assert.equal(errors('x').length, 1);
   });
 });

@@ -115,6 +115,24 @@ describe('cohérence et budgets', () => {
     assert.match(frontmatter(read(path.join(claude, 'agents', 'hx-security-reviewer.md'))).data.description, /la CI/);
   });
 
+  test('livraison automatique : hx confidence décide, hx-ship la refuse sans lui, la PR est relue en commentaire', () => {
+    const review = read(path.join(claude, 'skills', 'hx-review', 'SKILL.md'));
+    for (const key of ['x-review-minors', 'x-review-deferred', 'x-run-assumptions']) assert.match(review, new RegExp(`\`${key}: <n>\``), key);
+    assert.match(review, /`node \.harness\/hx\.mjs confidence <change>`/);
+    assert.match(review, /\*\*Sortie 0\*\* \(livraison automatique\) : enchaîne `\/hx-ship <change>`/);
+    const pr = review.slice(review.indexOf("## Revue d'une PR"));
+    assert.match(pr, /`gh pr comment <numéro> --body-file <fichier>`/);
+    for (const section of ['### Constats sur la PR', '### À confirmer par le relecteur', '### Historique du run']) assert.ok(pr.includes(section), section);
+    assert.match(pr, /Ne remplace pas l'approbation humaine/);
+    const ship = read(path.join(claude, 'skills', 'hx-ship', 'SKILL.md'));
+    assert.equal(frontmatter(ship).data['disable-model-invocation'], undefined, 'hx-review doit pouvoir le lancer');
+    assert.match(ship, /hook `PreToolUse` le refuse si `hx confidence` ne l'autorise pas/);
+    assert.match(ship, /`gh pr create --draft`/);
+    assert.match(ship, /`hx-review --pr <numéro>`/);
+    assert.match(ship, /Tu ne merges jamais/);
+    assert.equal(JSON.parse(read(path.join(template, '.harness', 'config.json'))).ship.auto, false, 'désactivée par défaut');
+  });
+
   test('porte de cadrage : hx-triage fait contester le cadrage par hx-architect, qui sait le relire', () => {
     const triage = read(path.join(claude, 'skills', 'hx-triage', 'SKILL.md'));
     const gate = triage.slice(triage.indexOf('## Porte de cadrage'));

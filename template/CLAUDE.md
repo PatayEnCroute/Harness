@@ -19,6 +19,7 @@ N'appelle jamais directement l'outil de la stack pour installer, tester, linter 
 | Diagnostiquer l'installation | `node .harness/hx.mjs doctor` |
 | Branche et worktree pour le run d'un change validé | `node .harness/hx.mjs worktree <change>` |
 | Où en est chaque change, dans tous les worktrees | `node .harness/hx.mjs status` |
+| Le harness peut-il livrer seul ce change ? | `node .harness/hx.mjs confidence <change>` |
 
 Si une commande manque ou échoue pour une raison d'outillage, signale-le au lieu de la contourner.
 
@@ -37,6 +38,7 @@ Commence toute demande de changement par **`hx-triage`** : les critères de choi
 1. **Cadrage** (avec l'utilisateur) : `hx-clarify`, `/opsx:propose`, design en L. Il se termine par **la porte** décrite dans `hx-triage` : validation explicite, `x-validated`, puis `hx worktree <change>`.
 2. **Run** (dans le worktree du change, ou dans la session si l'utilisateur le préfère ; sans lui) : `hx-implement` → `hx-verify` → `hx-review` → rapport de fin de run. **Ne rends pas la main entre ces étapes** et ne pose pas de question en cours de route ; arrête-toi seulement sur les blocages listés dans `hx-implement`.
 3. **Livraison** (l'utilisateur) : relecture du rapport, décision sur les mineurs, puis `/hx-ship`. Même avec une PR demandée d'avance, pas d'archive avant cette décision.
+   **Livraison automatique** (piste M, `ship.auto` dans `.harness/config.json`) : si `node .harness/hx.mjs confidence <change>` sort en 0, `hx-review` enchaîne `/hx-ship`, sans appliquer de mineur : PR en brouillon, CI, puis `hx-review --pr` publie la revue en commentaire. Sinon, livraison par l'utilisateur. Jamais de merge.
 
 - Le change OpenSpec porte sa piste : `x-track: M` ou `L` dans `.openspec.yaml`.
 - L'archive OpenSpec (faite par `/hx-ship`) est le **dernier commit de la PR**.
