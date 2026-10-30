@@ -821,7 +821,7 @@ describe('confidence : livraison automatique d\'un run terminé', () => {
   test('run prêt, piste M, rien à signaler : livraison automatique, score 100', () => {
     const r = confidence(run(), 'add-mult');
     assert.deepEqual([r.auto, r.score, r.threshold, r.exclusions, r.penalties], [true, 100, 80, [], []]);
-    assert.deepEqual(r.diff, { base: 'main', files: 1, lines: 1 });
+    assert.deepEqual(r.diff, { base: 'main', files: 1 });
     assert.match(formatConfidence(r), /score 100\/100 \(seuil 80\) · livraison automatique/);
   });
 
@@ -836,10 +836,10 @@ describe('confidence : livraison automatique d\'un run terminé', () => {
     assert.equal(confidence(run({ meta: meta(2, 1, 0), ship: { auto: true, min_confidence: 70 } }), 'add-mult').auto, true);
   });
 
-  test('dépendances et taille du diff pénalisent ; harness, CI et specs principales excluent', () => {
-    const deps = confidence(run({ files: { 'package.json': '{}\n', 'src/big.js': 'x\n'.repeat(350) } }), 'add-mult');
-    assert.deepEqual(deps.penalties.map((p) => p.points), [15, 10]);
-    assert.equal(deps.score, 75);
+  test('dépendances pénalisent, pas la taille du diff ; harness, CI et specs principales excluent', () => {
+    const deps = confidence(run({ files: { 'package.json': '{}\n', 'src/big.js': 'x\n'.repeat(2000) } }), 'add-mult');
+    assert.deepEqual(deps.penalties.map((p) => p.points), [15]);
+    assert.equal(deps.score, 85);
     for (const file of ['.github/workflows/ci.yml', '.claude/settings.json', 'openspec/specs/calc/spec.md', 'CLAUDE.md']) {
       const r = confidence(run({ files: { [file]: 'x\n' } }), 'add-mult');
       assert.equal(r.auto, false, file);

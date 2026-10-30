@@ -950,7 +950,6 @@ export const CONFIDENCE_PENALTIES = [
   // Corrigés après la revue, ces constats n'ont pas été relus à leur tour.
   { key: 'x-review-confirmed', points: 5, label: 'constats corrigés après la revue' },
 ];
-const DIFF_PENALTIES = [{ lines: 800, points: 25 }, { lines: 300, points: 10 }];
 const DEPENDENCY_POINTS = 15;
 const DEPENDENCY_FILE = /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements[^/]*\.txt|pyproject\.toml|poetry\.lock|uv\.lock|Pipfile(\.lock)?|go\.(mod|sum)|Cargo\.(toml|lock)|pom\.xml|build\.gradle(\.kts)?|gradle\.lockfile|[^/]+\.(cs|fs|vb)proj|Directory\.Packages\.props|packages\.lock\.json|Gemfile(\.lock)?|composer\.(json|lock))$/;
 // Harness, CI, permissions et specs principales : un changement ici se relit avant d'être poussé.
@@ -964,10 +963,7 @@ function branchDiff(root) {
     if (mergeBase.status !== 0) continue;
     const from = mergeBase.stdout.trim();
     if (from === git('rev-parse', 'HEAD').stdout.trim()) return { base: ref, error: `aucun commit propre au change depuis ${ref}` };
-    const files = git('diff', '--numstat', '--no-renames', from, 'HEAD').stdout.split(/\r?\n/).filter(Boolean).map((line) => {
-      const [added, deleted, ...name] = line.split('\t');
-      return { file: name.join('\t'), lines: (Number(added) || 0) + (Number(deleted) || 0) };
-    });
+    const files = git('diff', '--name-only', '--no-renames', from, 'HEAD').stdout.split(/\r?\n/).filter(Boolean);
     return { base: ref, files };
   }
   return { base, error: `branche de base ${base} introuvable : diff non mesurable` };
@@ -1010,15 +1006,12 @@ export function confidence(root, change) {
   const diff = dirty.status === 0 ? branchDiff(root) : null;
   if (diff?.error) exclude(diff.error);
   else if (diff) {
-    const code = diff.files.filter((f) => !f.file.startsWith('openspec/changes/'));
-    const lines = code.reduce((sum, f) => sum + f.lines, 0);
-    result.diff = { base: diff.base, files: code.length, lines };
-    const guarded = code.map((f) => f.file).filter((f) => SHIP_GUARDED.test(f));
+    const code = diff.files.filter((f) => !f.startsWith('openspec/changes/'));
+    result.diff = { base: diff.base, files: code.length };
+    const guarded = code.filter((f) => SHIP_GUARDED.test(f));
     if (guarded.length) exclude(`harness, CI ou specs principales modifiés : ${guarded.join(', ')}`);
-    const dependencies = code.map((f) => f.file).filter((f) => DEPENDENCY_FILE.test(f));
+    const dependencies = code.filter((f) => DEPENDENCY_FILE.test(f));
     if (dependencies.length) penalize(`dépendances modifiées : ${dependencies.join(', ')}`, DEPENDENCY_POINTS);
-    const size = DIFF_PENALTIES.find((p) => lines > p.lines);
-    if (size) penalize(`diff de plus de ${size.lines} lignes : ${lines}`, size.points);
   }
   result.score = Math.max(0, score);
   result.auto = result.exclusions.length === 0 && result.score >= result.threshold;
@@ -1030,7 +1023,7 @@ export function formatConfidence(r) {
   const lines = [`${r.change} : score ${r.score}/100 (seuil ${r.threshold}) · livraison ${decision}`];
   if (r.exclusions.length) lines.push('Exclusions :', ...r.exclusions.map((e) => `  ✗ ${e}`));
   lines.push(r.penalties.length ? 'Pénalités :' : 'Pénalités : aucune', ...r.penalties.map((p) => `  −${p.points} ${p.label}`));
-  if (r.diff) lines.push(`Diff : ${r.diff.files} fichier(s), ${r.diff.lines} ligne(s) hors openspec/changes/ (base ${r.diff.base})`);
+  if (r.diff) lines.push(`Diff : ${r.diff.files} fichier(s) hors openspec/changes/ (base ${r.diff.base})`);
   return lines.join('\n');
 }
 

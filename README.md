@@ -111,7 +111,7 @@ Désactivée par défaut. Pour l'activer : `"ship": { "auto": true, "min_confide
 | rapport de fin de run autre que « Prêt à livrer », tâches non cochées | 5 par mineur proposé |
 | important reporté hors du change | 5 par constat corrigé après la revue (non relu) |
 | `.harness/`, `.claude/`, `.github/`, `CLAUDE.md`, specs principales modifiés | 15 si des dépendances changent |
-| mesure absente de `.openspec.yaml`, arbre sale, revue sans sous-agents | 10 au-delà de 300 lignes, 25 au-delà de 800 |
+| mesure absente de `.openspec.yaml`, arbre sale, revue sans sous-agents | |
 
 Le commentaire de revue donne : verdict, indice et contrôles, constats triés par gravité avec leur correction, hypothèses et mineurs à confirmer, constats écartés. Le harness ne merge jamais.
 
