@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   FAST_STEPS,
+  confidence,
   execute,
   findComponentForFile,
   installedOpenspecVersion,
@@ -197,13 +198,27 @@ const REDIRECTED_SKILLS = {
   'openspec-apply-change': 'Le harness implémente un change avec hx-implement (sous-agent neuf par tâche, revue de conformité, preuve). Pour openspec-apply-change, l\'utilisateur lance /opsx:apply lui-même.',
 };
 
+// /hx-ship lancé par Claude (outil Skill), et non tapé par l'utilisateur : livraison automatique, permise seulement
+// si `hx confidence` l'autorise. Renvoie la raison du refus, ou null.
+function automaticShipRefusal(root, args) {
+  const named = String(args ?? '').trim().split(/\s+/)[0];
+  const active = listChanges(root).map((c) => c.name);
+  const change = named || (active.length === 1 ? active[0] : null);
+  const r = change ? confidence(root, change) : null;
+  if (r?.auto) return null;
+  const why = r ? `score ${r.score}/100, seuil ${r.threshold}${r.exclusions.length ? ` ; ${r.exclusions.join(' ; ')}` : ''}` : 'change non précisé';
+  return `Livraison automatique refusée par hx confidence (${why}). Termine le rapport de fin de run par sa question et rends la main : l'utilisateur lance /hx-ship lui-même.`;
+}
+
 // Ne demande jamais confirmation : le mode de permission (Auto de préférence) décide. Skill qui court-circuite le
-// workflow : refusé avec l'alternative. Chemin protégé édité par Edit/Write : contexte ajouté pour Claude.
+// workflow, ou livraison automatique non permise : refusé avec l'alternative. Chemin protégé édité : contexte pour Claude.
 export function preToolUse(root, input) {
   const output = (fields) => console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...fields } }));
   if (input.tool_name === 'Skill') {
     const skill = String(input.tool_input?.skill ?? '').replace(/^.*:/, '');
-    if (Object.hasOwn(REDIRECTED_SKILLS, skill)) output({ permissionDecision: 'deny', permissionDecisionReason: REDIRECTED_SKILLS[skill] });
+    const redirect = Object.hasOwn(REDIRECTED_SKILLS, skill) ? REDIRECTED_SKILLS[skill] : null;
+    const refusal = skill === 'hx-ship' ? automaticShipRefusal(root, input.tool_input?.args) : redirect;
+    if (refusal) output({ permissionDecision: 'deny', permissionDecisionReason: refusal });
     return 0;
   }
   const file = input.tool_input?.file_path;

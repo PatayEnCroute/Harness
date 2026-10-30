@@ -89,6 +89,26 @@ describe('hooks Claude Code', () => {
     assert.equal(skill('openspec-propose').stdout, '');
   });
 
+  test('pre-tool-use : hx-ship lancé par Claude seulement si hx confidence autorise la livraison automatique', () => {
+    const meta = 'x-track: M\nx-validated: 2026-10-18\nx-review-confirmed: 0\nx-review-minors: 0\nx-review-deferred: 0\nx-run-assumptions: 0\n';
+    const change = { 'openspec/changes/add-mult/.openspec.yaml': meta, 'openspec/changes/add-mult/tasks.md': '- [x] 1.1 a\n', 'openspec/changes/add-mult/run-report.md': '## add-mult : Prêt à livrer\n' };
+    const { root, git } = gitProject({ components: {}, ship: { auto: true } });
+    git('branch', '-M', 'main');
+    git('checkout', '-qb', 'add-mult');
+    for (const [rel, content] of Object.entries({ ...change, 'src/mult.js': 'm\n' })) write(root, rel, content);
+    git('add', '-A');
+    git('commit', '-qm', 'run');
+    const ship = (args) => hook('pre-tool-use', root, { tool_name: 'Skill', tool_input: { skill: 'hx-ship', args } });
+    assert.equal(ship('add-mult').stdout, '');
+    assert.equal(ship(undefined).stdout, '', 'change déduit quand il est seul');
+    write(root, 'openspec/changes/add-mult/run-report.md', '## add-mult : Bloqué : spec fausse\n');
+    const refused = decision(ship('add-mult'));
+    assert.equal(refused.permissionDecision, 'deny');
+    assert.match(refused.permissionDecisionReason, /rapport de fin de run : Bloqué.*l'utilisateur lance \/hx-ship lui-même/);
+    const off = project({ components: {} }, change);
+    assert.match(decision(hook('pre-tool-use', off, { tool_name: 'Skill', tool_input: { skill: 'hx-ship', args: 'add-mult' } })).permissionDecisionReason, /ship\.auto/);
+  });
+
   test('pre-tool-use : un lien symbolique vers le projet ne fait pas manquer un chemin protégé', () => {
     const root = project({ components: {} });
     const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-link-')), 'proj');
