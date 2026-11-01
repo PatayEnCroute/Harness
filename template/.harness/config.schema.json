@@ -163,6 +163,23 @@
           }
         }
       }
+    },
+    "ship": {
+      "type": "object",
+      "description": "Livraison automatique : à la fin d'un run, hx-review lance /hx-ship seul si « hx confidence » l'autorise (piste M, aucune exclusion, score ≥ min_confidence), puis fait relire la PR et publie la revue en commentaire.",
+      "additionalProperties": false,
+      "properties": {
+        "auto": {
+          "type": "boolean",
+          "description": "Autorise la livraison automatique (défaut false : l'utilisateur lance /hx-ship)"
+        },
+        "min_confidence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Score minimal de « hx confidence » pour livrer sans l'utilisateur (défaut 80)"
+        }
+      }
     }
   },
   "$defs": {

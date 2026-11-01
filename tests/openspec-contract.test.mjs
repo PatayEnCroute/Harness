@@ -57,7 +57,7 @@ describe(`contrat OpenSpec ${pinned}`, () => {
 
   test('new change : .openspec.yaml plat, clés x-* (piste, porte, mesures) et run-report.md acceptés par validate --strict', () => {
     assert.equal(openspec('new change add-mult').status, 0);
-    fs.appendFileSync(path.join(root, change, '.openspec.yaml'), 'x-track: M\nx-validated: 2026-10-18\nx-gate-corrections: 1\nx-review-confirmed: 2\nx-review-discarded: 0\n');
+    fs.appendFileSync(path.join(root, change, '.openspec.yaml'), 'x-track: M\nx-validated: 2026-10-18\nx-gate-corrections: 1\nx-review-confirmed: 2\nx-review-discarded: 0\nx-review-minors: 1\nx-review-deferred: 0\nx-run-assumptions: 1\n');
     write(`${change}/run-report.md`, '## add-mult : Prêt à livrer\n');
     assert.equal(readChangeMeta(path.join(root, change))['x-track'], 'M');
     assert.equal(readChangeMeta(path.join(root, change))['x-validated'], '2026-10-18');

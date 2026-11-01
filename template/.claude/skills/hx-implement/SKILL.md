@@ -6,7 +6,7 @@ argument-hint: "[nom du change]"
 
 # hx-implement : un change, une tâche à la fois
 
-Le run commence ici et va **jusqu'au rapport de fin de run sans rendre la main** : l'utilisateur cadre pendant ce temps le change suivant. Il ne relit qu'à la fin.
+Le run commence ici et va **jusqu'au rapport de fin de run sans rendre la main** (jusqu'à la PR relue, en livraison automatique) : l'utilisateur cadre pendant ce temps le change suivant. Il ne relit qu'à la fin.
 
 ## Préparer
 
@@ -32,7 +32,7 @@ Le run commence ici et va **jusqu'au rapport de fin de run sans rendre la main**
 5. Coche la tâche dans `tasks.md` (`- [ ]` devient `- [x]`).
 6. Commit : `git add openspec/changes/<change>/tasks.md && git commit -m "<change> : <tâche>"` (un sujet par commit).
 
-Ensuite, **sans rendre la main** : `hx-verify`, puis `hx-review`, qui se termine par le rapport de fin de run.
+Ensuite, **sans rendre la main** : `hx-verify`, puis `hx-review`, qui se termine par le rapport de fin de run, puis par `/hx-ship` si `hx confidence` autorise la livraison automatique.
 
 ## Arrêts autorisés pendant le run
 

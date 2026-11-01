@@ -61,7 +61,10 @@ flowchart LR
   G --> IM["hx-implement<br/>1 sous-agent / tâche"]
   IM --> V["hx-verify<br/>preuves"]
   V --> RV["hx-review<br/>relecteurs indépendants"]
-  RV --> SH["/hx-ship<br/>archive (dernier commit) · PR"]
+  RV --> HC{"hx confidence<br/>M · ship.auto · score ≥ seuil"}
+  HC -->|non : rapport, l'utilisateur décide| SH["/hx-ship<br/>archive (dernier commit) · PR"]
+  HC -->|oui : livraison automatique| SH
+  SH -.->|automatique| PR["hx-review --pr<br/>revue en commentaire"]
   SH --> L[hx-learn]
   L -.->|générique| HX[(Harness)]
 ```
@@ -76,7 +79,7 @@ flowchart LR
 
 1. **Cadrage** (avec l'utilisateur) — jusqu'à la porte, **seul arrêt prévu**. L'utilisateur y vérifie que la spec dit ce qu'il a demandé (`x-validated`). En M avec `design.md` et en L, un `hx-architect` neuf conteste d'abord le cadrage.
 2. **Run** (sans lui) — `hx-implement` → `hx-verify` → `hx-review`, dans le worktree du change. Arrêt seulement sur un blocage listé. Finit par un rapport : hypothèses à confirmer, revue, mineurs.
-3. **Livraison** (l'utilisateur) — décision sur les mineurs, puis `/hx-ship`. L'archive reste le dernier commit.
+3. **Livraison** (l'utilisateur) — décision sur les mineurs, puis `/hx-ship`. L'archive reste le dernier commit. **Livraison automatique** (piste M, `ship.auto`) : si `hx confidence` l'autorise, le run enchaîne `/hx-ship` sans appliquer de mineur, ouvre la PR en brouillon, attend la CI, puis `hx-review --pr` publie la revue en commentaire. Jamais de merge.
 
 > **Pourquoi un worktree par run ?** `trace` et `pistes` portent sur tous les changes d'un dossier : deux changes au même endroit se gêneraient. Le dossier principal reste libre pour cadrer le suivant.
 
@@ -147,7 +150,7 @@ Projet existant : les rules de stack viennent des conventions observées dans le
 | Point | Usage |
 |---|---|
 | `config.yaml` | Contexte (renvoi vers `CLAUDE.md`), règles d'écriture par artefact, `apply` renvoyé vers `hx-implement` |
-| `.openspec.yaml › x-*` | `x-track`, `x-validated`, mesures `x-gate-*` et `x-review-*` (lues par `hx stats`) |
+| `.openspec.yaml › x-*` | `x-track`, `x-validated`, mesures `x-gate-*`, `x-review-*` et `x-run-assumptions` (lues par `hx stats` et `hx confidence`) |
 | Markdown des specs et changes | Lu directement par `hx trace`, les pistes et les hooks : rapide, hors ligne |
 | CLI `--json` | Utilisée par les skills ; chaque hypothèse est vérifiée par le test de contrat |
 | Schéma custom | **Non** : pas d'héritage de schéma, un fork serait à maintenir |
@@ -166,8 +169,8 @@ Projet existant : les rules de stack viennent des conventions observées dans le
 | `hx-tdd` · `hx-debug` | Rouge → vert → refactor · reproduire → isoler → corriger |
 | `hx-implement` | Une tâche = un sous-agent ; exige `x-validated` ; enchaîne le run |
 | `hx-verify` | Aucune fin déclarée sans preuve fraîche |
-| `hx-review` | Relecteurs en parallèle, filtre des faux positifs, rapport `run-report.md` |
-| `hx-ship` | Base reprise, archive en dernier commit, PR, suivi CI |
+| `hx-review` | Relecteurs en parallèle, filtre des faux positifs, rapport `run-report.md` ; `--pr` : revue publiée en commentaire de PR |
+| `hx-ship` | Base reprise, archive en dernier commit, PR, suivi CI ; lancé seul si `hx confidence` l'autorise |
 | `hx-adr` · `hx-learn` · `hx-discover` | ADR « besoin d'abord » · capitaliser une leçon · specs depuis le code existant |
 | `hx-security-audit` · `hx-explain` · `hx-dream` | **À la demande** : CVE et injections SQL · pédagogie pour non-développeur · consolider la mémoire du projet |
 

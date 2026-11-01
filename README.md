@@ -6,7 +6,7 @@ Tu décris ce que tu veux, tu valides le cadrage une fois, et Claude livre seul 
 
 | | |
 |---|---|
-| 🎯 **Un seul arrêt** | Tu valides la spec à la porte de cadrage. Ensuite, le run va jusqu'au rapport sans te solliciter. |
+| 🎯 **Un seul arrêt** | Tu valides la spec à la porte de cadrage. Ensuite, le run va jusqu'au rapport sans te solliciter, et jusqu'à la PR relue si la confiance suffit. |
 | ⚡ **En parallèle** | Chaque run tourne dans son propre worktree : tu cadres le change suivant pendant ce temps. |
 | ✅ **Jamais vert sans test** | `hx check` lance les mêmes contrôles en local et en CI, et relie chaque scénario de spec à un test. |
 | 🧩 **Toute stack** | `/hx-setup` adapte les commandes (lint, tests, typecheck…) à ton projet. |
@@ -81,8 +81,11 @@ flowchart LR
     subgraph R [2 · RUN — seul, dans son worktree]
       R1[hx-implement] --> R2[hx-verify] --> R3[hx-review] --> R4([rapport])
     end
-    subgraph L [3 · LIVRAISON — toi]
-      L1["/hx-ship"] --> L2[hx-learn]
+    subgraph L [3 · LIVRAISON — toi, ou seul si la confiance suffit]
+      L0{hx confidence} -->|non| L1["/hx-ship"]
+      L0 -->|oui| LA["/hx-ship auto<br/>PR brouillon · CI"] --> LR["hx-review --pr<br/>revue en commentaire"]
+      L1 --> L2[hx-learn]
+      LR --> L2
     end
     C --> R --> L
 ```
@@ -94,8 +97,23 @@ flowchart LR
 | **1 · Cadrage** | toi + Claude | `hx-clarify` si la demande est floue, puis proposition OpenSpec. En M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage (garder, simplifier, retirer, changer). En L : `hx-architect` et `hx-adr`. **La porte** : tu vérifies que la spec dit ce que tu as demandé, sans plus. |
 | **2 · Run** | Claude seul | `hx worktree <change>` crée sa branche et son worktree. Lance-le en **mode Auto** : Desktop → nouvelle session sur le worktree, `Cmd/Ctrl+Shift+M`, puis `/hx-implement <change>`. Il ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Le rapport finit dans `run-report.md`. |
 | **3 · Livraison** | toi | Réponds à la question du rapport sur les mineurs, puis `/hx-ship` : il reprend la base, vérifie, et fait de l'archive OpenSpec le dernier commit de la PR. |
+| **3 bis · Livraison automatique** | Claude seul | Si tu l'as activée et que `hx confidence` l'autorise : `/hx-ship` sans mineur appliqué, PR en brouillon, CI, puis une revue neuve publiée en commentaire. Aucun bloquant : la PR passe « prête ». Tu relis et tu merges. |
 
 > 💡 Pendant un run, cadre le change suivant dans le dossier principal. `hx status` montre où en est chaque run.
+
+### Livraison automatique
+
+Désactivée par défaut. Pour l'activer : `"ship": { "auto": true, "min_confidence": 80 }` dans `.harness/config.json`. En fin de run, `hx confidence <change>` calcule l'indice sur les fichiers du change et sur git, jamais sur l'avis de l'agent qui a codé. Le hook `PreToolUse` refuse `/hx-ship` à Claude tant que l'indice ne l'autorise pas.
+
+| ✗ Exclut toujours | − Retire des points (sur 100) |
+|---|---|
+| piste L (ou autre que M) | 10 par hypothèse à confirmer |
+| rapport de fin de run autre que « Prêt à livrer », tâches non cochées | 5 par mineur proposé |
+| important reporté hors du change | 5 par constat corrigé après la revue (non relu) |
+| `.harness/`, `.claude/`, `.github/`, `CLAUDE.md`, specs principales modifiés | 15 si des dépendances changent |
+| mesure absente de `.openspec.yaml`, arbre sale, revue sans sous-agents | |
+
+Le commentaire de revue donne : verdict, indice et contrôles, constats triés par gravité avec leur correction, hypothèses et mineurs à confirmer, constats écartés. Le harness ne merge jamais.
 
 ### Hors workflow, à la demande
 
@@ -115,12 +133,12 @@ flowchart LR
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **4 rules** | `openspec` · `testing` · `architecture` (feature-first, proportionnée) · `comments` (aucun par défaut, liste fermée d'exceptions) |
 | **4 hooks** | Contexte au démarrage · rappel quand Claude édite un fichier sensible (spec, contrat, hooks, permissions) · lint du fichier édité · contrôles rapides et chemins protégés avant de rendre la main |
-| **CLI `hx`** | `hx check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `hx status` (état des runs) · `hx stats` (mesures d'élagage) · `hx doctor` · `hx worktree` |
+| **CLI `hx`** | `hx check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `hx status` (état des runs) · `hx stats` (mesures d'élagage) · `hx confidence` (livraison automatique) · `hx doctor` · `hx worktree` |
 
 <details>
 <summary><b>Permissions</b> : pourquoi aucune confirmation n'est imposée</summary>
 
-Autorisés sans confirmation : `node .harness/hx.mjs`, `openspec`, git local (lecture, `add`, `commit`, `pull`, `branch -d`, `worktree list`), `gh pr create/checks/view`, lectures shell (`ls`, `cat`, `head`, `tail`, `wc`).
+Autorisés sans confirmation : `node .harness/hx.mjs`, `openspec`, git local (lecture, `add`, `commit`, `pull`, `branch -d`, `worktree list`), `gh pr create/checks/view/comment/ready`, lectures shell (`ls`, `cat`, `head`, `tail`, `wc`).
 
 **Aucune règle `ask`** : une confirmation que personne ne relit ne protège rien, et elle interromprait le mode Auto. Le reste (`git push`, `git rm`, `git worktree remove`, `git bisect`, `gh issue create`…) revient au mode de permission ; en Auto, son classifieur décide. Les permissions du dossier principal (`.claude/settings.local.json`) sont reprises dans chaque worktree.
 

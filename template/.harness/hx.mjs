@@ -47,6 +47,7 @@ export function defaultConfig() {
       M: { spec: true, design: 'optional' },
       L: { spec: true, design: 'required', adr: 'required' },
     },
+    ship: { auto: false, min_confidence: 80 },
   };
 }
 
@@ -154,6 +155,14 @@ export function validateConfig(config, root) {
   const min = config.trace?.min_coverage;
   if (min !== undefined && !(Number.isInteger(min) && min >= 0 && min <= 100)) {
     add('error', 'Trace', 'min_coverage doit être un entier de 0 à 100');
+  }
+  if (config.ship !== undefined) {
+    if (!isObject(config.ship)) add('error', 'Livraison', '« ship » doit être un objet');
+    else {
+      if (config.ship.auto !== undefined && typeof config.ship.auto !== 'boolean') add('error', 'Livraison', 'ship.auto : true ou false');
+      const m = config.ship.min_confidence;
+      if (m !== undefined && !(Number.isInteger(m) && m >= 0 && m <= 100)) add('error', 'Livraison', 'ship.min_confidence doit être un entier de 0 à 100');
+    }
   }
   for (const [name, rules] of Object.entries(config.tracks ?? {})) {
     if (!isObject(rules)) add('error', 'Pistes', `« ${name} » doit être un objet`);
@@ -889,6 +898,9 @@ export const METRICS = [
   { key: 'x-gate-removed', label: 'Contre-relecture, décisions retirées ou simplifiées' },
   { key: 'x-review-confirmed', label: 'Revue, constats bloquants ou importants confirmés' },
   { key: 'x-review-discarded', label: 'Revue, constats écartés (faux positifs)' },
+  { key: 'x-review-minors', label: 'Revue, mineurs proposés' },
+  { key: 'x-review-deferred', label: 'Revue, importants reportés hors du change' },
+  { key: 'x-run-assumptions', label: 'Run, hypothèses à confirmer' },
 ];
 
 // Agrège les mesures des changes archivés (date de l'archive ≥ since, si donnée).
@@ -925,6 +937,93 @@ export function formatStats(report) {
     lines.push(m.measured ? `  ${label} : ${m.total} · ${m.nonzero} change(s) concerné(s) sur ${m.measured} mesuré(s)` : `  ${label} : non mesuré`);
   }
   if (report.invalid.length) lines.push('Valeurs ignorées (entier attendu) :', ...report.invalid.map((x) => `  - ${x}`));
+  return lines.join('\n');
+}
+
+// Indice de confiance d'un run terminé, calculé sur les fichiers du change et sur git, jamais déclaré par l'agent qui a
+// produit le code. Il décide si le harness lance /hx-ship seul (livraison automatique) : aucune exclusion, et un score
+// au moins égal à ship.min_confidence. Les compteurs viennent de .openspec.yaml (hx-review) ; un compteur absent
+// exclut la livraison automatique, car « non mesuré » ne vaut pas zéro.
+export const CONFIDENCE_PENALTIES = [
+  { key: 'x-run-assumptions', points: 10, label: 'hypothèses à confirmer' },
+  { key: 'x-review-minors', points: 5, label: 'mineurs proposés, non appliqués' },
+  // Corrigés après la revue, ces constats n'ont pas été relus à leur tour.
+  { key: 'x-review-confirmed', points: 5, label: 'constats corrigés après la revue' },
+];
+const DEPENDENCY_POINTS = 15;
+const DEPENDENCY_FILE = /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements[^/]*\.txt|pyproject\.toml|poetry\.lock|uv\.lock|Pipfile(\.lock)?|go\.(mod|sum)|Cargo\.(toml|lock)|pom\.xml|build\.gradle(\.kts)?|gradle\.lockfile|[^/]+\.(cs|fs|vb)proj|Directory\.Packages\.props|packages\.lock\.json|Gemfile(\.lock)?|composer\.(json|lock))$/;
+// Harness, CI, permissions et specs principales : un changement ici se relit avant d'être poussé.
+const SHIP_GUARDED = /^(\.harness\/|\.claude\/|\.github\/|openspec\/specs\/|CLAUDE\.md$|openspec\/config\.yaml$|\.copier-answers\.yml$)/;
+
+function branchDiff(root) {
+  const git = (...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  const base = readAnswers(root).default_branch || 'main';
+  for (const ref of [base, `origin/${base}`]) {
+    const mergeBase = git('merge-base', 'HEAD', ref);
+    if (mergeBase.status !== 0) continue;
+    const from = mergeBase.stdout.trim();
+    if (from === git('rev-parse', 'HEAD').stdout.trim()) return { base: ref, error: `aucun commit propre au change depuis ${ref}` };
+    const files = git('diff', '--name-only', '--no-renames', from, 'HEAD').stdout.split(/\r?\n/).filter(Boolean);
+    return { base: ref, files };
+  }
+  return { base, error: `branche de base ${base} introuvable : diff non mesurable` };
+}
+
+export function confidence(root, change) {
+  const config = loadConfig(root).config ?? {};
+  const ship = { ...defaultConfig().ship, ...(isObject(config.ship) ? config.ship : {}) };
+  const result = { change, auto: false, enabled: ship.auto === true, score: 0, threshold: ship.min_confidence, exclusions: [], penalties: [], diff: null };
+  const exclude = (reason) => result.exclusions.push(reason);
+  if (!result.enabled) exclude('livraison automatique désactivée (ship.auto dans .harness/config.json)');
+  const dir = path.join(root, 'openspec', 'changes', change);
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(change) || change === 'archive' || !fs.existsSync(dir)) {
+    exclude(`change introuvable : openspec/changes/${change}`);
+    return result;
+  }
+  const meta = readChangeMeta(dir);
+  const tasks = taskProgress(dir);
+  const verdict = reportVerdict(dir);
+  if (meta['x-track'] !== 'M') exclude(`piste ${meta['x-track'] ?? 'absente'} : seule une piste M se livre seule`);
+  if (!meta['x-validated']) exclude('cadrage non validé (x-validated absent)');
+  if (!tasks.total || tasks.done < tasks.total) exclude(`tâches ${tasks.done}/${tasks.total}`);
+  if (verdict !== 'Prêt à livrer') exclude(verdict ? `rapport de fin de run : ${verdict}` : 'pas de rapport de fin de run');
+  const count = (key) => (/^\d+$/.test(meta[key] ?? '') ? Number(meta[key]) : null);
+  for (const key of ['x-review-deferred', ...CONFIDENCE_PENALTIES.map((p) => p.key)]) {
+    if (count(key) === null) exclude(`${key} absent ou invalide dans .openspec.yaml`);
+  }
+  if (count('x-review-deferred') > 0) exclude(`constats importants reportés hors du change : ${count('x-review-deferred')}`);
+  let score = 100;
+  const penalize = (label, points) => {
+    result.penalties.push({ label, points });
+    score -= points;
+  };
+  for (const { key, points, label } of CONFIDENCE_PENALTIES) {
+    if (count(key) > 0) penalize(`${label} : ${count(key)}`, points * count(key));
+  }
+  const dirty = spawnSync('git', ['status', '--porcelain', '--untracked-files=no', '--', '.', `:(exclude)openspec/changes/${change}`], { cwd: root, encoding: 'utf8' });
+  if (dirty.status !== 0) exclude('hors dépôt git : diff non mesurable');
+  else if (dirty.stdout.trim()) exclude('modifications non commitées hors du change');
+  const diff = dirty.status === 0 ? branchDiff(root) : null;
+  if (diff?.error) exclude(diff.error);
+  else if (diff) {
+    const code = diff.files.filter((f) => !f.startsWith('openspec/changes/'));
+    result.diff = { base: diff.base, files: code.length };
+    const guarded = code.filter((f) => SHIP_GUARDED.test(f));
+    if (guarded.length) exclude(`harness, CI ou specs principales modifiés : ${guarded.join(', ')}`);
+    const dependencies = code.filter((f) => DEPENDENCY_FILE.test(f));
+    if (dependencies.length) penalize(`dépendances modifiées : ${dependencies.join(', ')}`, DEPENDENCY_POINTS);
+  }
+  result.score = Math.max(0, score);
+  result.auto = result.exclusions.length === 0 && result.score >= result.threshold;
+  return result;
+}
+
+export function formatConfidence(r) {
+  const decision = r.auto ? 'automatique' : 'par l\'utilisateur';
+  const lines = [`${r.change} : score ${r.score}/100 (seuil ${r.threshold}) · livraison ${decision}`];
+  if (r.exclusions.length) lines.push('Exclusions :', ...r.exclusions.map((e) => `  ✗ ${e}`));
+  lines.push(r.penalties.length ? 'Pénalités :' : 'Pénalités : aucune', ...r.penalties.map((p) => `  −${p.points} ${p.label}`));
+  if (r.diff) lines.push(`Diff : ${r.diff.files} fichier(s) hors openspec/changes/ (base ${r.diff.base})`);
   return lines.join('\n');
 }
 
@@ -1292,6 +1391,20 @@ function cmdStats(root, args) {
   return 0;
 }
 
+function cmdConfidence(root, args) {
+  const opts = parseFlags(args);
+  const active = listChanges(root).map((c) => c.name);
+  const change = opts._[0] ?? (active.length === 1 ? active[0] : undefined);
+  if (!change) {
+    console.error(`usage : hx confidence <change> [--json]${active.length ? ` (changes en cours : ${active.join(', ')})` : ''}`);
+    return 2;
+  }
+  const r = confidence(root, change);
+  if (opts.json) console.log(JSON.stringify(r, null, 2));
+  else console.log(`hx confidence\n${formatConfidence(r)}`);
+  return r.auto ? 0 : 1;
+}
+
 function cmdOpenspec(root, args) {
   return execute(openspecCommand(root, args), root, { capture: false }).code;
 }
@@ -1313,6 +1426,8 @@ const HELP = `hx : contrat de commandes du harness
   hx status [--json]  changes en cours de chaque worktree : piste, étape (cadrage, run, rapport), tâches
   hx stats [--since AAAA-MM-JJ] [--json]
                       mesures d'élagage des changes archivés (porte, contre-relecture, revue)
+  hx confidence [<change>] [--json]
+                      indice de confiance d'un run terminé : 0 si le harness peut lancer /hx-ship seul, 1 sinon
   hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 
@@ -1330,6 +1445,7 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
     case 'worktree': return cmdWorktree(root, rest);
     case 'status': return cmdStatus(root, rest);
     case 'stats': return cmdStats(root, rest);
+    case 'confidence': return cmdConfidence(root, rest);
     case 'openspec': return cmdOpenspec(root, rest);
     case undefined: case 'help': case '--help': case '-h':
       console.log(HELP);
