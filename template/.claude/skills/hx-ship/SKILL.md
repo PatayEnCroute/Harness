@@ -11,16 +11,16 @@ argument-hint: "[nom du change]"
 | Mode | Qui lance | Mineurs | PR |
 |---|---|---|---|
 | **Manuel** | l'utilisateur, `/hx-ship` | sa décision, correctifs commités avant l'archive | prête à relire |
-| **Automatique** | `hx-review`, en fin de run, si `node .harness/hx.mjs confidence <change>` sort en 0 | aucun appliqué : ils vont dans la revue de la PR | brouillon, puis revue publiée en commentaire (étape 6) |
+| **Automatique** | `hx-review`, en fin de run, si `node .harness/hx.mjs confidence <change>` sort en 0 | appliqués avant par la boucle de correction de `hx-review` si le score l'exigeait ; les autres vont dans la revue de la PR | brouillon, puis revue publiée en commentaire (étape 6) |
 
-Tu as lancé ce skill toi-même, sans demande de l'utilisateur : c'est le mode automatique. Le hook `PreToolUse` le refuse si `hx confidence` ne l'autorise pas : n'insiste pas, rends la main avec le rapport de fin de run.
+Tu as lancé ce skill toi-même, sans demande de l'utilisateur : c'est le mode automatique. Le hook `PreToolUse` le refuse si `hx confidence` ne l'autorise pas : n'insiste pas. Suis la boucle de correction de `hx-review` si le refus l'indique, sinon rends la main avec le rapport de fin de run.
 
 ## Préalables, sinon arrête-toi
 
 - `hx-verify` vert dans cette conversation, après le dernier changement de code.
 - `hx-review` sans constat bloquant restant.
 - **Manuel** : décision de l'utilisateur sur les mineurs du rapport de fin de run (`openspec/changes/<change>/run-report.md` si la conversation ne l'a plus), et correctifs retenus commités. Sans réponse, pose la question et arrête-toi : l'archive vient après.
-- **Automatique** : `node .harness/hx.mjs confidence <change>` sort en 0, relancé ici. Aucun mineur n'est appliqué.
+- **Automatique** : `node .harness/hx.mjs confidence <change>` sort en 0, relancé ici. Aucun mineur n'est appliqué ici : la boucle de correction l'a fait avant, si le score l'exigeait.
 - Aucune modification non commitée hors de `openspec/`.
 
 ## Étapes

@@ -1,6 +1,6 @@
 ---
 name: hx-review
-description: Fait relire un changement par des sous-agents indépendants (conformité à la spec, qualité et architecture, sécurité si pertinent), vérifie chaque constat pour écarter les faux positifs, puis consolide. À utiliser après hx-verify et avant de livrer, à la demande sur une branche, ou avec --pr pour publier la revue d'une PR en commentaire (livraison automatique).
+description: Fait relire un changement par des sous-agents indépendants (conformité à la spec, qualité et architecture, sécurité si pertinent), vérifie chaque constat pour écarter les faux positifs, puis consolide ; si l'indice de confiance est sous le seuil mais atteignable, corrige et fait relire en boucle avant la livraison automatique. À utiliser après hx-verify et avant de livrer, à la demande sur une branche, ou avec --pr pour publier la revue d'une PR en commentaire (livraison automatique).
 argument-hint: "[branche de base, par défaut main] | --pr <numéro>"
 ---
 
@@ -13,13 +13,13 @@ Celui qui a écrit le code ne le juge pas. Les relecteurs n'ont pas ton contexte
 Avec `--pr <numéro>` : suis la section « Revue d'une PR », plus bas.
 
 1. **Périmètre** : base = `$ARGUMENTS`, sinon `default_branch` de `.copier-answers.yml`, sinon `main`. Lance `git diff <base>...HEAD --stat` et identifie le change OpenSpec concerné.
-2. **En parallèle** :
+2. **En parallèle**, après avoir noté le commit relu (`git rev-parse HEAD`, pour la boucle de correction) :
    - `hx-spec-reviewer`, si un change OpenSpec est concerné ;
    - `hx-code-reviewer`, toujours ;
    - `hx-security-reviewer`, si le diff touche des entrées externes, l'authentification, des données personnelles, des secrets, des dépendances, la CI ou l'infrastructure.
 3. **Filtre** : les trois relecteurs emploient la même échelle (`bloquant`, `important`, `mineur`). Pour chaque constat bloquant ou important, va lire la ligne citée et confirme-le toi-même. Écarte ce que tu ne peux pas confirmer, avec une raison d'une ligne.
 4. **Corrige** les constats bloquants et importants confirmés, en TDD (`hx-tdd`), puis relance `hx-verify`. Un important dont la correction sortirait du change (autre feature, refonte) n'est pas corrigé : il rejoint les mineurs proposés, marqué `important`, avec sa raison.
-5. **Mineurs** : ne les corrige pas sans l'accord de l'utilisateur, et ne lui pose pas la question en cours de run. Liste-les dans le rapport, qui se termine par la question. Tant qu'elle n'a pas de réponse, pas d'archive ni de livraison, même si l'utilisateur a demandé la PR d'avance : un correctif commité après l'archive l'empêche d'être le dernier commit. Seule exception : la livraison automatique (ci-dessous), qui n'en applique aucun et les publie dans la revue de la PR.
+5. **Mineurs** : ne les corrige pas sans l'accord de l'utilisateur, et ne lui pose pas la question en cours de run. Liste-les dans le rapport, qui se termine par la question. Tant qu'elle n'a pas de réponse, pas d'archive ni de livraison, même si l'utilisateur a demandé la PR d'avance : un correctif commité après l'archive l'empêche d'être le dernier commit. Exceptions : la boucle de correction (ci-dessous) les applique quand `hx confidence` le demande ; la livraison automatique publie ceux qui restent dans la revue de la PR.
 
 ## Rapport de fin de run
 
@@ -29,14 +29,16 @@ Si un change OpenSpec est concerné, le rapport survit aussi à la session :
 
 1. Écris-le dans `openspec/changes/<change>/run-report.md` (remplacé à chaque run). `/hx-ship` le relit, `hx status` en affiche le verdict.
 2. Ajoute à son `.openspec.yaml` les mesures du run, lues par `hx stats` et `hx confidence` (des entiers, 0 compris) :
-   - `x-review-confirmed: <n>` : bloquants et importants confirmés ;
-   - `x-review-discarded: <n>` : écartés à l'étape 3 ;
-   - `x-review-minors: <n>` : mineurs proposés, importants reportés compris ;
+   - `x-review-confirmed: <n>` : bloquants et importants confirmés, tous tours confondus ;
+   - `x-review-discarded: <n>` : écartés à l'étape 3, tous tours confondus ;
+   - `x-review-unreviewed: <n>` : constats corrigés après la dernière relecture (étape 4), donc pas encore relus ;
+   - `x-review-minors: <n>` : mineurs proposés et non appliqués, importants reportés compris ;
    - `x-review-deferred: <n>` : importants reportés hors du change (étape 4) ;
+   - `x-review-rounds: <n>` : tours de revue, 1 au premier ;
    - `x-run-assumptions: <n>` : hypothèses à confirmer.
 3. **Livraison** : `node .harness/hx.mjs confidence <change>`. Recopie sa sortie dans la section « Livraison » du rapport. Revue non indépendante (sans sous-agents, voir `hx-implement`) : livraison par l'utilisateur, quel que soit le score.
 4. Commite le rapport et `.openspec.yaml` : `<change> : rapport de fin de run`.
-5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1** : le rapport est ton dernier message, et se termine par sa question.
+5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1 avec `Suite : corriger`** : boucle de correction, ci-dessous. **Sinon** : le rapport est ton dernier message, et se termine par sa question.
 
 ```markdown
 ## <change> : Prêt à livrer | Bloqué : <raison en une ligne>
@@ -56,16 +58,39 @@ hx check : <vert, ou étapes rouges> · trace : <scénarios couverts>
 ### Mineurs proposés (non appliqués)
 - …
 
+### Boucle de correction
+| Tour | Relu jusqu'à | Mineurs appliqués | Constats confirmés · corrigés | Score |
+|---|---|---|---|---|
+| 1 | <sha> | — | <n> · <n> | <score> |
+
 ### Livraison
-<sortie de hx confidence : score, seuil, exclusions, pénalités>
+<sortie de hx confidence : score, seuil, plafond, exclusions, pénalités, suite>
 
 Applique-t-on ces mineurs : tous, une partie (lesquels) ou aucun ?
 
 ### Prochaine étape
-Ta décision sur les mineurs, puis /hx-ship <change> ; ou ce qu'il faut trancher ; ou « livraison automatique : /hx-ship lancé »
+Ta décision sur les mineurs, puis /hx-ship <change> ; ou ce qu'il faut trancher ; ou « boucle de correction : tour <n> » ; ou « livraison automatique : /hx-ship lancé »
 ```
 
 Les sections vides restent, avec « Aucune » : une absence de constat est aussi une information. Sans mineur, ou en livraison automatique, la question disparaît.
+
+## Boucle de correction
+
+Quand `hx confidence` affiche `Suite : corriger` : le score est sous le seuil, mais son plafond l'atteint. La boucle efface les pénalités corrigeables, mineurs non appliqués et corrections pas encore relues, pour livrer sans l'utilisateur. Hypothèses et dépendances restent à lui. Toujours sans rendre la main.
+
+Un tour :
+
+1. **Mineurs** : applique chaque mineur du rapport, un commit par mineur (`<change> : mineur, <constat>`), en TDD s'il touche un comportement. Garde-le en mineur, avec sa raison, s'il sort des fichiers du change, touche le harness, la CI ou les specs principales, ou contredit la spec.
+2. `hx-verify`.
+3. **Relecture neuve** : étapes 2 et 3 du début, avec des sous-agents neufs, sur le seul diff depuis le dernier commit relu (colonne « Relu jusqu'à ») : `git diff <relu>..HEAD -- . ':!openspec/changes/<change>/run-report.md' ':!openspec/changes/<change>/.openspec.yaml'`. Ne leur donne ni le rapport ni les constats précédents. Note le nouveau commit relu.
+4. **Corrige** les bloquants et importants confirmés (étape 4 du début), puis `hx-verify`. Les nouveaux mineurs rejoignent le rapport.
+5. **Mesures** : `x-review-rounds` + 1 ; `x-review-confirmed`, `x-review-discarded` et `x-review-deferred` ajoutent ceux du tour ; `x-review-unreviewed` = corrigés à l'étape 4 de ce tour ; `x-review-minors` = mineurs encore non appliqués.
+6. **Rapport** : réécris `run-report.md` (ligne ajoutée à « Boucle de correction », revue et mineurs à jour), relance `hx confidence`, commite (`<change> : rapport de fin de run, tour <n>`), et suis sa sortie (étape 5 ci-dessus).
+
+La boucle s'arrête quand `hx confidence` ne dit plus `Suite : corriger` : score au seuil, plafond hors d'atteinte, `ship.max_rounds` atteint, ou exclusion apparue. Un `hx-verify` qui reste rouge après 3 tentatives : rapport `Bloqué`, et tu rends la main.
+
+- **Un compteur suit les constats, jamais l'inverse** : chaque constat écarté garde sa raison dans le tableau de revue. Écarter pour faire monter le score fausse la livraison.
+- Aucun test affaibli, désactivé ou supprimé pour corriger.
 
 ## Revue d'une PR (`--pr <numéro>`)
 
@@ -99,7 +124,7 @@ Lancée par `/hx-ship` en livraison automatique, une fois la CI verte, ou à la 
 - **Mineur du run, non appliqué** <constat> (`<fichier:ligne>`)
 
 ### Historique du run
-<n> constats corrigés pendant le run · <n> écartés · pénalités de confiance : <liste, ou aucune>
+<n> tours de revue · <n> constats corrigés pendant le run · <n> mineurs appliqués · <n> écartés · pénalités de confiance : <liste, ou aucune>
 
 <details><summary>Constats écartés (<n>)</summary>
 

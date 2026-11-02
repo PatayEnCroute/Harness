@@ -797,7 +797,7 @@ describe('OpenSpec : scénarios et traçabilité', () => {
 describe('confidence : livraison automatique d\'un run terminé', () => {
   const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
   const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8', env });
-  const ready = 'x-track: M\nx-validated: 2026-10-18\nx-review-confirmed: 0\nx-review-discarded: 1\nx-review-minors: 0\nx-review-deferred: 0\nx-run-assumptions: 0\n';
+  const ready = 'x-track: M\nx-validated: 2026-10-18\nx-review-confirmed: 2\nx-review-discarded: 1\nx-review-unreviewed: 0\nx-review-minors: 0\nx-review-deferred: 0\nx-review-rounds: 1\nx-run-assumptions: 0\n';
   // Base main commitée, puis branche du change avec ses fichiers : run terminé, prêt à livrer.
   function run({ ship = { auto: true }, meta = ready, files = {} } = {}) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hx-conf-'));
@@ -820,20 +820,43 @@ describe('confidence : livraison automatique d\'un run terminé', () => {
 
   test('run prêt, piste M, rien à signaler : livraison automatique, score 100', () => {
     const r = confidence(run(), 'add-mult');
-    assert.deepEqual([r.auto, r.score, r.threshold, r.exclusions, r.penalties], [true, 100, 80, [], []]);
+    assert.deepEqual([r.auto, r.score, r.ceiling, r.threshold, r.exclusions, r.penalties, r.next], [true, 100, 100, 80, [], [], 'ship']);
     assert.deepEqual(r.diff, { base: 'main', files: 1 });
-    assert.match(formatConfidence(r), /score 100\/100 \(seuil 80\) · livraison automatique/);
+    assert.match(formatConfidence(r), /score 100\/100 \(seuil 80, plafond 100\) · livraison automatique/);
+    assert.match(formatConfidence(r), /Suite : \/hx-ship/);
   });
 
-  test('pénalités : hypothèses, mineurs, constats corrigés ; le seuil tranche', () => {
-    const meta = (assumptions, minors, confirmed) => ready.replace('x-run-assumptions: 0', `x-run-assumptions: ${assumptions}`)
-      .replace('x-review-minors: 0', `x-review-minors: ${minors}`).replace('x-review-confirmed: 0', `x-review-confirmed: ${confirmed}`);
+  const meta = (assumptions, minors, unreviewed, rounds = 1) => ready.replace('x-run-assumptions: 0', `x-run-assumptions: ${assumptions}`)
+    .replace('x-review-minors: 0', `x-review-minors: ${minors}`).replace('x-review-unreviewed: 0', `x-review-unreviewed: ${unreviewed}`)
+    .replace('x-review-rounds: 1', `x-review-rounds: ${rounds}`);
+
+  test('pénalités : hypothèses, mineurs, corrections non relues ; le seuil tranche ; les confirmés relus ne comptent pas', () => {
     const atThreshold = confidence(run({ meta: meta(1, 1, 1) }), 'add-mult');
     assert.deepEqual([atThreshold.score, atThreshold.auto], [80, true]);
     const below = confidence(run({ meta: meta(2, 1, 0) }), 'add-mult');
     assert.deepEqual([below.score, below.auto, below.exclusions], [75, false, []]);
     assert.deepEqual(below.penalties.map((p) => p.points), [20, 5]);
     assert.equal(confidence(run({ meta: meta(2, 1, 0), ship: { auto: true, min_confidence: 70 } }), 'add-mult').auto, true);
+    assert.equal(confidence(run({ meta: ready.replace('x-review-confirmed: 2', 'x-review-confirmed: 9') }), 'add-mult').score, 100);
+  });
+
+  test('boucle de correction : sous le seuil, plafond atteignable, tours restants → corriger', () => {
+    const fix = confidence(run({ meta: meta(1, 2, 2) }), 'add-mult');
+    assert.deepEqual([fix.score, fix.ceiling, fix.auto, fix.next, fix.round, fix.maxRounds], [70, 90, false, 'fix', 1, 3]);
+    assert.deepEqual(fix.penalties.map((p) => p.fixable), [false, true, true]);
+    assert.match(fix.reason, /tour 2\/3/);
+    assert.match(formatConfidence(fix), /−10 mineurs proposés, non appliqués : 2 \(corrigeable\)/);
+    assert.match(formatConfidence(fix), /Suite : corriger \(tour 2\/3/);
+    const ceiling = confidence(run({ meta: meta(2, 1, 0), files: { 'package.json': '{}\n' } }), 'add-mult');
+    assert.deepEqual([ceiling.ceiling, ceiling.next], [65, 'user']);
+    assert.match(ceiling.reason, /plafond 65 sous le seuil/);
+    const spent = confidence(run({ meta: meta(0, 1, 4, 3) }), 'add-mult');
+    assert.deepEqual([spent.next, spent.reason], ['user', 'tours de revue épuisés (3/3, ship.max_rounds)']);
+    assert.equal(confidence(run({ meta: meta(0, 1, 4, 3), ship: { auto: true, max_rounds: 5 } }), 'add-mult').next, 'fix');
+    assert.equal(confidence(run({ meta: meta(1, 2, 2), ship: {} }), 'add-mult').next, 'user', 'désactivée : pas de boucle');
+    const unmeasured = confidence(run({ meta: meta(1, 2, 2).replace('x-review-rounds: 1\n', '') }), 'add-mult');
+    assert.equal(unmeasured.next, 'user');
+    assert.match(unmeasured.exclusions.join('\n'), /x-review-rounds absent/);
   });
 
   test('dépendances pénalisent, pas la taille du diff ; harness, CI et specs principales excluent', () => {
@@ -883,9 +906,11 @@ describe('confidence : livraison automatique d\'un run terminé', () => {
     assert.equal(main(['confidence'], root), 2);
   });
 
-  test('contrat : ship.auto booléen, min_confidence entier de 0 à 100', () => {
+  test('contrat : ship.auto booléen, min_confidence entier de 0 à 100, max_rounds entier ≥ 1', () => {
     const errors = (ship) => validateConfig({ version: 1, components: { app: { path: '.', commands: { test: 'x' } } }, ship }, repo).filter((i) => i.label === 'Livraison');
-    assert.deepEqual(errors({ auto: true, min_confidence: 80 }), []);
+    assert.deepEqual(errors({ auto: true, min_confidence: 80, max_rounds: 3 }), []);
+    assert.equal(errors({ max_rounds: 0 }).length, 1);
+    assert.equal(errors({ max_rounds: 1.5 }).length, 1);
     assert.equal(errors({ auto: 'oui' }).length, 1);
     assert.equal(errors({ min_confidence: 101 }).length, 1);
     assert.equal(errors('x').length, 1);

@@ -83,6 +83,7 @@ flowchart LR
     end
     subgraph L [3 · LIVRAISON — toi, ou seul si la confiance suffit]
       L0{hx confidence} -->|non| L1["/hx-ship"]
+      L0 -->|"sous le seuil,<br/>plafond atteignable"| LF["boucle de correction<br/>mineurs · relecture neuve"] --> L0
       L0 -->|oui| LA["/hx-ship auto<br/>PR brouillon · CI"] --> LR["hx-review --pr<br/>revue en commentaire"]
       L1 --> L2[hx-learn]
       LR --> L2
@@ -97,21 +98,28 @@ flowchart LR
 | **1 · Cadrage** | toi + Claude | `hx-clarify` si la demande est floue, puis proposition OpenSpec. En M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage (garder, simplifier, retirer, changer). En L : `hx-architect` et `hx-adr`. **La porte** : tu vérifies que la spec dit ce que tu as demandé, sans plus. |
 | **2 · Run** | Claude seul | `hx worktree <change>` crée sa branche et son worktree. Lance-le en **mode Auto** : Desktop → nouvelle session sur le worktree, `Cmd/Ctrl+Shift+M`, puis `/hx-implement <change>`. Il ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Le rapport finit dans `run-report.md`. |
 | **3 · Livraison** | toi | Réponds à la question du rapport sur les mineurs, puis `/hx-ship` : il reprend la base, vérifie, et fait de l'archive OpenSpec le dernier commit de la PR. |
-| **3 bis · Livraison automatique** | Claude seul | Si tu l'as activée et que `hx confidence` l'autorise : `/hx-ship` sans mineur appliqué, PR en brouillon, CI, puis une revue neuve publiée en commentaire. Aucun bloquant : la PR passe « prête ». Tu relis et tu merges. |
+| **3 bis · Livraison automatique** | Claude seul | Si tu l'as activée et que `hx confidence` l'autorise : `/hx-ship`, PR en brouillon, CI, puis une revue neuve publiée en commentaire. Aucun bloquant : la PR passe « prête ». Tu relis et tu merges. |
 
 > 💡 Pendant un run, cadre le change suivant dans le dossier principal. `hx status` montre où en est chaque run.
 
 ### Livraison automatique
 
-Désactivée par défaut. Pour l'activer : `"ship": { "auto": true, "min_confidence": 80 }` dans `.harness/config.json`. En fin de run, `hx confidence <change>` calcule l'indice sur les fichiers du change et sur git, jamais sur l'avis de l'agent qui a codé. Le hook `PreToolUse` refuse `/hx-ship` à Claude tant que l'indice ne l'autorise pas.
+Désactivée par défaut. Pour l'activer : `"ship": { "auto": true, "min_confidence": 80, "max_rounds": 3 }` dans `.harness/config.json`. En fin de run, `hx confidence <change>` calcule l'indice sur les fichiers du change et sur git, jamais sur l'avis de l'agent qui a codé. Le hook `PreToolUse` refuse `/hx-ship` à Claude tant que l'indice ne l'autorise pas.
 
 | ✗ Exclut toujours | − Retire des points (sur 100) |
 |---|---|
 | piste L (ou autre que M) | 10 par hypothèse à confirmer |
 | rapport de fin de run autre que « Prêt à livrer », tâches non cochées | 5 par mineur proposé |
-| important reporté hors du change | 5 par constat corrigé après la revue (non relu) |
+| important reporté hors du change | 5 par constat corrigé après la dernière relecture |
 | `.harness/`, `.claude/`, `.github/`, `CLAUDE.md`, specs principales modifiés | 15 si des dépendances changent |
 | mesure absente de `.openspec.yaml`, arbre sale, revue sans sous-agents | |
+
+**Boucle de correction** : score sous le seuil, mais **plafond** (le score une fois mineurs appliqués et corrections relues) au-dessus ? `hx-review` applique les mineurs, fait relire le diff par des sous-agents neufs, corrige ce qu'ils confirment, et recommence, jusqu'à `max_rounds` tours (le premier compris). Hypothèses et dépendances ne se corrigent pas : seul toi les lèves.
+
+| Tour | Ce qui se passe | Score |
+|---|---|---|
+| 1 | Revue : 2 constats corrigés, 3 mineurs | 75 · plafond 100 → `Suite : corriger` |
+| 2 | 3 mineurs appliqués, relecture neuve : rien de nouveau | 100 → `/hx-ship` |
 
 Le commentaire de revue donne : verdict, indice et contrôles, constats triés par gravité avec leur correction, hypothèses et mineurs à confirmer, constats écartés. Le harness ne merge jamais.
 

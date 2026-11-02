@@ -50,6 +50,7 @@ flowchart LR
 | Composant | Faiblesse compensée | Mesure | On retire si… |
 |---|---|---|---|
 | `hx-review` + relecteurs | Mal juger son propre travail | `x-review-confirmed` / `x-review-discarded` | < 1 constat confirmé par PR sur un trimestre |
+| Boucle de correction (`hx-review`) | Corrections jamais relues, mineurs laissés à l'humain alors qu'ils bloquent la livraison seule | `x-review-rounds` ; constats confirmés aux tours 2 et plus | aucun constat confirmé après le tour 1 sur un trimestre (la boucle ne fait plus qu'appliquer les mineurs) |
 | Rule `comments` + relecteur | Commentaires qui paraphrasent le code, puis le contredisent | constats « Commentaires » confirmés | aucun sur un trimestre (le lint reste) |
 | `hx-learn` | Leçons d'un incident oubliées au change suivant | même correction demandée deux fois | aucune leçon relue n'a changé une décision sur un trimestre |
 | `hx-dream` | Leçons accumulées sans relecture : redites, périmées, noyées | charge avant/après ; leçons réapprises | rien à condenser sur un trimestre (une leçon réapprise = il élague trop) |
