@@ -207,6 +207,7 @@ function automaticShipRefusal(root, args) {
   const r = change ? confidence(root, change) : null;
   if (r?.auto) return null;
   const why = r ? `score ${r.score}/100, seuil ${r.threshold}${r.exclusions.length ? ` ; ${r.exclusions.join(' ; ')}` : ''}` : 'change non précisé';
+  if (r?.next === 'fix') return `Livraison automatique refusée par hx confidence (${why}), mais le plafond ${r.ceiling} atteint le seuil : suis la boucle de correction de hx-review (${r.reason}), puis relance hx confidence.`;
   return `Livraison automatique refusée par hx confidence (${why}). Termine le rapport de fin de run par sa question et rends la main : l'utilisateur lance /hx-ship lui-même.`;
 }
 

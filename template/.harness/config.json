@@ -31,6 +31,7 @@
   },
   "ship": {
     "auto": false,
-    "min_confidence": 80
+    "min_confidence": 80,
+    "max_rounds": 3
   }
 }

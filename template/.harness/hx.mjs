@@ -47,7 +47,7 @@ export function defaultConfig() {
       M: { spec: true, design: 'optional' },
       L: { spec: true, design: 'required', adr: 'required' },
     },
-    ship: { auto: false, min_confidence: 80 },
+    ship: { auto: false, min_confidence: 80, max_rounds: 3 },
   };
 }
 
@@ -162,6 +162,8 @@ export function validateConfig(config, root) {
       if (config.ship.auto !== undefined && typeof config.ship.auto !== 'boolean') add('error', 'Livraison', 'ship.auto : true ou false');
       const m = config.ship.min_confidence;
       if (m !== undefined && !(Number.isInteger(m) && m >= 0 && m <= 100)) add('error', 'Livraison', 'ship.min_confidence doit être un entier de 0 à 100');
+      const r = config.ship.max_rounds;
+      if (r !== undefined && !(Number.isInteger(r) && r >= 1)) add('error', 'Livraison', 'ship.max_rounds doit être un entier ≥ 1');
     }
   }
   for (const [name, rules] of Object.entries(config.tracks ?? {})) {
@@ -900,6 +902,7 @@ export const METRICS = [
   { key: 'x-review-discarded', label: 'Revue, constats écartés (faux positifs)' },
   { key: 'x-review-minors', label: 'Revue, mineurs proposés' },
   { key: 'x-review-deferred', label: 'Revue, importants reportés hors du change' },
+  { key: 'x-review-rounds', label: 'Revue, tours (boucle de correction comprise)' },
   { key: 'x-run-assumptions', label: 'Run, hypothèses à confirmer' },
 ];
 
@@ -944,11 +947,11 @@ export function formatStats(report) {
 // produit le code. Il décide si le harness lance /hx-ship seul (livraison automatique) : aucune exclusion, et un score
 // au moins égal à ship.min_confidence. Les compteurs viennent de .openspec.yaml (hx-review) ; un compteur absent
 // exclut la livraison automatique, car « non mesuré » ne vaut pas zéro.
+// fixable : la boucle de correction de hx-review peut ramener la pénalité à zéro sans l'utilisateur.
 export const CONFIDENCE_PENALTIES = [
-  { key: 'x-run-assumptions', points: 10, label: 'hypothèses à confirmer' },
-  { key: 'x-review-minors', points: 5, label: 'mineurs proposés, non appliqués' },
-  // Corrigés après la revue, ces constats n'ont pas été relus à leur tour.
-  { key: 'x-review-confirmed', points: 5, label: 'constats corrigés après la revue' },
+  { key: 'x-run-assumptions', points: 10, label: 'hypothèses à confirmer', fixable: false },
+  { key: 'x-review-minors', points: 5, label: 'mineurs proposés, non appliqués', fixable: true },
+  { key: 'x-review-unreviewed', points: 5, label: 'constats corrigés après la dernière relecture', fixable: true },
 ];
 const DEPENDENCY_POINTS = 15;
 const DEPENDENCY_FILE = /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements[^/]*\.txt|pyproject\.toml|poetry\.lock|uv\.lock|Pipfile(\.lock)?|go\.(mod|sum)|Cargo\.(toml|lock)|pom\.xml|build\.gradle(\.kts)?|gradle\.lockfile|[^/]+\.(cs|fs|vb)proj|Directory\.Packages\.props|packages\.lock\.json|Gemfile(\.lock)?|composer\.(json|lock))$/;
@@ -972,13 +975,16 @@ function branchDiff(root) {
 export function confidence(root, change) {
   const config = loadConfig(root).config ?? {};
   const ship = { ...defaultConfig().ship, ...(isObject(config.ship) ? config.ship : {}) };
-  const result = { change, auto: false, enabled: ship.auto === true, score: 0, threshold: ship.min_confidence, exclusions: [], penalties: [], diff: null };
+  const result = {
+    change, auto: false, enabled: ship.auto === true, score: 0, ceiling: 0, threshold: ship.min_confidence,
+    round: null, maxRounds: ship.max_rounds, next: 'user', reason: '', exclusions: [], penalties: [], diff: null,
+  };
   const exclude = (reason) => result.exclusions.push(reason);
   if (!result.enabled) exclude('livraison automatique désactivée (ship.auto dans .harness/config.json)');
   const dir = path.join(root, 'openspec', 'changes', change);
   if (!/^[a-z0-9][a-z0-9._-]*$/i.test(change) || change === 'archive' || !fs.existsSync(dir)) {
     exclude(`change introuvable : openspec/changes/${change}`);
-    return result;
+    return decideNext(result);
   }
   const meta = readChangeMeta(dir);
   const tasks = taskProgress(dir);
@@ -988,17 +994,18 @@ export function confidence(root, change) {
   if (!tasks.total || tasks.done < tasks.total) exclude(`tâches ${tasks.done}/${tasks.total}`);
   if (verdict !== 'Prêt à livrer') exclude(verdict ? `rapport de fin de run : ${verdict}` : 'pas de rapport de fin de run');
   const count = (key) => (/^\d+$/.test(meta[key] ?? '') ? Number(meta[key]) : null);
-  for (const key of ['x-review-deferred', ...CONFIDENCE_PENALTIES.map((p) => p.key)]) {
+  for (const key of ['x-review-deferred', 'x-review-rounds', ...CONFIDENCE_PENALTIES.map((p) => p.key)]) {
     if (count(key) === null) exclude(`${key} absent ou invalide dans .openspec.yaml`);
   }
   if (count('x-review-deferred') > 0) exclude(`constats importants reportés hors du change : ${count('x-review-deferred')}`);
+  result.round = count('x-review-rounds');
   let score = 100;
-  const penalize = (label, points) => {
-    result.penalties.push({ label, points });
+  const penalize = (label, points, fixable) => {
+    result.penalties.push({ label, points, fixable });
     score -= points;
   };
-  for (const { key, points, label } of CONFIDENCE_PENALTIES) {
-    if (count(key) > 0) penalize(`${label} : ${count(key)}`, points * count(key));
+  for (const { key, points, label, fixable } of CONFIDENCE_PENALTIES) {
+    if (count(key) > 0) penalize(`${label} : ${count(key)}`, points * count(key), fixable);
   }
   const dirty = spawnSync('git', ['status', '--porcelain', '--untracked-files=no', '--', '.', `:(exclude)openspec/changes/${change}`], { cwd: root, encoding: 'utf8' });
   if (dirty.status !== 0) exclude('hors dépôt git : diff non mesurable');
@@ -1011,19 +1018,33 @@ export function confidence(root, change) {
     const guarded = code.filter((f) => SHIP_GUARDED.test(f));
     if (guarded.length) exclude(`harness, CI ou specs principales modifiés : ${guarded.join(', ')}`);
     const dependencies = code.filter((f) => DEPENDENCY_FILE.test(f));
-    if (dependencies.length) penalize(`dépendances modifiées : ${dependencies.join(', ')}`, DEPENDENCY_POINTS);
+    if (dependencies.length) penalize(`dépendances modifiées : ${dependencies.join(', ')}`, DEPENDENCY_POINTS, false);
   }
   result.score = Math.max(0, score);
+  result.ceiling = Math.max(0, 100 - result.penalties.filter((p) => !p.fixable).reduce((sum, p) => sum + p.points, 0));
   result.auto = result.exclusions.length === 0 && result.score >= result.threshold;
-  return result;
+  return decideNext(result);
+}
+
+// Suite du run : livrer, corriger encore (boucle de correction de hx-review), ou rendre la main. Corriger n'a de
+// sens que si le plafond (score une fois mineurs appliqués et corrections relues) atteint le seuil.
+function decideNext(r) {
+  const [next, reason] = r.auto ? ['ship', 'score au seuil']
+    : r.exclusions.length ? ['user', 'exclusion : seul l\'utilisateur peut la lever']
+      : r.ceiling < r.threshold ? ['user', `plafond ${r.ceiling} sous le seuil : hypothèses et dépendances, seul l'utilisateur les lève`]
+        : r.round >= r.maxRounds ? ['user', `tours de revue épuisés (${r.round}/${r.maxRounds}, ship.max_rounds)`]
+          : ['fix', `tour ${r.round + 1}/${r.maxRounds} de la boucle de correction : appliquer les mineurs, faire relire les corrections`];
+  return Object.assign(r, { next, reason });
 }
 
 export function formatConfidence(r) {
   const decision = r.auto ? 'automatique' : 'par l\'utilisateur';
-  const lines = [`${r.change} : score ${r.score}/100 (seuil ${r.threshold}) · livraison ${decision}`];
+  const lines = [`${r.change} : score ${r.score}/100 (seuil ${r.threshold}, plafond ${r.ceiling}) · livraison ${decision}`];
   if (r.exclusions.length) lines.push('Exclusions :', ...r.exclusions.map((e) => `  ✗ ${e}`));
-  lines.push(r.penalties.length ? 'Pénalités :' : 'Pénalités : aucune', ...r.penalties.map((p) => `  −${p.points} ${p.label}`));
+  lines.push(r.penalties.length ? 'Pénalités :' : 'Pénalités : aucune', ...r.penalties.map((p) => `  −${p.points} ${p.label}${p.fixable ? ' (corrigeable)' : ''}`));
   if (r.diff) lines.push(`Diff : ${r.diff.files} fichier(s) hors openspec/changes/ (base ${r.diff.base})`);
+  const nexts = { ship: '/hx-ship', fix: 'corriger', user: 'rendre la main' };
+  lines.push(`Suite : ${nexts[r.next]} (${r.reason})`);
   return lines.join('\n');
 }
 
@@ -1427,7 +1448,8 @@ const HELP = `hx : contrat de commandes du harness
   hx stats [--since AAAA-MM-JJ] [--json]
                       mesures d'élagage des changes archivés (porte, contre-relecture, revue)
   hx confidence [<change>] [--json]
-                      indice de confiance d'un run terminé : 0 si le harness peut lancer /hx-ship seul, 1 sinon
+                      indice de confiance d'un run terminé : 0 si le harness peut lancer /hx-ship seul, 1 sinon ;
+                      plafond atteignable et suite (livrer, corriger, rendre la main)
   hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 

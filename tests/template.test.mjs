@@ -120,6 +120,11 @@ describe('cohérence et budgets', () => {
     for (const key of ['x-review-minors', 'x-review-deferred', 'x-run-assumptions']) assert.match(review, new RegExp(`\`${key}: <n>\``), key);
     assert.match(review, /`node \.harness\/hx\.mjs confidence <change>`/);
     assert.match(review, /\*\*Sortie 0\*\* \(livraison automatique\) : enchaîne `\/hx-ship <change>`/);
+    for (const key of ['x-review-unreviewed', 'x-review-rounds']) assert.match(review, new RegExp(`\`${key}: <n>\``), key);
+    const loop = review.slice(review.indexOf('## Boucle de correction'), review.indexOf("## Revue d'une PR"));
+    assert.match(loop, /`Suite : corriger`/);
+    assert.match(loop, /sous-agents neufs, sur le seul diff depuis le dernier commit relu/);
+    assert.match(loop, /`ship\.max_rounds`/);
     const pr = review.slice(review.indexOf("## Revue d'une PR"));
     assert.match(pr, /`gh pr comment <numéro> --body-file <fichier>`/);
     for (const section of ['### Constats sur la PR', '### À confirmer par le relecteur', '### Historique du run']) assert.ok(pr.includes(section), section);

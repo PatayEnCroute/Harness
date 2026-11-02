@@ -9,6 +9,7 @@ Chaque scénario lance un agent Claude Code **headless** (`claude -p`) sur un pr
 | `gate-stops` | Un comportement modifié passe par la porte de cadrage, et l'agent s'y arrête | un seul change, piste M ou L, avec une delta spec valide (`validate --strict`) ; pas de `x-validated` ; aucun fichier hors de `docs/` et `openspec/changes/` depuis le commit initial ; ni branche ni worktree |
 | `implement-m` | `hx-implement` réalise un change OpenSpec déjà validé (`x-validated`) | tâches cochées, scénarios tagués `@scenario`, `mult(2, 3)` et `mult(7, 0)` vérifiés par la notation, pour chaque scénario, un fichier de test tagué échoue **à lui seul** quand seul son comportement est faux, `hx check` vert |
 | `ship-minors` | Mineurs décidés après la demande de livraison : l'archive reste le dernier commit (deux tours) | mineur appliqué et commité, dernier commit = archive de `add-mult` et rien d'autre, aucune réécriture d'historique (`rebase`, `reset`, `amend` dans le reflog), `hx check` vert |
+| `fix-loop` | Score sous le seuil, plafond atteignable : la boucle de correction mène seule à la livraison | les 3 mineurs semés appliqués et commités, `hx-code-reviewer` relancé, `x-review-rounds` ≥ 2 dans l'archive, dernier commit = archive de `add-mult`, `mult` vérifié et mutant détecté, `hx check` vert |
 | `architect` | `hx-architect` reste proportionné | `hx-architect` réellement lancé, ligne finale unique `Niveau visé : 0` ou `1`, aucun fichier modifié hors `docs/` et `openspec/changes/` depuis le commit initial (un commit de l'agent ne cache rien) |
 
 ```bash

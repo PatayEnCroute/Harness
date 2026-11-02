@@ -166,7 +166,7 @@
     },
     "ship": {
       "type": "object",
-      "description": "Livraison automatique : à la fin d'un run, hx-review lance /hx-ship seul si « hx confidence » l'autorise (piste M, aucune exclusion, score ≥ min_confidence), puis fait relire la PR et publie la revue en commentaire.",
+      "description": "Livraison automatique : à la fin d'un run, hx-review lance /hx-ship seul si « hx confidence » l'autorise (piste M, aucune exclusion, score ≥ min_confidence), puis fait relire la PR et publie la revue en commentaire. Score sous le seuil mais plafond atteignable : boucle de correction d'abord (mineurs appliqués, corrections relues).",
       "additionalProperties": false,
       "properties": {
         "auto": {
@@ -178,6 +178,11 @@
           "minimum": 0,
           "maximum": 100,
           "description": "Score minimal de « hx confidence » pour livrer sans l'utilisateur (défaut 80)"
+        },
+        "max_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Tours de revue au plus, le premier compris, avant de rendre la main quand le score reste sous le seuil (défaut 3)"
         }
       }
     }

@@ -90,7 +90,7 @@ describe('hooks Claude Code', () => {
   });
 
   test('pre-tool-use : hx-ship lancé par Claude seulement si hx confidence autorise la livraison automatique', () => {
-    const meta = 'x-track: M\nx-validated: 2026-10-18\nx-review-confirmed: 0\nx-review-minors: 0\nx-review-deferred: 0\nx-run-assumptions: 0\n';
+    const meta = 'x-track: M\nx-validated: 2026-10-18\nx-review-unreviewed: 0\nx-review-minors: 0\nx-review-deferred: 0\nx-review-rounds: 1\nx-run-assumptions: 0\n';
     const change = { 'openspec/changes/add-mult/.openspec.yaml': meta, 'openspec/changes/add-mult/tasks.md': '- [x] 1.1 a\n', 'openspec/changes/add-mult/run-report.md': '## add-mult : Prêt à livrer\n' };
     const { root, git } = gitProject({ components: {}, ship: { auto: true } });
     git('branch', '-M', 'main');
@@ -101,6 +101,9 @@ describe('hooks Claude Code', () => {
     const ship = (args) => hook('pre-tool-use', root, { tool_name: 'Skill', tool_input: { skill: 'hx-ship', args } });
     assert.equal(ship('add-mult').stdout, '');
     assert.equal(ship(undefined).stdout, '', 'change déduit quand il est seul');
+    write(root, 'openspec/changes/add-mult/.openspec.yaml', meta.replace('x-review-minors: 0', 'x-review-minors: 5'));
+    assert.match(decision(ship('add-mult')).permissionDecisionReason, /score 75\/100.*plafond 100 atteint le seuil : suis la boucle de correction de hx-review/);
+    write(root, 'openspec/changes/add-mult/.openspec.yaml', meta);
     write(root, 'openspec/changes/add-mult/run-report.md', '## add-mult : Bloqué : spec fausse\n');
     const refused = decision(ship('add-mult'));
     assert.equal(refused.permissionDecision, 'deny');

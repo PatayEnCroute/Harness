@@ -32,7 +32,7 @@ Le run commence ici et va **jusqu'au rapport de fin de run sans rendre la main**
 5. Coche la tâche dans `tasks.md` (`- [ ]` devient `- [x]`).
 6. Commit : `git add openspec/changes/<change>/tasks.md && git commit -m "<change> : <tâche>"` (un sujet par commit).
 
-Ensuite, **sans rendre la main** : `hx-verify`, puis `hx-review`, qui se termine par le rapport de fin de run, puis par `/hx-ship` si `hx confidence` autorise la livraison automatique.
+Ensuite, **sans rendre la main** : `hx-verify`, puis `hx-review`, qui se termine par le rapport de fin de run, puis par `/hx-ship` si `hx confidence` autorise la livraison automatique, après la boucle de correction si le score l'exige.
 
 ## Arrêts autorisés pendant le run
 
