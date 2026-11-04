@@ -972,12 +972,24 @@ function branchDiff(root) {
   return { base, error: `branche de base ${base} introuvable : diff non mesurable` };
 }
 
+// Commits de code postérieurs au dernier commit de .openspec.yaml, hors base reprise et merges. Les mesures en cours
+// de réécriture (non commitées) sont lues telles quelles : la boucle relance hx confidence avant de les commiter.
+function commitsAfterMeasures(root, change, base) {
+  const git = (...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  const metaFile = `openspec/changes/${change}/.openspec.yaml`;
+  if (git('status', '--porcelain', '--', metaFile).stdout.trim()) return 0;
+  const measured = git('log', '-1', '--format=%H', '--', metaFile).stdout.trim();
+  if (!measured) return 0;
+  return git('rev-list', '--no-merges', `${measured}..HEAD`, `^${base}`, '--', '.', `:(exclude)openspec/changes/${change}`)
+    .stdout.split(/\r?\n/).filter(Boolean).length;
+}
+
 export function confidence(root, change) {
   const config = loadConfig(root).config ?? {};
   const ship = { ...defaultConfig().ship, ...(isObject(config.ship) ? config.ship : {}) };
   const result = {
     change, auto: false, enabled: ship.auto === true, score: 0, ceiling: 0, threshold: ship.min_confidence,
-    round: null, maxRounds: ship.max_rounds, next: 'user', reason: '', exclusions: [], penalties: [], diff: null,
+    round: null, maxRounds: ship.max_rounds, next: 'user', reason: '', exclusions: [], penalties: [], diff: null, stale: null,
   };
   const exclude = (reason) => result.exclusions.push(reason);
   if (!result.enabled) exclude('livraison automatique désactivée (ship.auto dans .harness/config.json)');
@@ -1019,6 +1031,11 @@ export function confidence(root, change) {
     if (guarded.length) exclude(`harness, CI ou specs principales modifiés : ${guarded.join(', ')}`);
     const dependencies = code.filter((f) => DEPENDENCY_FILE.test(f));
     if (dependencies.length) penalize(`dépendances modifiées : ${dependencies.join(', ')}`, DEPENDENCY_POINTS, false);
+    const after = commitsAfterMeasures(root, change, diff.base);
+    if (after) {
+      result.stale = `mesures antérieures au code : ${after} commit(s) après la dernière écriture de .openspec.yaml, score figé (hx-review, « Corrections après le rapport »)`;
+      exclude(result.stale);
+    }
   }
   result.score = Math.max(0, score);
   result.ceiling = Math.max(0, 100 - result.penalties.filter((p) => !p.fixable).reduce((sum, p) => sum + p.points, 0));
@@ -1027,13 +1044,16 @@ export function confidence(root, change) {
 }
 
 // Suite du run : livrer, corriger encore (boucle de correction de hx-review), ou rendre la main. Corriger n'a de
-// sens que si le plafond (score une fois mineurs appliqués et corrections relues) atteint le seuil.
+// sens que si le plafond (score une fois mineurs appliqués et corrections relues) atteint le seuil. ship.max_rounds
+// compte les tours de correction, après la première revue. Des mesures antérieures au code ne sont pas une exclusion
+// de l'utilisateur : un tour de boucle relit les corrections et les remet à jour.
 function decideNext(r) {
+  const fixes = Math.max(0, (r.round ?? 0) - 1);
   const [next, reason] = r.auto ? ['ship', 'score au seuil']
-    : r.exclusions.length ? ['user', 'exclusion : seul l\'utilisateur peut la lever']
+    : r.exclusions.some((e) => e !== r.stale) ? ['user', 'exclusion : seul l\'utilisateur peut la lever']
       : r.ceiling < r.threshold ? ['user', `plafond ${r.ceiling} sous le seuil : hypothèses et dépendances, seul l'utilisateur les lève`]
-        : r.round >= r.maxRounds ? ['user', `tours de revue épuisés (${r.round}/${r.maxRounds}, ship.max_rounds)`]
-          : ['fix', `tour ${r.round + 1}/${r.maxRounds} de la boucle de correction : appliquer les mineurs, faire relire les corrections`];
+        : fixes >= r.maxRounds ? ['user', `tours de correction épuisés (${fixes}/${r.maxRounds}, ship.max_rounds) : demander à l'utilisateur la suite`]
+          : ['fix', `tour ${fixes + 1}/${r.maxRounds} de la boucle de correction : appliquer les mineurs, faire relire les corrections`];
   return Object.assign(r, { next, reason });
 }
 

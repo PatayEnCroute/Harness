@@ -844,19 +844,52 @@ describe('confidence : livraison automatique d\'un run terminé', () => {
     const fix = confidence(run({ meta: meta(1, 2, 2) }), 'add-mult');
     assert.deepEqual([fix.score, fix.ceiling, fix.auto, fix.next, fix.round, fix.maxRounds], [70, 90, false, 'fix', 1, 3]);
     assert.deepEqual(fix.penalties.map((p) => p.fixable), [false, true, true]);
-    assert.match(fix.reason, /tour 2\/3/);
+    assert.match(fix.reason, /tour 1\/3/, 'trois tours de correction après la première revue');
     assert.match(formatConfidence(fix), /−10 mineurs proposés, non appliqués : 2 \(corrigeable\)/);
-    assert.match(formatConfidence(fix), /Suite : corriger \(tour 2\/3/);
+    assert.match(formatConfidence(fix), /Suite : corriger \(tour 1\/3/);
     const ceiling = confidence(run({ meta: meta(2, 1, 0), files: { 'package.json': '{}\n' } }), 'add-mult');
     assert.deepEqual([ceiling.ceiling, ceiling.next], [65, 'user']);
     assert.match(ceiling.reason, /plafond 65 sous le seuil/);
-    const spent = confidence(run({ meta: meta(0, 1, 4, 3) }), 'add-mult');
-    assert.deepEqual([spent.next, spent.reason], ['user', 'tours de revue épuisés (3/3, ship.max_rounds)']);
-    assert.equal(confidence(run({ meta: meta(0, 1, 4, 3), ship: { auto: true, max_rounds: 5 } }), 'add-mult').next, 'fix');
+    const third = confidence(run({ meta: meta(0, 1, 4, 3) }), 'add-mult');
+    assert.deepEqual([third.next, third.reason.startsWith('tour 3/3')], ['fix', true]);
+    const spent = confidence(run({ meta: meta(0, 1, 4, 4) }), 'add-mult');
+    assert.deepEqual([spent.next, spent.reason], ['user', 'tours de correction épuisés (3/3, ship.max_rounds) : demander à l\'utilisateur la suite']);
+    assert.equal(confidence(run({ meta: meta(0, 1, 4, 4), ship: { auto: true, max_rounds: 5 } }), 'add-mult').next, 'fix');
     assert.equal(confidence(run({ meta: meta(1, 2, 2), ship: {} }), 'add-mult').next, 'user', 'désactivée : pas de boucle');
     const unmeasured = confidence(run({ meta: meta(1, 2, 2).replace('x-review-rounds: 1\n', '') }), 'add-mult');
     assert.equal(unmeasured.next, 'user');
     assert.match(unmeasured.exclusions.join('\n'), /x-review-rounds absent/);
+  });
+
+  test('correction commitée après les mesures : score figé refusé, puis remonté une fois les mesures à jour', () => {
+    const root = run({ meta: meta(0, 3, 0) });
+    assert.equal(confidence(root, 'add-mult').score, 85);
+    writeFiles(root, { 'src/mult.js': 'mineur appliqué\n' });
+    git(root, 'commit', '-qam', 'add-mult : mineur');
+    const stale = confidence(root, 'add-mult');
+    assert.deepEqual([stale.score, stale.auto, stale.next], [85, false, 'fix']);
+    assert.match(stale.exclusions.join('\n'), /mesures antérieures au code : 1 commit/);
+    const spent = run({ meta: meta(0, 3, 0, 2), ship: { auto: true, max_rounds: 1 } });
+    writeFiles(spent, { 'src/mult.js': 'mineur appliqué\n' });
+    git(spent, 'commit', '-qam', 'add-mult : mineur');
+    assert.equal(confidence(spent, 'add-mult').next, 'user', 'tours épuisés : rendre la main');
+    const metaFile = 'openspec/changes/add-mult/.openspec.yaml';
+    writeFiles(root, { [metaFile]: meta(0, 0, 0, 2) });
+    const remeasured = confidence(root, 'add-mult');
+    assert.deepEqual([remeasured.score, remeasured.auto, remeasured.exclusions], [100, true, []], 'mesures en cours de réécriture : lues');
+    git(root, 'commit', '-qam', 'add-mult : rapport de fin de run, tour 2');
+    assert.deepEqual([confidence(root, 'add-mult').score, confidence(root, 'add-mult').auto], [100, true]);
+  });
+
+  test('mesures antérieures au code : les commits de la base reprise ne comptent pas', () => {
+    const root = run();
+    git(root, 'checkout', '-q', 'main');
+    writeFiles(root, { 'src/other.js': 'o\n' });
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'autre change');
+    git(root, 'checkout', '-q', 'add-mult');
+    git(root, 'merge', '-q', '--no-edit', 'main');
+    assert.deepEqual(confidence(root, 'add-mult').exclusions, []);
   });
 
   test('dépendances pénalisent, pas la taille du diff ; harness, CI et specs principales excluent', () => {
