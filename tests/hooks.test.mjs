@@ -107,9 +107,39 @@ describe('hooks Claude Code', () => {
     write(root, 'openspec/changes/add-mult/run-report.md', '## add-mult : Bloqué : spec fausse\n');
     const refused = decision(ship('add-mult'));
     assert.equal(refused.permissionDecision, 'deny');
-    assert.match(refused.permissionDecisionReason, /rapport de fin de run : Bloqué.*l'utilisateur lance \/hx-ship lui-même/);
+    assert.match(refused.permissionDecisionReason, /rapport de fin de run : Bloqué.*question « Livraison ».*seul un choix « livrer » de l'utilisateur autorise \/hx-ship/);
     const off = project({ components: {} }, change);
     assert.match(decision(hook('pre-tool-use', off, { tool_name: 'Skill', tool_input: { skill: 'hx-ship', args: 'add-mult' } })).permissionDecisionReason, /ship\.auto/);
+  });
+
+  test('livraison : un choix « livrer » à la question Livraison autorise hx-ship une fois, dans cette session', () => {
+    const change = { 'openspec/changes/add-mult/.openspec.yaml': 'x-track: M\nx-validated: 2026-10-18\n', 'openspec/changes/add-mult/run-report.md': '## add-mult : Prêt à livrer\n' };
+    const { root } = gitProject({ components: {} }, change);
+    const session = { session_id: `s-${Date.now()}` };
+    hook('session-start', root, session);
+    const question = 'add-mult : que fait-on ?';
+    const ask = (answer, header = 'Livraison', s = session) => hook('post-tool-use', root, {
+      ...s, tool_name: 'AskUserQuestion',
+      tool_input: { questions: [{ header, question, options: [{ label: 'Livrer' }, { label: 'Ne pas livrer maintenant' }] }] },
+      tool_response: typeof answer === 'string' && answer.startsWith('User') ? answer : { answers: { [question]: answer } },
+    });
+    const ship = (s = session) => decision(hook('pre-tool-use', root, { ...s, tool_name: 'Skill', tool_input: { skill: 'hx-ship', args: 'add-mult' } }));
+    assert.equal(ship().permissionDecision, 'deny');
+    assert.equal(ask('Ne pas livrer maintenant').code, 0);
+    assert.equal(ship().permissionDecision, 'deny', 'refus de livrer');
+    ask('Livrer', 'Porte');
+    assert.equal(ship().permissionDecision, 'deny', 'autre question');
+    ask('Appliquer les mineurs et livrer (Recommandé)');
+    assert.equal(ship({ session_id: 'autre' }).permissionDecision, 'deny', 'autre session');
+    const allowed = ship();
+    assert.equal(allowed.permissionDecision, undefined);
+    assert.match(allowed.additionalContext, /Appliquer les mineurs et livrer.*mode manuel/);
+    assert.equal(ship().permissionDecision, 'deny', 'une seule fois');
+    ask(`User has answered your questions: "${question}"="Livrer sans les mineurs". You can now continue.`);
+    assert.equal(ship().permissionDecision, undefined, 'réponse rendue en texte');
+    ask('Livrer');
+    ask('Ne pas livrer maintenant');
+    assert.equal(ship().permissionDecision, 'deny', 'la dernière réponse compte');
   });
 
   test('pre-tool-use : un lien symbolique vers le projet ne fait pas manquer un chemin protégé', () => {
@@ -247,7 +277,30 @@ describe('hooks Claude Code', () => {
     write(other, 'openspec/changes/add-mult/tasks.md', '- [x] 1.1 a\n- [ ] 1.2 b\n');
     const r = hook('session-start', root);
     assert.equal(r.code, 0);
-    assert.match(r.stdout, /Changes dans d'autres worktrees : add-mult \(run en cours\)\. Détail : node \.harness\/hx\.mjs status/);
+    assert.match(r.stdout, /Changes dans d'autres worktrees : add-mult \(run en cours → attendre la notification de fin de run\)\. Détail : node \.harness\/hx\.mjs status/);
+  });
+
+  test('session-start : prochaine action, « go » lance un run validé, worktree mergé proposé au nettoyage', () => {
+    const { root, git } = gitProject({ components: {} }, {
+      'openspec/changes/add-div/.openspec.yaml': 'x-track: M\nx-validated: 2026-10-18\n',
+      'openspec/changes/add-div/tasks.md': '- [ ] 1.1 a\n',
+    });
+    git('branch', '-M', 'main');
+    const other = `${root}-add-mult`;
+    git('worktree', 'add', '-q', '-b', 'add-mult', other);
+    write(other, 'openspec/changes/archive/2026-11-04-add-mult/.openspec.yaml', 'x-track: M\n');
+    git('-C', other, 'add', '-A');
+    git('-C', other, 'commit', '-qm', 'add-mult : archive OpenSpec');
+    const before = hook('session-start', root).stdout;
+    assert.match(before, /add-div \(piste M, cadrage validé le 2026-10-18, 0\/1 tâches\) → écrire « go » pour lancer le run/);
+    assert.match(before, /si l'utilisateur écrit « go » .*lance hx-implement add-div sans autre question/);
+    assert.match(before, /Worktrees livrés : .*\(add-mult\) : livré : PR à merger/);
+    assert.doesNotMatch(before, /Capitaliser et nettoyer/);
+    git('merge', '-q', '--no-ff', '--no-edit', 'add-mult');
+    const after = hook('session-start', root).stdout;
+    assert.match(after, /\(add-mult\) : mergé/);
+    assert.match(after, /choix cliquable « Capitaliser et nettoyer » : git pull, hx-learn, puis .*git worktree remove/);
+    assert.doesNotMatch(hook('session-start', root, { cwd: other }).stdout, /Capitaliser et nettoyer/, 'seulement depuis le dossier principal');
   });
 
   test('session-start : CLI openspec installée si absente ; en local, une autre version est laissée', { skip: process.platform === 'win32' }, () => {

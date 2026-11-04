@@ -22,8 +22,10 @@ import {
   formatConfidence,
   createWorktree,
   formatStats,
+  formatStatus,
   mergeLeftovers,
   migrateConfig,
+  nextAction,
   nodeVersionOk,
   templateStatus,
   openspecCommand,
@@ -364,7 +366,7 @@ describe('CLI', () => {
     git(src, 'tag', 'v0.10.0');
     git(src, 'tag', 'v0.9.0');
     answers('v0.9.0');
-    assert.deepEqual(templateStatus(root), { level: 'warn', detail: 'v0.9.0, dernière : v0.10.0 → uvx copier update --trust' });
+    assert.deepEqual(templateStatus(root), { level: 'warn', detail: 'v0.9.0, dernière : v0.10.0 → /hx-update (ou « mets à jour le harness »)' });
     answers('v0.10.0-2-gabc1234');
     assert.equal(templateStatus(root).level, 'ok');
     fs.rmSync(path.join(root, '.copier-answers.yml'));
@@ -568,7 +570,7 @@ describe('worktree : un change, une branche, un dossier', () => {
     assert.ok(!git(r.target, 'ls-files').stdout.includes('settings.local.json'));
   });
 
-  test('CLI : lancement du run affiché pour Desktop et le terminal ; usage sans change', () => {
+  test('CLI : lancement du run affiché pour Desktop, sans commande à taper ; usage sans change', () => {
     const { root } = repoWithHarness();
     writeChange(root, 'add-mult');
     const lines = [];
@@ -579,8 +581,9 @@ describe('worktree : un change, une branche, un dossier', () => {
     } finally {
       console.log = log;
     }
-    assert.match(lines.join('\n'), /Desktop : nouvelle session sur le dossier .*mode Auto.*\/hx-implement add-mult$/m);
-    assert.match(lines.join('\n'), /Terminal : cd .* && claude --permission-mode auto "\/hx-implement add-mult"/);
+    assert.match(lines.join('\n'), /Desktop, nouvelle session sur le dossier .*mode Auto.*écrire « go » : la session lance \/hx-implement add-mult/);
+    assert.doesNotMatch(lines.join('\n'), /Terminal|claude --permission-mode|git worktree remove/);
+    assert.match(lines.join('\n'), /Capitaliser et nettoyer/);
     assert.equal(main(['worktree'], root), 2);
   });
 
@@ -599,6 +602,31 @@ describe('worktree : un change, une branche, un dossier', () => {
     ]);
     assert.equal(trees[1].branch, 'add-mult');
     assert.deepEqual(trees[1].changes[0].tasks, { done: 2, total: 2 });
+  });
+
+  test('status : prochaine action par change ; worktree livré à merger, puis mergé', () => {
+    const { root } = repoWithHarness();
+    git(root, 'branch', '-M', 'main');
+    writeChange(root, 'add-mult');
+    const r = withGitIdentity(() => createWorktree(root, 'add-mult'));
+    assert.match(formatStatus(worktreeStatus(root)), /add-mult · piste M · validé, run à lancer → ouvrir une session Desktop sur ce dossier et écrire « go »/);
+    fs.mkdirSync(path.join(r.target, 'openspec', 'changes', 'archive'));
+    fs.renameSync(path.join(r.target, 'openspec', 'changes', 'add-mult'), path.join(r.target, 'openspec', 'changes', 'archive', '2026-11-04-add-mult'));
+    git(r.target, 'add', '-A');
+    git(r.target, 'commit', '-qm', 'add-mult : archive OpenSpec');
+    assert.deepEqual(worktreeStatus(root).map((t) => t.shipped), [null, 'à merger']);
+    assert.match(formatStatus(worktreeStatus(root)), /\(add-mult\)\n  livré : PR à merger/);
+    git(root, 'merge', '-q', '--no-ff', '--no-edit', 'add-mult');
+    assert.deepEqual(worktreeStatus(root).map((t) => t.shipped), [null, 'mergé']);
+    assert.match(formatStatus(worktreeStatus(root)), /mergé : dire « capitalise et nettoie » dans le dossier principal/);
+  });
+
+  test('nextAction : en langage naturel, ici ou dans la session du worktree', () => {
+    assert.equal(nextAction({ stage: 'cadrage' }), 'reprendre le cadrage');
+    assert.equal(nextAction({ stage: 'validé, run à lancer' }), 'écrire « go » pour lancer le run');
+    assert.equal(nextAction({ stage: 'run en cours' }, { here: false }), 'attendre la notification de fin de run');
+    assert.equal(nextAction({ name: 'x', stage: 'rapport : Prêt à livrer', report: 'Prêt à livrer' }, { here: false }), 'dire « livre x » dans la session de ce worktree');
+    assert.equal(nextAction({ name: 'x', stage: 'rapport : Bloqué : spec', report: 'Bloqué : spec' }), 'lire le rapport et décider');
   });
 
   test('status : validé sans tâche faite, run en cours, rapport illisible ; hors dépôt git', () => {

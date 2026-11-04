@@ -17,7 +17,7 @@ Le run commence ici et va **jusqu'au rapport de fin de run sans rendre la main**
    - `state: "ready"` : continue. `missingPrerequisites` peut citer `design` : c'est normal en piste M, où `design.md` est facultatif.
 3. Lis une fois `proposal.md`, les delta specs et `design.md` s'il existe.
 4. **Porte de cadrage** : `.openspec.yaml` doit contenir `x-validated` (voir `hx-triage`). Sinon, arrête-toi et demande la validation : sans elle, rien ne garantit que la spec dit ce que l'utilisateur veut.
-5. **Worktree neuf** (créé par `hx worktree`) : lance `node .harness/hx.mjs run setup` si les dépendances manquent.
+5. **Worktree neuf** (natif de Claude Code Desktop, ou créé par `hx worktree`) : lance `node .harness/hx.mjs run setup` si les dépendances manquent.
 
 ## Boucle, pour chaque tâche non cochée, dans l'ordre
 

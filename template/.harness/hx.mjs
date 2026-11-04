@@ -878,18 +878,51 @@ export function worktreeStatus(root) {
     return tree;
   }).filter((tree) => tree.path && !tree.bare && fs.existsSync(tree.path));
   const here = realPath(root);
-  return trees.map(({ path: dir, branch }) => ({
-    path: dir,
-    branch,
-    current: realPath(dir) === here,
-    changes: listChanges(dir).map((change) => ({ name: change.name, ...changeState(change.dir) })),
-  }));
+  const base = readAnswers(root).default_branch || 'main';
+  return trees.map(({ path: dir, branch }, i) => {
+    const changes = listChanges(dir).map((change) => ({ name: change.name, ...changeState(change.dir) }));
+    return {
+      path: dir,
+      branch,
+      current: realPath(dir) === here,
+      main: i === 0,
+      changes,
+      shipped: i === 0 ? null : shippedState(dir, branch, base),
+    };
+  });
+}
+
+// Worktree dont la branche finit par l'archive OpenSpec (dernier commit posé par /hx-ship) : livré. Mergé si ce commit
+// est dans la base locale ou dans sa copie distante connue (sans fetch : un merge par squash reste « à merger »).
+function shippedState(dir, branch, base) {
+  if (!branch || branch === base) return null;
+  const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  if (!/ : archive OpenSpec$/.test(git('log', '-1', '--format=%s', branch).stdout.trim())) return null;
+  const merged = [base, `origin/${base}`].some((ref) => git('merge-base', '--is-ancestor', branch, ref).status === 0);
+  return merged ? 'mergé' : 'à merger';
+}
+
+// Prochaine action de l'utilisateur pour un change, en langage naturel : rien à taper dans un terminal.
+export function nextAction(change, { here = true } = {}) {
+  const where = here ? '' : ' dans la session de ce worktree';
+  if (change.stage === 'cadrage') return `reprendre le cadrage${where}`;
+  if (change.stage === 'validé, run à lancer') return here ? 'écrire « go » pour lancer le run' : 'ouvrir une session Desktop sur ce dossier et écrire « go »';
+  if (change.stage === 'run en cours') return 'attendre la notification de fin de run';
+  if (/^Prêt à livrer/.test(change.report ?? '')) return `dire « livre ${change.name} »${where}`;
+  return `lire le rapport et décider${where}`;
+}
+
+export function shippedAction(shipped) {
+  return shipped === 'mergé' ? 'mergé : dire « capitalise et nettoie » dans le dossier principal' : 'livré : PR à merger';
 }
 
 export function formatStatus(trees) {
   return trees.flatMap((tree) => [
     `${tree.path}${tree.branch ? ` (${tree.branch})` : ''}${tree.current ? ' · ce dossier' : ''}`,
-    ...(tree.changes.length ? tree.changes.map((c) => `  ${c.name} · piste ${c.track ?? '?'} · ${c.stage}${c.tasks.total ? ` · tâches ${c.tasks.done}/${c.tasks.total}` : ''}`) : ['  aucun change en cours']),
+    ...(tree.changes.length
+      ? tree.changes.map((c) => `  ${c.name} · piste ${c.track ?? '?'} · ${c.stage}${c.tasks.total ? ` · tâches ${c.tasks.done}/${c.tasks.total}` : ''} → ${nextAction(c, { here: tree.current })}`)
+      : tree.shipped ? [] : ['  aucun change en cours']),
+    ...(tree.shipped ? [`  ${shippedAction(tree.shipped)}`] : []),
   ]).join('\n');
 }
 
@@ -1236,7 +1269,7 @@ export function templateStatus(root, { timeout = 15000 } = {}) {
   const current = parseVersion(commit);
   // copier enregistre « git describe » : v0.2.0-3-gabc1234 est postérieur à v0.2.0, donc au moins à jour à ce tag près.
   if (current && compareVersions(current, parseVersion(latest)) >= 0) return { level: 'ok', detail: `${commit} (dernière : ${latest})` };
-  return { level: 'warn', detail: `${commit ?? 'version inconnue'}, dernière : ${latest} → uvx copier update --trust` };
+  return { level: 'warn', detail: `${commit ?? 'version inconnue'}, dernière : ${latest} → /hx-update (ou « mets à jour le harness »)` };
 }
 
 function cmdDoctor(root, args) {
@@ -1384,10 +1417,8 @@ function cmdWorktree(root, args) {
     `Worktree prêt : ${result.target} (branche ${result.branch})${result.moved ? ` ; change déplacé et commité : « ${change} : proposition »` : ''}.`,
     ...(result.stayed ? [`⚠ ${change} était déjà commité : il reste aussi dans ce dossier, dont hx check restera rouge sur ses scénarios tant qu'il n'est pas mergé.`] : []),
     ...(fs.existsSync(path.join(result.target, LOCAL_SETTINGS)) ? [`Permissions locales (${LOCAL_SETTINGS}) reprises dans le worktree.`] : []),
-    'Lancer le run en mode Auto (aucune confirmation demandée : le classifieur du mode Auto écarte les actions risquées) :',
-    `  Claude Code Desktop : nouvelle session sur le dossier ${result.target}, mode Auto (Cmd/Ctrl+Shift+M), puis /hx-implement ${change}`,
-    `  Terminal : cd ${shellQuote(result.target)} && claude --permission-mode auto "/hx-implement ${change}"`,
-    `Après le merge : git worktree remove ${shellQuote(result.target)}`,
+    `Lancer le run : dans Claude Code Desktop, nouvelle session sur le dossier ${result.target}, mode Auto (Cmd/Ctrl+Shift+M), puis écrire « go » : la session lance /hx-implement ${change} d'elle-même.`,
+    'Après le merge : une session sur le dossier principal propose « Capitaliser et nettoyer » (hx-learn, puis suppression du worktree et de sa branche).',
   ].join('\n'));
   return 0;
 }

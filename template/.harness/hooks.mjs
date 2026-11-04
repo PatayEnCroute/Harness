@@ -18,12 +18,14 @@ import {
   installedOpenspecVersion,
   listChanges,
   loadValidConfig,
+  nextAction,
   pinnedOpenspec,
   readChangeMeta,
   readText,
   readVersions,
   reportVerdict,
   resolveInvocations,
+  shippedAction,
   tail,
   taskProgress,
   worktreeStatus,
@@ -66,8 +68,9 @@ const PROTECTED = [
 ];
 const protectionOf = (rel) => PROTECTED.find((p) => p.test(CASE_INSENSITIVE_FS ? rel.toLowerCase() : rel));
 
-// État de la session, hors du dépôt, une entrée par projet et session : commit de départ, et empreinte des fichiers
-// déjà vus (modifiés avant la session, ou contrôlés au vert). Écrit seulement par SessionStart et Stop.
+// État de la session, hors du dépôt, une entrée par projet et session : commit de départ, empreinte des fichiers
+// déjà vus (modifiés avant la session, ou contrôlés au vert), et livraison décidée par l'utilisateur (shipApproval).
+// Écrit par SessionStart et Stop, et pour la livraison par PostToolUse (AskUserQuestion) et PreToolUse (hx-ship).
 function sessionFile(root, input) {
   const key = createHash('sha256').update(`${realPath(root)}\0${input.session_id ?? 'sans-session'}`).digest('hex').slice(0, 16);
   return path.join(os.tmpdir(), 'hx-hooks', `${key}.json`);
@@ -145,6 +148,11 @@ function hookConfig(root) {
   return { config, code: 0 };
 }
 
+function initialState(root) {
+  const files = changedFiles(root);
+  return files && { base: git(root, ['rev-parse', 'HEAD'])?.trim() || null, seen: snapshot(root, files) };
+}
+
 function readInput() {
   try {
     return JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
@@ -158,8 +166,8 @@ export function sessionStart(root, input, env = process.env) {
   // Point de départ du hook Stop, posé une seule fois par session (pas à la reprise ni au compactage) :
   // ce qui est déjà modifié avant Claude ne déclenche rien.
   if (!readState(root, input)) {
-    const files = changedFiles(root);
-    if (files) writeState(root, input, { base: git(root, ['rev-parse', 'HEAD'])?.trim() || null, seen: snapshot(root, files) });
+    const state = initialState(root);
+    if (state) writeState(root, input, state);
   }
   const lines = [];
   if (readText(path.join(root, '.harness', 'project.md')).includes('hx:todo')) {
@@ -177,18 +185,53 @@ export function sessionStart(root, input, env = process.env) {
     const r = spawnSync('npm', ['i', '-g', `@fission-ai/openspec@${pinned}`], { stdio: 'ignore', shell: process.platform === 'win32' });
     lines.push(r.status === 0
       ? `- CLI openspec ${pinned} installée (npm i -g).`
-      : `- Échec de l'installation de la CLI openspec ${pinned} : les commandes /opsx:* ne fonctionneront pas. À lancer par l'utilisateur : npm i -g @fission-ai/openspec@${pinned}`);
+      : `- Échec de l'installation de la CLI openspec ${pinned} : les commandes /opsx:* ne fonctionneront pas. Propose à l'utilisateur de relancer l'installation pour lui (npm i -g @fission-ai/openspec@${pinned}) : il n'a rien à taper.`);
   }
+  const trees = worktreeStatus(root);
+  const here = trees.find((tree) => tree.current);
   for (const change of listChanges(root)) {
     const { done, total } = taskProgress(change.dir);
     const meta = readChangeMeta(change.dir);
     const gate = meta['x-validated'] ? `cadrage validé le ${meta['x-validated']}` : 'cadrage non validé';
     const report = reportVerdict(change.dir);
-    lines.push(`- Change OpenSpec en cours : ${change.name} (piste ${meta['x-track'] ?? '?'}, ${gate}, ${done}/${total} tâches${report ? `, rapport : ${report}` : ''})`);
+    const state = here?.changes.find((c) => c.name === change.name);
+    lines.push(`- Change OpenSpec en cours : ${change.name} (piste ${meta['x-track'] ?? '?'}, ${gate}, ${done}/${total} tâches${report ? `, rapport : ${report}` : ''})${state ? ` → ${nextAction(state)}` : ''}`);
+    if (state?.stage === 'validé, run à lancer') {
+      lines.push(`  Run prêt à lancer : si l'utilisateur écrit « go » (ou ne demande rien d'autre), lance hx-implement ${change.name} sans autre question.`);
+    }
   }
-  const elsewhere = worktreeStatus(root).filter((tree) => !tree.current).flatMap((tree) => tree.changes.map((c) => `${c.name} (${c.stage})`));
+  const elsewhere = trees.filter((tree) => !tree.current).flatMap((tree) => tree.changes.map((c) => `${c.name} (${c.stage} → ${nextAction(c, { here: false })})`));
   if (elsewhere.length) lines.push(`- Changes dans d'autres worktrees : ${elsewhere.join(', ')}. Détail : node .harness/hx.mjs status`);
+  const shipped = trees.filter((tree) => !tree.current && tree.shipped).map((tree) => `${tree.path} (${tree.branch}) : ${shippedAction(tree.shipped)}`);
+  if (shipped.length) lines.push(`- Worktrees livrés : ${shipped.join(' ; ')}.`);
+  if (here?.main && trees.some((tree) => tree.shipped === 'mergé')) {
+    lines.push("  Au premier échange, propose en choix cliquable « Capitaliser et nettoyer » : git pull, hx-learn, puis pour chaque worktree mergé git worktree remove <dossier> et git branch -d <branche>.");
+  }
   if (lines.length) console.log(`Harness :\n${lines.join('\n')}`);
+  return 0;
+}
+
+// Question de livraison posée par hx-review (en-tête « Livraison ») : un choix de l'utilisateur qui dit « livrer »
+// autorise /hx-ship une fois, lancé par Claude. Seule la réponse rendue par l'outil compte, jamais sa demande.
+export const SHIP_HEADER = 'Livraison';
+const approvesShip = (answer) => /\blivrer\b/i.test(answer) && !/ne pas livrer|pas maintenant/i.test(answer);
+
+function shipAnswer(input) {
+  const asked = (Array.isArray(input.tool_input?.questions) ? input.tool_input.questions : []).find((q) => q?.header === SHIP_HEADER);
+  if (!asked?.question) return null;
+  const res = input.tool_response;
+  const text = typeof res === 'string' ? res : Array.isArray(res) ? res.map((b) => b?.text ?? '').join('\n') : null;
+  const raw = res && typeof res === 'object' && !Array.isArray(res) ? res.answers?.[asked.question]
+    : text?.split(`"${asked.question}"="`)[1]?.split('"')[0];
+  return Array.isArray(raw) ? raw.join(', ') : typeof raw === 'string' ? raw : null;
+}
+
+function recordShipDecision(root, input) {
+  const answer = shipAnswer(input);
+  if (answer === null) return 0;
+  const state = readState(root, input) ?? initialState(root) ?? { base: null, seen: {} };
+  const { shipApproval, ...rest } = state;
+  writeState(root, input, approvesShip(answer) ? { ...rest, shipApproval: { at: new Date().toISOString(), answer } } : rest);
   return 0;
 }
 
@@ -198,8 +241,8 @@ const REDIRECTED_SKILLS = {
   'openspec-apply-change': 'Le harness implémente un change avec hx-implement (sous-agent neuf par tâche, revue de conformité, preuve). Pour openspec-apply-change, l\'utilisateur lance /opsx:apply lui-même.',
 };
 
-// /hx-ship lancé par Claude (outil Skill), et non tapé par l'utilisateur : livraison automatique, permise seulement
-// si `hx confidence` l'autorise. Renvoie la raison du refus, ou null.
+// /hx-ship lancé par Claude (outil Skill) sans choix « livrer » de l'utilisateur : livraison automatique, permise
+// seulement si `hx confidence` l'autorise. Renvoie la raison du refus, ou null.
 function automaticShipRefusal(root, args) {
   const named = String(args ?? '').trim().split(/\s+/)[0];
   const active = listChanges(root).map((c) => c.name);
@@ -208,16 +251,26 @@ function automaticShipRefusal(root, args) {
   if (r?.auto) return null;
   const why = r ? `score ${r.score}/100, seuil ${r.threshold}${r.exclusions.length ? ` ; ${r.exclusions.join(' ; ')}` : ''}` : 'change non précisé';
   if (r?.next === 'fix') return `Livraison automatique refusée par hx confidence (${why}), mais le plafond ${r.ceiling} atteint le seuil : suis la boucle de correction de hx-review (${r.reason}), puis relance hx confidence.`;
-  return `Livraison automatique refusée par hx confidence (${why}). Termine le rapport de fin de run par sa question et rends la main : l'utilisateur lance /hx-ship lui-même.`;
+  return `Livraison automatique refusée par hx confidence (${why}). Termine le rapport de fin de run par la question « ${SHIP_HEADER} » (choix cliquable, voir hx-review) : seul un choix « livrer » de l'utilisateur autorise /hx-ship.`;
 }
 
 // Ne demande jamais confirmation : le mode de permission (Auto de préférence) décide. Skill qui court-circuite le
-// workflow, ou livraison automatique non permise : refusé avec l'alternative. Chemin protégé édité : contexte pour Claude.
+// workflow, ou /hx-ship sans choix « livrer » de l'utilisateur ni livraison automatique permise : refusé avec
+// l'alternative. Chemin protégé édité : contexte pour Claude.
 export function preToolUse(root, input) {
   const output = (fields) => console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...fields } }));
   if (input.tool_name === 'Skill') {
     const skill = String(input.tool_input?.skill ?? '').replace(/^.*:/, '');
     const redirect = Object.hasOwn(REDIRECTED_SKILLS, skill) ? REDIRECTED_SKILLS[skill] : null;
+    if (skill === 'hx-ship') {
+      const state = readState(root, input);
+      if (state?.shipApproval) {
+        const { shipApproval, ...rest } = state;
+        writeState(root, input, rest);
+        output({ additionalContext: `Livraison décidée par l'utilisateur (« ${shipApproval.answer} ») : mode manuel de /hx-ship.` });
+        return 0;
+      }
+    }
     const refusal = skill === 'hx-ship' ? automaticShipRefusal(root, input.tool_input?.args) : redirect;
     if (refusal) output({ permissionDecision: 'deny', permissionDecisionReason: refusal });
     return 0;
@@ -228,8 +281,10 @@ export function preToolUse(root, input) {
   return 0;
 }
 
-// Lint du fichier modifié, seulement si le composant définit « lint-file » (retour rapide).
+// Lint du fichier modifié, seulement si le composant définit « lint-file » (retour rapide). Réponse à la question
+// de livraison : décision de l'utilisateur consignée pour PreToolUse.
 export function postToolUse(root, input) {
+  if (input.tool_name === 'AskUserQuestion') return recordShipDecision(root, input);
   const file = input.tool_input?.file_path;
   if (!file) return 0;
   const rel = relative(root, file);
