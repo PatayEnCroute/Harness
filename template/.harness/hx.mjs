@@ -1044,14 +1044,16 @@ export function confidence(root, change) {
 }
 
 // Suite du run : livrer, corriger encore (boucle de correction de hx-review), ou rendre la main. Corriger n'a de
-// sens que si le plafond (score une fois mineurs appliqués et corrections relues) atteint le seuil. Des mesures
-// antérieures au code ne sont pas une exclusion de l'utilisateur : un tour de boucle relit les corrections et les remet à jour.
+// sens que si le plafond (score une fois mineurs appliqués et corrections relues) atteint le seuil. ship.max_rounds
+// compte les tours de correction, après la première revue. Des mesures antérieures au code ne sont pas une exclusion
+// de l'utilisateur : un tour de boucle relit les corrections et les remet à jour.
 function decideNext(r) {
+  const fixes = Math.max(0, (r.round ?? 0) - 1);
   const [next, reason] = r.auto ? ['ship', 'score au seuil']
     : r.exclusions.some((e) => e !== r.stale) ? ['user', 'exclusion : seul l\'utilisateur peut la lever']
       : r.ceiling < r.threshold ? ['user', `plafond ${r.ceiling} sous le seuil : hypothèses et dépendances, seul l'utilisateur les lève`]
-        : r.round >= r.maxRounds ? ['user', `tours de revue épuisés (${r.round}/${r.maxRounds}, ship.max_rounds)`]
-          : ['fix', `tour ${r.round + 1}/${r.maxRounds} de la boucle de correction : appliquer les mineurs, faire relire les corrections`];
+        : fixes >= r.maxRounds ? ['user', `tours de correction épuisés (${fixes}/${r.maxRounds}, ship.max_rounds) : demander à l'utilisateur la suite`]
+          : ['fix', `tour ${fixes + 1}/${r.maxRounds} de la boucle de correction : appliquer les mineurs, faire relire les corrections`];
   return Object.assign(r, { next, reason });
 }
 

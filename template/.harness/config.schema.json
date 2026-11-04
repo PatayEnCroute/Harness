@@ -182,7 +182,7 @@
         "max_rounds": {
           "type": "integer",
           "minimum": 1,
-          "description": "Tours de revue au plus, le premier compris, avant de rendre la main quand le score reste sous le seuil (défaut 3)"
+          "description": "Tours de correction au plus, après la première revue, avant de demander la suite à l'utilisateur quand le score reste sous le seuil (défaut 3)"
         }
       }
     }

@@ -34,11 +34,11 @@ Si un change OpenSpec est concerné, le rapport survit aussi à la session :
    - `x-review-unreviewed: <n>` : constats corrigés après la dernière relecture (étape 4), donc pas encore relus ;
    - `x-review-minors: <n>` : mineurs proposés et non appliqués, importants reportés compris ;
    - `x-review-deferred: <n>` : importants reportés hors du change (étape 4) ;
-   - `x-review-rounds: <n>` : tours de revue, 1 au premier ;
+   - `x-review-rounds: <n>` : revues faites, 1 à la première, + 1 par tour de correction ;
    - `x-run-assumptions: <n>` : hypothèses à confirmer.
 3. **Livraison** : `node .harness/hx.mjs confidence <change>`. Recopie sa sortie dans la section « Livraison » du rapport. Revue non indépendante (sans sous-agents, voir `hx-implement`) : livraison par l'utilisateur, quel que soit le score.
 4. Commite le rapport et `.openspec.yaml` : `<change> : rapport de fin de run`.
-5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1 avec `Suite : corriger`** : boucle de correction, ci-dessous. **Sinon** : le rapport est ton dernier message, et se termine par sa question.
+5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1 avec `Suite : corriger`** : boucle de correction, ci-dessous. **Sinon** : le rapport est ton dernier message, et se termine par sa question ; avec `tours de correction épuisés`, c'est la question de fin de boucle (ci-dessous).
 
 ```markdown
 ## <change> : Prêt à livrer | Bloqué : <raison en une ligne>
@@ -87,7 +87,13 @@ Un tour :
 5. **Mesures** : `x-review-rounds` + 1 ; `x-review-confirmed`, `x-review-discarded` et `x-review-deferred` ajoutent ceux du tour ; `x-review-unreviewed` = corrigés à l'étape 4 de ce tour ; `x-review-minors` = mineurs encore non appliqués.
 6. **Rapport** : réécris `run-report.md` (ligne ajoutée à « Boucle de correction », revue et mineurs à jour), relance `hx confidence`, commite (`<change> : rapport de fin de run, tour <n>`), et suis sa sortie (étape 5 ci-dessus).
 
-La boucle s'arrête quand `hx confidence` ne dit plus `Suite : corriger` : score au seuil, plafond hors d'atteinte, `ship.max_rounds` atteint, ou exclusion apparue. Un `hx-verify` qui reste rouge après 3 tentatives : rapport `Bloqué`, et tu rends la main.
+La boucle s'arrête quand `hx confidence` ne dit plus `Suite : corriger` : score au seuil, plafond hors d'atteinte, `ship.max_rounds` tours de correction faits après la première revue (3 par défaut), ou exclusion apparue. Un `hx-verify` qui reste rouge après 3 tentatives : rapport `Bloqué`, et tu rends la main.
+
+**Tours épuisés, score toujours sous le seuil** : le rapport remplace la question des mineurs par celle-ci, et tu rends la main.
+
+> Score <score>/100 sous le seuil <seuil> après <n> tours de correction (pénalités restantes : <liste>). Que fait-on : livrer quand même (tu lances `/hx-ship`), un tour de plus, ou tu reprends la main ?
+
+Un tour de plus : « Corrections après le rapport », ci-dessous.
 
 - **Un compteur suit les constats, jamais l'inverse** : chaque constat écarté garde sa raison dans le tableau de revue. Écarter pour faire monter le score fausse la livraison.
 - Aucun test affaibli, désactivé ou supprimé pour corriger.
