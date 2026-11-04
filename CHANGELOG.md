@@ -47,6 +47,7 @@ Plus aucune confirmation imposée par le harness : personne ne les relisait, et 
 - **Documentation** : le harness est éprouvé sur un vrai projet. README, PLAN et `docs/elagage.md` ne le disent plus « non éprouvé » ni n'attendent de pilote, et renvoient au dernier tag au lieu d'une version écrite en dur. Page de présentation : `docs/index.html`.
 
 ### Corrigé
+- **Score de `hx confidence` figé après une correction** : il ne lisait que les compteurs de `.openspec.yaml`, que rien ne mettait à jour quand un mineur, un important reporté ou une hypothèse était traité après le rapport de fin de run. Un commit de code postérieur au dernier commit de `.openspec.yaml` exclut désormais la livraison automatique (« mesures antérieures au code ») et oriente vers un tour de la boucle de correction, qui relit les corrections et remet les mesures à jour. Nouvelle section « Corrections après le rapport » dans `hx-review`.
 - **Hooks dans un worktree natif de Desktop** (`.claude/worktrees/`) : `CLAUDE_PROJECT_DIR` y désigne le dossier principal, donc le lint, les contrôles du hook `Stop` et les chemins protégés portaient sur le mauvais dossier. Les hooks suivent désormais le `cwd` de la session quand il est dans un autre worktree du même dépôt.
 
 ## [0.5.0] — 2026-10-19

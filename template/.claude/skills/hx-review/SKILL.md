@@ -19,7 +19,7 @@ Avec `--pr <numéro>` : suis la section « Revue d'une PR », plus bas.
    - `hx-security-reviewer`, si le diff touche des entrées externes, l'authentification, des données personnelles, des secrets, des dépendances, la CI ou l'infrastructure.
 3. **Filtre** : les trois relecteurs emploient la même échelle (`bloquant`, `important`, `mineur`). Pour chaque constat bloquant ou important, va lire la ligne citée et confirme-le toi-même. Écarte ce que tu ne peux pas confirmer, avec une raison d'une ligne.
 4. **Corrige** les constats bloquants et importants confirmés, en TDD (`hx-tdd`), puis relance `hx-verify`. Un important dont la correction sortirait du change (autre feature, refonte) n'est pas corrigé : il rejoint les mineurs proposés, marqué `important`, avec sa raison.
-5. **Mineurs** : ne les corrige pas sans l'accord de l'utilisateur, et ne lui pose pas la question en cours de run. Liste-les dans le rapport, qui se termine par la question. Tant qu'elle n'a pas de réponse, pas d'archive ni de livraison, même si l'utilisateur a demandé la PR d'avance : un correctif commité après l'archive l'empêche d'être le dernier commit. Exceptions : la boucle de correction (ci-dessous) les applique quand `hx confidence` le demande ; la livraison automatique publie ceux qui restent dans la revue de la PR.
+5. **Mineurs** : ne les corrige pas sans l'accord de l'utilisateur, et ne lui pose pas la question en cours de run. Liste-les dans le rapport, qui se termine par la question. Tant qu'elle n'a pas de réponse, pas d'archive ni de livraison, même si l'utilisateur a demandé la PR d'avance : un correctif commité après l'archive l'empêche d'être le dernier commit. Exceptions : la boucle de correction (ci-dessous) les applique quand `hx confidence` le demande ; la réponse de l'utilisateur les fait appliquer (« Corrections après le rapport ») ; la livraison automatique publie ceux qui restent dans la revue de la PR.
 
 ## Rapport de fin de run
 
@@ -91,6 +91,17 @@ La boucle s'arrête quand `hx confidence` ne dit plus `Suite : corriger` : score
 
 - **Un compteur suit les constats, jamais l'inverse** : chaque constat écarté garde sa raison dans le tableau de revue. Écarter pour faire monter le score fausse la livraison.
 - Aucun test affaibli, désactivé ou supprimé pour corriger.
+
+## Corrections après le rapport
+
+Mineurs retenus par l'utilisateur, important reporté finalement corrigé, hypothèse confirmée : le score ne remonte que si les mesures suivent le code. `hx confidence` refuse un score figé : un commit de code postérieur au dernier commit de `.openspec.yaml` l'exclut (« mesures antérieures au code »).
+
+Fais un tour de la boucle de correction, livraison automatique ou non, et même `ship.max_rounds` atteint :
+
+- étape 1 avec les seuls mineurs retenus, et les importants reportés que l'utilisateur fait corriger ;
+- la relecture neuve (étape 3) est ce qui efface la pénalité : un correctif non relu reste compté dans `x-review-unreviewed` ;
+- étape 5, en plus : `x-run-assumptions` − hypothèses confirmées par l'utilisateur, `x-review-deferred` − importants reportés corrigés dans le change ;
+- étape 6 : rapport réécrit, `hx confidence` relancé, commit.
 
 ## Revue d'une PR (`--pr <numéro>`)
 
