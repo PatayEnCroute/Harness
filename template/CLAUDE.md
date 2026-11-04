@@ -35,9 +35,9 @@ Commence toute demande de changement par **`hx-triage`** : les critères de choi
 
 **M et L : cadrage, puis run sans interruption.** L'utilisateur cadre, puis l'agent travaille seul pendant que l'utilisateur cadre le change suivant.
 
-1. **Cadrage** (avec l'utilisateur) : `hx-clarify`, `/opsx:propose`, design en L. Il se termine par **la porte** décrite dans `hx-triage` : validation explicite, `x-validated`, puis `hx worktree <change>`.
+1. **Cadrage** (avec l'utilisateur) : `hx-clarify`, `/opsx:propose`, design en L. Il se termine par **la porte** décrite dans `hx-triage` : validation explicite (choix cliquable), `x-validated`, puis le run, dans cette session si elle est dans un worktree, sinon via `hx worktree <change>`.
 2. **Run** (dans le worktree du change, ou dans la session si l'utilisateur le préfère ; sans lui) : `hx-implement` → `hx-verify` → `hx-review` → rapport de fin de run. **Ne rends pas la main entre ces étapes** et ne pose pas de question en cours de route ; arrête-toi seulement sur les blocages listés dans `hx-implement`.
-3. **Livraison** (l'utilisateur) : relecture du rapport, décision sur les mineurs, puis `/hx-ship`. Même avec une PR demandée d'avance, pas d'archive avant cette décision.
+3. **Livraison** (l'utilisateur) : relecture du rapport, puis un clic à la question « Livraison » (mineurs et livraison, voir `hx-review`), qui lance `/hx-ship`. Même avec une PR demandée d'avance, pas d'archive avant cette décision.
    **Livraison automatique** (piste M, `ship.auto` dans `.harness/config.json`) : si `node .harness/hx.mjs confidence <change>` sort en 0, `hx-review` enchaîne `/hx-ship` : PR en brouillon, CI, puis `hx-review --pr` publie la revue en commentaire. Score sous le seuil mais plafond atteignable (`Suite : corriger`) : boucle de correction de `hx-review` d'abord (mineurs appliqués, corrections relues, au plus `ship.max_rounds` tours). Sinon, livraison par l'utilisateur. Jamais de merge.
 
 - Le change OpenSpec porte sa piste : `x-track: M` ou `L` dans `.openspec.yaml`.
@@ -45,6 +45,15 @@ Commence toute demande de changement par **`hx-triage`** : les critères de choi
 - `openspec/specs/` ne change que par `/opsx:sync` ou l'archive.
 - Pour implémenter un change : `hx-implement`, jamais le skill `openspec-apply-change` installé par OpenSpec.
 - Après une livraison ou un incident : `hx-learn`.
+
+## Desktop : l'utilisateur n'a rien à taper
+
+L'utilisateur travaille dans Claude Code Desktop, sans terminal.
+
+- **Aucune commande à taper** : ne lui donne jamais une commande shell, ni un `/hx-*` à recopier. Lance-la toi-même, ou propose de le faire.
+- **Prochaine étape en choix cliquable** (outil AskUserQuestion) aux arrêts prévus : porte de cadrage (`hx-triage`), livraison (`hx-review`), « Capitaliser et nettoyer » après un merge (proposé au démarrage). Option recommandée en premier.
+- **Langage naturel** : « go », « livre <change> », « mets à jour le harness » (`/hx-update`) valent la commande.
+- **Un change, une session** : une nouvelle session Desktop avec l'option **Worktree** porte un change du cadrage à la PR. Le contexte de démarrage donne, pour chaque change, la prochaine action.
 
 ## Principes
 

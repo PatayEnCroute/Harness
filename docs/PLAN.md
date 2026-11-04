@@ -80,9 +80,11 @@ flowchart LR
 
 1. **Cadrage** (avec l'utilisateur) — jusqu'à la porte, **seul arrêt prévu**. L'utilisateur y vérifie que la spec dit ce qu'il a demandé (`x-validated`). En M avec `design.md` et en L, un `hx-architect` neuf conteste d'abord le cadrage.
 2. **Run** (sans lui) — `hx-implement` → `hx-verify` → `hx-review`, dans le worktree du change. Arrêt seulement sur un blocage listé. Finit par un rapport : hypothèses à confirmer, revue, mineurs.
-3. **Livraison** (l'utilisateur) — décision sur les mineurs, puis `/hx-ship`. L'archive reste le dernier commit. **Livraison automatique** (piste M, `ship.auto`) : si `hx confidence` l'autorise, le run enchaîne `/hx-ship`, ouvre la PR en brouillon, attend la CI, puis `hx-review --pr` publie la revue en commentaire. Score sous le seuil mais plafond atteignable : **boucle de correction** d'abord (mineurs appliqués, diff relu par des sous-agents neufs, au plus `ship.max_rounds` tours). Jamais de merge.
+3. **Livraison** (l'utilisateur) — un clic à la question « Livraison » : mineurs et livraison en un geste, puis `/hx-ship`. L'archive reste le dernier commit. **Livraison automatique** (piste M, `ship.auto`) : si `hx confidence` l'autorise, le run enchaîne `/hx-ship`, ouvre la PR en brouillon, attend la CI, puis `hx-review --pr` publie la revue en commentaire. Score sous le seuil mais plafond atteignable : **boucle de correction** d'abord (mineurs appliqués, diff relu par des sous-agents neufs, au plus `ship.max_rounds` tours). Jamais de merge.
 
 > **Pourquoi un worktree par run ?** `trace` et `pistes` portent sur tous les changes d'un dossier : deux changes au même endroit se gêneraient. Le dossier principal reste libre pour cadrer le suivant.
+>
+> **Dans Desktop : un change, une session.** Une session créée avec l'option **Worktree** porte le change du cadrage à la PR : pas de changement de session, aucune commande à taper. `hx worktree` reste pour lancer le run depuis le dossier principal.
 
 Les critères de piste vivent dans `hx-triage` seul. Sur un projet existant sans specs, `hx-discover` dérive d'abord des specs depuis le code.
 
@@ -165,13 +167,14 @@ Projet existant : les rules de stack viennent des conventions observées dans le
 | Skill | Rôle |
 |---|---|
 | `hx-setup` | Personnalisation assistée à la stack (§3.3) |
-| `hx-triage` | Classer en S/M/L ; porte de cadrage |
+| `hx-triage` | Classer en S/M/L ; porte de cadrage (choix cliquable) ; run dans la session si elle est dans un worktree |
 | `hx-clarify` | ≤ 5 questions avant la proposition |
 | `hx-tdd` · `hx-debug` | Rouge → vert → refactor · reproduire → isoler → corriger |
 | `hx-implement` | Une tâche = un sous-agent ; exige `x-validated` ; enchaîne le run |
 | `hx-verify` | Aucune fin déclarée sans preuve fraîche |
 | `hx-review` | Relecteurs en parallèle, filtre des faux positifs, rapport `run-report.md`, boucle de correction si le score est sous le seuil mais atteignable ; `--pr` : revue publiée en commentaire de PR |
-| `hx-ship` | Base reprise, archive en dernier commit, PR, suivi CI ; lancé seul si `hx confidence` l'autorise |
+| `hx-ship` | Base reprise, archive en dernier commit, PR, suivi CI ; lancé par un clic « livrer » de l'utilisateur, ou seul si `hx confidence` l'autorise |
+| `hx-update` | Mise à jour du harness (`copier update`), conflits tranchés en choix cliquables, sans commande à taper |
 | `hx-adr` · `hx-learn` · `hx-discover` | ADR « besoin d'abord » · capitaliser une leçon · specs depuis le code existant |
 | `hx-security-audit` · `hx-explain` · `hx-dream` | **À la demande** : CVE et injections SQL · pédagogie pour non-développeur · consolider la mémoire du projet |
 
@@ -200,9 +203,9 @@ Seul `hx-explorer` fixe son modèle ; les autres héritent de la session. « Non
 
 | Hook | Action |
 |---|---|
-| `SessionStart` | Affiche les changes en cours (tous worktrees) ; installe la CLI OpenSpec si absente |
-| `PreToolUse` | Rappel à Claude quand il édite une spec principale ou un fichier qui décide de ce qui s'exécute ; refuse `openspec-apply-change` au profit de `hx-implement`. **Ne demande jamais confirmation.** |
-| `PostToolUse` | Lint du fichier édité ; contrat cassé → retour à Claude |
+| `SessionStart` | Affiche les changes en cours (tous worktrees) et la prochaine action de chacun ; « go » lance un run validé ; propose « Capitaliser et nettoyer » pour un worktree mergé ; installe la CLI OpenSpec si absente |
+| `PreToolUse` | Rappel à Claude quand il édite une spec principale ou un fichier qui décide de ce qui s'exécute ; refuse `openspec-apply-change` au profit de `hx-implement` ; refuse `/hx-ship` lancé par Claude sans choix « livrer » de l'utilisateur ni livraison automatique permise. **Ne demande jamais confirmation.** |
+| `PostToolUse` | Lint du fichier édité ; contrat cassé → retour à Claude ; réponse à la question « Livraison » consignée pour `PreToolUse` |
 | `Stop` | D'après git : lint + typecheck des composants modifiés ; signale les chemins protégés modifiés, quel que soit l'outil |
 
 **Pas de confirmation imposée** : personne ne relit une confirmation répétée, et elle interromprait le mode Auto. Les actions risquées reviennent au mode de permission. `permissions.deny` interdit d'éditer `hx.mjs`, `hooks.mjs` et `versions.json`.
@@ -300,7 +303,7 @@ Harness/
 ├── copier.yml
 ├── template/             # ce qui atterrit dans le projet
 │   ├── CLAUDE.md
-│   ├── .claude/          # 15 skills, 7 agents, 4 rules, settings
+│   ├── .claude/          # 16 skills, 7 agents, 4 rules, settings
 │   ├── .harness/         # hx.mjs, hooks.mjs, config…
 │   ├── openspec/config.yaml
 │   └── .github/          # si ci

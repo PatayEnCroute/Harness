@@ -1,6 +1,6 @@
 ---
 name: hx-ship
-description: Livre une branche. Vérification finale, archive OpenSpec en dernier commit, push, PR et suivi de la CI. À lancer par l'utilisateur quand le travail est vérifié et relu, ou par hx-review en fin de run quand « hx confidence » autorise la livraison automatique.
+description: Livre une branche. Vérification finale, archive OpenSpec en dernier commit, push, PR et suivi de la CI. À lancer quand le travail est vérifié et relu, sur décision de l'utilisateur (commande, « livre <change> » ou choix « livrer » à la question Livraison), ou par hx-review en fin de run quand « hx confidence » autorise la livraison automatique.
 argument-hint: "[nom du change]"
 ---
 
@@ -10,16 +10,16 @@ argument-hint: "[nom du change]"
 
 | Mode | Qui lance | Mineurs | PR |
 |---|---|---|---|
-| **Manuel** | l'utilisateur, `/hx-ship` | sa décision, correctifs commités avant l'archive | prête à relire |
+| **Manuel** | l'utilisateur : `/hx-ship`, « livre <change> », ou un choix « livrer » à la question « Livraison » de `hx-review` | sa décision, correctifs commités avant l'archive | prête à relire |
 | **Automatique** | `hx-review`, en fin de run, si `node .harness/hx.mjs confidence <change>` sort en 0 | appliqués avant par la boucle de correction de `hx-review` si le score l'exigeait ; les autres vont dans la revue de la PR | brouillon, puis revue publiée en commentaire (étape 6) |
 
-Tu as lancé ce skill toi-même, sans demande de l'utilisateur : c'est le mode automatique. Le hook `PreToolUse` le refuse si `hx confidence` ne l'autorise pas : n'insiste pas. Suis la boucle de correction de `hx-review` si le refus l'indique, sinon rends la main avec le rapport de fin de run.
+Tu as lancé ce skill toi-même après un choix « livrer » de l'utilisateur à la question « Livraison » : c'est le mode manuel, et le hook `PreToolUse` te le confirme. L'utilisateur dit « livre <change> » sans être passé par cette question : pose-la d'abord (`hx-review`, « Question Livraison »), avec le rapport relu dans `run-report.md`. Tu l'as lancé sans aucun choix de l'utilisateur : c'est le mode automatique. Le hook `PreToolUse` le refuse si `hx confidence` ne l'autorise pas : n'insiste pas. Suis la boucle de correction de `hx-review` si le refus l'indique, sinon rends la main avec le rapport de fin de run et sa question.
 
 ## Préalables, sinon arrête-toi
 
 - `hx-verify` vert dans cette conversation, après le dernier changement de code.
 - `hx-review` sans constat bloquant restant.
-- **Manuel** : décision de l'utilisateur sur les mineurs du rapport de fin de run (`openspec/changes/<change>/run-report.md` si la conversation ne l'a plus), et correctifs retenus commités, mesures à jour (« Corrections après le rapport » de `hx-review`). Sans réponse, pose la question et arrête-toi : l'archive vient après.
+- **Manuel** : décision de l'utilisateur sur les mineurs du rapport de fin de run (`openspec/changes/<change>/run-report.md` si la conversation ne l'a plus), et correctifs retenus commités, mesures à jour (« Corrections après le rapport » de `hx-review`). Sans réponse, pose la question « Livraison » de `hx-review` : l'archive vient après.
 - **Automatique** : `node .harness/hx.mjs confidence <change>` sort en 0, relancé ici. Aucun mineur n'est appliqué ici : la boucle de correction l'a fait avant, si le score l'exigeait.
 - Aucune modification non commitée hors de `openspec/`.
 
@@ -38,7 +38,8 @@ Tu as lancé ce skill toi-même, sans demande de l'utilisateur : c'est le mode a
    - **Livraison** (mode automatique) : la sortie de `hx confidence`.
 5. **CI** : `gh pr checks --watch`. En cas d'échec : diagnostique (`hx-debug`), corrige (voir ci-dessous), relance `hx-verify`, pousse. Ne désactive jamais un contrôle pour passer.
 6. **Revue de la PR** (mode automatique seulement), une fois la CI verte : `hx-review --pr <numéro>`. Elle relit la PR telle que livrée et publie ses constats en commentaire. Aucun bloquant confirmé : `gh pr ready <numéro>`. Sinon la PR reste en brouillon : le commentaire dit quoi corriger, et c'est à l'utilisateur de décider. Tu ne merges jamais.
-7. **Après le merge**, dans le dossier principal mis à jour (`git pull`) : `hx-learn`. Si le change avait son worktree (`hx worktree`), supprime-le ensuite avec sa branche : `git worktree remove <dossier>`, puis `git branch -d <branche>`.
+7. **Fin** : donne le lien de la PR, et dis à l'utilisateur la suite, sans commande à taper : une fois la PR mergée, une session sur le dossier principal proposera « Capitaliser et nettoyer ».
+8. **Capitaliser et nettoyer** (après le merge, dans le dossier principal mis à jour par `git pull` ; proposé en choix cliquable par le hook de démarrage) : `hx-learn`. Si le change avait son worktree, supprime-le ensuite avec sa branche : `git worktree remove <dossier>`, puis `git branch -d <branche>`. Un worktree natif de Desktop (sous `.claude/worktrees/`) : dis aussi à l'utilisateur qu'il peut archiver sa session.
 
 ## Correctif après l'archive
 

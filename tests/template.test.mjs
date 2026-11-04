@@ -138,6 +138,23 @@ describe('cohérence et budgets', () => {
     assert.equal(JSON.parse(read(path.join(template, '.harness', 'config.json'))).ship.auto, false, 'désactivée par défaut');
   });
 
+  test('Desktop : rien à taper, choix cliquables aux arrêts, un change par session', () => {
+    const md = read(path.join(template, 'CLAUDE.md'));
+    assert.match(md, /## Desktop : l'utilisateur n'a rien à taper/);
+    assert.match(md, /ne lui donne jamais une commande shell/);
+    const triage = read(path.join(claude, 'skills', 'hx-triage', 'SKILL.md'));
+    assert.match(triage, /\*\*choix cliquable\*\* \(outil AskUserQuestion, en-tête `Porte`\)/);
+    assert.match(triage, /`git rev-parse --git-dir` et `git rev-parse --git-common-dir` diffèrent/);
+    assert.match(triage, /Relaie ces consignes à l'utilisateur, sans aucune commande à taper/);
+    const header = /export const SHIP_HEADER = '([^']+)'/.exec(read(path.join(template, '.harness', 'hooks.mjs')))[1];
+    assert.match(read(path.join(claude, 'skills', 'hx-review', 'SKILL.md')), new RegExp(`en-tête exactement \`${header}\``));
+    const post = JSON.parse(read(path.join(claude, 'settings.json'))).hooks.PostToolUse[0].matcher.split('|');
+    assert.ok(post.includes('AskUserQuestion'), 'PostToolUse lit la réponse à la question de livraison');
+    const update = read(path.join(claude, 'skills', 'hx-update', 'SKILL.md'));
+    const copier = /COPIER_VERSION = '([^']+)'/.exec(read(path.resolve(template, '..', 'bin', 'harness.mjs')))[1];
+    assert.ok(update.includes(`uvx copier@${copier} update --trust --defaults`), 'même version de Copier que le lanceur');
+  });
+
   test('porte de cadrage : hx-triage fait contester le cadrage par hx-architect, qui sait le relire', () => {
     const triage = read(path.join(claude, 'skills', 'hx-triage', 'SKILL.md'));
     const gate = triage.slice(triage.indexOf('## Porte de cadrage'));

@@ -38,7 +38,7 @@ Si un change OpenSpec est concerné, le rapport survit aussi à la session :
    - `x-run-assumptions: <n>` : hypothèses à confirmer.
 3. **Livraison** : `node .harness/hx.mjs confidence <change>`. Recopie sa sortie dans la section « Livraison » du rapport. Revue non indépendante (sans sous-agents, voir `hx-implement`) : livraison par l'utilisateur, quel que soit le score.
 4. Commite le rapport et `.openspec.yaml` : `<change> : rapport de fin de run`.
-5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1 avec `Suite : corriger`** : boucle de correction, ci-dessous. **Sinon** : le rapport est ton dernier message, et se termine par sa question ; avec `tours de correction épuisés`, c'est la question de fin de boucle (ci-dessous).
+5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1 avec `Suite : corriger`** : boucle de correction, ci-dessous. **Sinon** : le rapport est ton dernier message, suivi de la question « Livraison » (ci-dessous) ; avec `tours de correction épuisés`, c'est la question de fin de boucle, posée de la même façon (ci-dessous).
 
 ```markdown
 ## <change> : Prêt à livrer | Bloqué : <raison en une ligne>
@@ -66,13 +66,30 @@ hx check : <vert, ou étapes rouges> · trace : <scénarios couverts>
 ### Livraison
 <sortie de hx confidence : score, seuil, plafond, exclusions, pénalités, suite>
 
-Applique-t-on ces mineurs : tous, une partie (lesquels) ou aucun ?
-
 ### Prochaine étape
-Ta décision sur les mineurs, puis /hx-ship <change> ; ou ce qu'il faut trancher ; ou « boucle de correction : tour <n> » ; ou « livraison automatique : /hx-ship lancé »
+Un clic sur la question « Livraison » ; ou ce qu'il faut trancher ; ou « boucle de correction : tour <n> » ; ou « livraison automatique : /hx-ship lancé »
 ```
 
-Les sections vides restent, avec « Aucune » : une absence de constat est aussi une information. Sans mineur, ou en livraison automatique, la question disparaît.
+Les sections vides restent, avec « Aucune » : une absence de constat est aussi une information.
+
+### Question « Livraison »
+
+Rapport « Prêt à livrer », sans livraison automatique : la décision sur les mineurs et la livraison tiennent en **un seul clic**. Juste après le rapport, pose la question avec l'outil AskUserQuestion, en-tête exactement `Livraison` (le hook `PostToolUse` lit la réponse ; un choix qui dit « livrer » autorise une fois `/hx-ship`, lancé par toi). Question : « <change> : que fait-on ? Livrer confirme les hypothèses du rapport. (Autre : lesquels appliquer, ou ce qu'il faut reprendre) ». Options, la recommandée en premier :
+
+| Situation | Options |
+|---|---|
+| Mineurs proposés | « Appliquer les mineurs et livrer (Recommandé) » · « Livrer sans les mineurs » · « Ne pas livrer maintenant » |
+| Aucun mineur | « Livrer (Recommandé) » · « Ne pas livrer maintenant » |
+
+Suite selon la réponse :
+
+- **« … livrer »** : mineurs retenus, s'il y en a : un tour de « Corrections après le rapport » (ci-dessous), pour que les mesures suivent le code. Puis lance `/hx-ship <change>` sans rendre la main.
+- **Réponse libre** (« applique 1 et 3 ») : fais ce qu'elle demande (« Corrections après le rapport »), puis repose la question, avec les seules options « Livrer (Recommandé) » et « Ne pas livrer maintenant ».
+- **« Ne pas livrer maintenant »** : rends la main. Plus tard, « livre <change> » repose la question.
+
+Sans l'outil AskUserQuestion (session sans interface), pose la même question en texte : l'utilisateur livre alors par `/hx-ship <change>`, car le hook ne lit que la réponse rendue par l'outil.
+
+Rapport « Bloqué » : pas de question « Livraison ». Termine par ce qu'il faut trancher, en choix cliquables quand les options sont connues.
 
 ## Boucle de correction
 
@@ -89,11 +106,12 @@ Un tour :
 
 La boucle s'arrête quand `hx confidence` ne dit plus `Suite : corriger` : score au seuil, plafond hors d'atteinte, `ship.max_rounds` tours de correction faits après la première revue (3 par défaut), ou exclusion apparue. Un `hx-verify` qui reste rouge après 3 tentatives : rapport `Bloqué`, et tu rends la main.
 
-**Tours épuisés, score toujours sous le seuil** : le rapport remplace la question des mineurs par celle-ci, et tu rends la main.
+**Tours épuisés, score toujours sous le seuil** : après le rapport, pose la question « Livraison » (même outil, même en-tête) avec ce texte et ces options, puis attends.
 
-> Score <score>/100 sous le seuil <seuil> après <n> tours de correction (pénalités restantes : <liste>). Que fait-on : livrer quand même (tu lances `/hx-ship`), un tour de plus, ou tu reprends la main ?
+> Score <score>/100 sous le seuil <seuil> après <n> tours de correction (pénalités restantes : <liste>). Que fait-on ?
+> « Livrer quand même » · « Un tour de plus » · « Je reprends la main »
 
-Un tour de plus : « Corrections après le rapport », ci-dessous.
+« Livrer quand même » : `/hx-ship <change>`. « Un tour de plus » : « Corrections après le rapport », ci-dessous.
 
 - **Un compteur suit les constats, jamais l'inverse** : chaque constat écarté garde sa raison dans le tableau de revue. Écarter pour faire monter le score fausse la livraison.
 - Aucun test affaibli, désactivé ou supprimé pour corriger.

@@ -11,7 +11,7 @@ Tu décris ce que tu veux, tu valides le cadrage une fois, et Claude livre seul 
 | ✅ **Jamais vert sans test** | `hx check` lance les mêmes contrôles en local et en CI, et relie chaque scénario de spec à un test. |
 | 🧩 **Toute stack** | `/hx-setup` adapte les commandes (lint, tests, typecheck…) à ton projet. |
 
-> Pensé pour **Claude Code Desktop** ; le terminal reste pris en charge. Statut : éprouvé sur un vrai projet. [Présentation en schémas →](https://patayencroute.github.io/Harness/)
+> Pensé pour **Claude Code Desktop** : aucune commande à taper, la suite se choisit d'un clic. Le terminal reste pris en charge. Statut : éprouvé sur un vrai projet. [Présentation en schémas →](https://patayencroute.github.io/Harness/)
 
 ---
 
@@ -95,12 +95,24 @@ flowchart LR
 
 | Temps | Qui | Ce qui se passe |
 |---|---|---|
-| **1 · Cadrage** | toi + Claude | `hx-clarify` si la demande est floue, puis proposition OpenSpec. En M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage (garder, simplifier, retirer, changer). En L : `hx-architect` et `hx-adr`. **La porte** : tu vérifies que la spec dit ce que tu as demandé, sans plus. |
-| **2 · Run** | Claude seul | `hx worktree <change>` crée sa branche et son worktree. Lance-le en **mode Auto** : Desktop → nouvelle session sur le worktree, `Cmd/Ctrl+Shift+M`, puis `/hx-implement <change>`. Il ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Le rapport finit dans `run-report.md`. |
-| **3 · Livraison** | toi | Réponds à la question du rapport sur les mineurs, puis `/hx-ship` : il reprend la base, vérifie, et fait de l'archive OpenSpec le dernier commit de la PR. |
+| **1 · Cadrage** | toi + Claude | `hx-clarify` si la demande est floue, puis proposition OpenSpec. En M avec `design.md` et en L, un `hx-architect` neuf conteste le cadrage (garder, simplifier, retirer, changer). En L : `hx-architect` et `hx-adr`. **La porte** : tu vérifies que la spec dit ce que tu as demandé, sans plus, et tu cliques **« Valider et lancer le run ici »**. |
+| **2 · Run** | Claude seul | Dans la même session, en **mode Auto** (`Cmd/Ctrl+Shift+M`). Il ne s'arrête que sur un vrai blocage (3 échecs sur une tâche, spec fausse, piste qui monte, outillage cassé). Desktop te notifie à la fin ; le rapport finit dans `run-report.md`. |
+| **3 · Livraison** | toi | Un clic à la question **« Livraison »** (« Appliquer les mineurs et livrer », « Livrer sans les mineurs »…) lance `/hx-ship` : il reprend la base, vérifie, et fait de l'archive OpenSpec le dernier commit de la PR. |
 | **3 bis · Livraison automatique** | Claude seul | Si tu l'as activée et que `hx confidence` l'autorise : `/hx-ship`, PR en brouillon, CI, puis une revue neuve publiée en commentaire. Aucun bloquant : la PR passe « prête ». Tu relis et tu merges. |
 
-> 💡 Pendant un run, cadre le change suivant dans le dossier principal. `hx status` montre où en est chaque run.
+### Dans Desktop : un change, une session, rien à taper
+
+| Geste | Quand |
+|---|---|
+| **Nouvelle session**, option **Worktree** activée, puis décris ta demande | pour chaque change ; plusieurs sessions tournent en parallèle |
+| Clic **« Valider et lancer le run ici »** | à la porte de cadrage |
+| *(notification de Desktop)* | fin du run |
+| Clic **« Appliquer les mineurs et livrer »** | à la question « Livraison » |
+| Clic **« Capitaliser et nettoyer »** | proposé par une session sur le dossier principal, une fois la PR mergée |
+
+Le langage naturel remplace toute commande : « go », « livre <change> », « où en sont mes changes ? », « mets à jour le harness ». À l'ouverture, chaque session affiche la prochaine action de chaque change.
+
+> 💡 Session ouverte sur le dossier principal ? À la porte, « Valider, run dans un worktree séparé » crée le worktree : ouvre une session dessus et écris « go ».
 
 ### Livraison automatique
 
@@ -137,10 +149,10 @@ Le commentaire de revue donne : verdict, indice et contrôles, constats triés p
 
 | Composant | Contenu |
 |---|---|
-| **15 skills** | Workflow : `hx-setup`, `hx-triage`, `hx-clarify`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr`, `hx-debug`, `hx-learn`, `hx-discover` · À la demande : `hx-security-audit`, `hx-explain`, `hx-dream` |
+| **16 skills** | Workflow : `hx-setup`, `hx-triage`, `hx-clarify`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr`, `hx-debug`, `hx-learn`, `hx-discover` · À la demande : `hx-security-audit`, `hx-explain`, `hx-dream`, `hx-update` |
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **4 rules** | `openspec` · `testing` · `architecture` (feature-first, proportionnée) · `comments` (aucun par défaut, liste fermée d'exceptions) |
-| **4 hooks** | Contexte au démarrage · rappel quand Claude édite un fichier sensible (spec, contrat, hooks, permissions) · lint du fichier édité · contrôles rapides et chemins protégés avant de rendre la main |
+| **4 hooks** | Contexte et prochaine action au démarrage · rappel quand Claude édite un fichier sensible (spec, contrat, hooks, permissions) · lint du fichier édité · contrôles rapides et chemins protégés avant de rendre la main |
 | **CLI `hx`** | `hx check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `hx status` (état des runs) · `hx stats` (mesures d'élagage) · `hx confidence` (livraison automatique) · `hx doctor` · `hx worktree` |
 
 <details>
@@ -168,8 +180,8 @@ Un fichier générique s'améliore dans Harness, pas dans le projet.
 
 | Action | Comment |
 |---|---|
-| **Mettre à jour** | Sur un arbre git propre : `uvx copier@9.19.1 update --trust`, puis `node .harness/hx.mjs doctor`. Copier prend le dernier tag ; `hx doctor` signale un projet en retard. |
-| **Résoudre un conflit** | `hx doctor` liste les marqueurs `<<<<<<<` et fichiers `.rej`. Garde la version du template sauf personnalisation voulue, nettoie, relance `hx doctor`, commite. |
+| **Mettre à jour** | Dis « mets à jour le harness » (`/hx-update`) : Claude lance Copier (dernier tag), tranche les conflits avec toi en choix cliquables, vérifie et commite. `hx doctor` signale un projet en retard. |
+| **Résoudre un conflit** | Fait par `/hx-update`. À la main : `hx doctor` liste les marqueurs `<<<<<<<` et fichiers `.rej` ; garde la version du template sauf personnalisation voulue, nettoie, relance `hx doctor`, commite. |
 | **Protéger le harness** | Avec `codeowners`, `.github/CODEOWNERS` couvre `.harness/`, `.claude/settings.json`, `.github/` et `openspec/specs/`. À combiner avec « Require review from Code Owners ». |
 
 <details>
