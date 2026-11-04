@@ -19,7 +19,7 @@ Tu as lancé ce skill toi-même après un choix « livrer » de l'utilisateur à
 
 - `hx-verify` vert dans cette conversation, après le dernier changement de code.
 - `hx-review` sans constat bloquant restant.
-- **Manuel** : décision de l'utilisateur sur les mineurs du rapport de fin de run (`openspec/changes/<change>/run-report.md` si la conversation ne l'a plus), et correctifs retenus commités. Sans réponse, pose la question « Livraison » de `hx-review` : l'archive vient après.
+- **Manuel** : décision de l'utilisateur sur les mineurs du rapport de fin de run (`openspec/changes/<change>/run-report.md` si la conversation ne l'a plus), et correctifs retenus commités, mesures à jour (« Corrections après le rapport » de `hx-review`). Sans réponse, pose la question « Livraison » de `hx-review` : l'archive vient après.
 - **Automatique** : `node .harness/hx.mjs confidence <change>` sort en 0, relancé ici. Aucun mineur n'est appliqué ici : la boucle de correction l'a fait avant, si le score l'exigeait.
 - Aucune modification non commitée hors de `openspec/`.
 

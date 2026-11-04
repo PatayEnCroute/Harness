@@ -124,9 +124,9 @@ Désactivée par défaut. Pour l'activer : `"ship": { "auto": true, "min_confide
 | rapport de fin de run autre que « Prêt à livrer », tâches non cochées | 5 par mineur proposé |
 | important reporté hors du change | 5 par constat corrigé après la dernière relecture |
 | `.harness/`, `.claude/`, `.github/`, `CLAUDE.md`, specs principales modifiés | 15 si des dépendances changent |
-| mesure absente de `.openspec.yaml`, arbre sale, revue sans sous-agents | |
+| mesure absente de `.openspec.yaml`, ou antérieure au dernier commit de code ; arbre sale, revue sans sous-agents | |
 
-**Boucle de correction** : score sous le seuil, mais **plafond** (le score une fois mineurs appliqués et corrections relues) au-dessus ? `hx-review` applique les mineurs, fait relire le diff par des sous-agents neufs, corrige ce qu'ils confirment, et recommence, jusqu'à `max_rounds` tours (le premier compris). Hypothèses et dépendances ne se corrigent pas : seul toi les lèves.
+**Boucle de correction** : score sous le seuil, mais **plafond** (le score une fois mineurs appliqués et corrections relues) au-dessus ? `hx-review` applique les mineurs, fait relire le diff par des sous-agents neufs, corrige ce qu'ils confirment, et recommence, jusqu'à `max_rounds` tours de correction après la première revue. Toujours sous le seuil au bout : il te demande la suite (livrer quand même, un tour de plus, ou reprendre la main). Hypothèses et dépendances ne se corrigent pas : seul toi les lèves.
 
 | Tour | Ce qui se passe | Score |
 |---|---|---|

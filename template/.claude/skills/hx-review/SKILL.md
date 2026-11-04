@@ -19,7 +19,7 @@ Avec `--pr <numéro>` : suis la section « Revue d'une PR », plus bas.
    - `hx-security-reviewer`, si le diff touche des entrées externes, l'authentification, des données personnelles, des secrets, des dépendances, la CI ou l'infrastructure.
 3. **Filtre** : les trois relecteurs emploient la même échelle (`bloquant`, `important`, `mineur`). Pour chaque constat bloquant ou important, va lire la ligne citée et confirme-le toi-même. Écarte ce que tu ne peux pas confirmer, avec une raison d'une ligne.
 4. **Corrige** les constats bloquants et importants confirmés, en TDD (`hx-tdd`), puis relance `hx-verify`. Un important dont la correction sortirait du change (autre feature, refonte) n'est pas corrigé : il rejoint les mineurs proposés, marqué `important`, avec sa raison.
-5. **Mineurs** : ne les corrige pas sans l'accord de l'utilisateur, et ne lui pose pas la question en cours de run. Liste-les dans le rapport, qui se termine par la question. Tant qu'elle n'a pas de réponse, pas d'archive ni de livraison, même si l'utilisateur a demandé la PR d'avance : un correctif commité après l'archive l'empêche d'être le dernier commit. Exceptions : la boucle de correction (ci-dessous) les applique quand `hx confidence` le demande ; la livraison automatique publie ceux qui restent dans la revue de la PR.
+5. **Mineurs** : ne les corrige pas sans l'accord de l'utilisateur, et ne lui pose pas la question en cours de run. Liste-les dans le rapport, qui se termine par la question. Tant qu'elle n'a pas de réponse, pas d'archive ni de livraison, même si l'utilisateur a demandé la PR d'avance : un correctif commité après l'archive l'empêche d'être le dernier commit. Exceptions : la boucle de correction (ci-dessous) les applique quand `hx confidence` le demande ; la réponse de l'utilisateur les fait appliquer (« Corrections après le rapport ») ; la livraison automatique publie ceux qui restent dans la revue de la PR.
 
 ## Rapport de fin de run
 
@@ -34,11 +34,11 @@ Si un change OpenSpec est concerné, le rapport survit aussi à la session :
    - `x-review-unreviewed: <n>` : constats corrigés après la dernière relecture (étape 4), donc pas encore relus ;
    - `x-review-minors: <n>` : mineurs proposés et non appliqués, importants reportés compris ;
    - `x-review-deferred: <n>` : importants reportés hors du change (étape 4) ;
-   - `x-review-rounds: <n>` : tours de revue, 1 au premier ;
+   - `x-review-rounds: <n>` : revues faites, 1 à la première, + 1 par tour de correction ;
    - `x-run-assumptions: <n>` : hypothèses à confirmer.
 3. **Livraison** : `node .harness/hx.mjs confidence <change>`. Recopie sa sortie dans la section « Livraison » du rapport. Revue non indépendante (sans sous-agents, voir `hx-implement`) : livraison par l'utilisateur, quel que soit le score.
 4. Commite le rapport et `.openspec.yaml` : `<change> : rapport de fin de run`.
-5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1 avec `Suite : corriger`** : boucle de correction, ci-dessous. **Sinon** : le rapport est ton dernier message, suivi de la question « Livraison » (ci-dessous).
+5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1 avec `Suite : corriger`** : boucle de correction, ci-dessous. **Sinon** : le rapport est ton dernier message, suivi de la question « Livraison » (ci-dessous) ; avec `tours de correction épuisés`, c'est la question de fin de boucle, posée de la même façon (ci-dessous).
 
 ```markdown
 ## <change> : Prêt à livrer | Bloqué : <raison en une ligne>
@@ -83,8 +83,8 @@ Rapport « Prêt à livrer », sans livraison automatique : la décision sur les
 
 Suite selon la réponse :
 
-- **« … livrer »** : applique les mineurs retenus s'il y en a (TDD s'ils touchent un comportement, un commit chacun), `hx-verify`, puis lance `/hx-ship <change>` sans rendre la main.
-- **Réponse libre** (« applique 1 et 3 ») : fais ce qu'elle demande, `hx-verify`, puis repose la question, avec les seules options « Livrer (Recommandé) » et « Ne pas livrer maintenant ».
+- **« … livrer »** : mineurs retenus, s'il y en a : un tour de « Corrections après le rapport » (ci-dessous), pour que les mesures suivent le code. Puis lance `/hx-ship <change>` sans rendre la main.
+- **Réponse libre** (« applique 1 et 3 ») : fais ce qu'elle demande (« Corrections après le rapport »), puis repose la question, avec les seules options « Livrer (Recommandé) » et « Ne pas livrer maintenant ».
 - **« Ne pas livrer maintenant »** : rends la main. Plus tard, « livre <change> » repose la question.
 
 Sans l'outil AskUserQuestion (session sans interface), pose la même question en texte : l'utilisateur livre alors par `/hx-ship <change>`, car le hook ne lit que la réponse rendue par l'outil.
@@ -104,10 +104,28 @@ Un tour :
 5. **Mesures** : `x-review-rounds` + 1 ; `x-review-confirmed`, `x-review-discarded` et `x-review-deferred` ajoutent ceux du tour ; `x-review-unreviewed` = corrigés à l'étape 4 de ce tour ; `x-review-minors` = mineurs encore non appliqués.
 6. **Rapport** : réécris `run-report.md` (ligne ajoutée à « Boucle de correction », revue et mineurs à jour), relance `hx confidence`, commite (`<change> : rapport de fin de run, tour <n>`), et suis sa sortie (étape 5 ci-dessus).
 
-La boucle s'arrête quand `hx confidence` ne dit plus `Suite : corriger` : score au seuil, plafond hors d'atteinte, `ship.max_rounds` atteint, ou exclusion apparue. Un `hx-verify` qui reste rouge après 3 tentatives : rapport `Bloqué`, et tu rends la main.
+La boucle s'arrête quand `hx confidence` ne dit plus `Suite : corriger` : score au seuil, plafond hors d'atteinte, `ship.max_rounds` tours de correction faits après la première revue (3 par défaut), ou exclusion apparue. Un `hx-verify` qui reste rouge après 3 tentatives : rapport `Bloqué`, et tu rends la main.
+
+**Tours épuisés, score toujours sous le seuil** : après le rapport, pose la question « Livraison » (même outil, même en-tête) avec ce texte et ces options, puis attends.
+
+> Score <score>/100 sous le seuil <seuil> après <n> tours de correction (pénalités restantes : <liste>). Que fait-on ?
+> « Livrer quand même » · « Un tour de plus » · « Je reprends la main »
+
+« Livrer quand même » : `/hx-ship <change>`. « Un tour de plus » : « Corrections après le rapport », ci-dessous.
 
 - **Un compteur suit les constats, jamais l'inverse** : chaque constat écarté garde sa raison dans le tableau de revue. Écarter pour faire monter le score fausse la livraison.
 - Aucun test affaibli, désactivé ou supprimé pour corriger.
+
+## Corrections après le rapport
+
+Mineurs retenus par l'utilisateur, important reporté finalement corrigé, hypothèse confirmée : le score ne remonte que si les mesures suivent le code. `hx confidence` refuse un score figé : un commit de code postérieur au dernier commit de `.openspec.yaml` l'exclut (« mesures antérieures au code »).
+
+Fais un tour de la boucle de correction, livraison automatique ou non, et même `ship.max_rounds` atteint :
+
+- étape 1 avec les seuls mineurs retenus, et les importants reportés que l'utilisateur fait corriger ;
+- la relecture neuve (étape 3) est ce qui efface la pénalité : un correctif non relu reste compté dans `x-review-unreviewed` ;
+- étape 5, en plus : `x-run-assumptions` − hypothèses confirmées par l'utilisateur, `x-review-deferred` − importants reportés corrigés dans le change ;
+- étape 6 : rapport réécrit, `hx confidence` relancé, commit.
 
 ## Revue d'une PR (`--pr <numéro>`)
 
