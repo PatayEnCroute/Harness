@@ -2,7 +2,7 @@
 
 Le **pourquoi** et le **comment** du template. Pour l'installer et s'en servir, voir le [`README`](../README.md).
 
-> **Statut** : phases 0 à 6 livrées, éprouvées sur un vrai projet (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
+> **Statut** : phases 0 à 6 publiées, éprouvées sur un vrai projet ; phase 7 sur `main`, non publiée (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
 > **Cadre** : Claude Code · projets solo · GitHub Actions · agnostique de la stack · OpenSpec 1.14.x
 > **Sources** : [état de l'art d'octobre 2026](research/etat-de-l-art-2026-10.md)
 
@@ -114,7 +114,9 @@ Les critères de piste vivent dans `hx-triage` seul. Sur un projet existant sans
              "commands": { "test": "npm run test", "test-file": "npx vitest run {file}", "lint": "npm run lint", "typecheck": "npm run typecheck" } }
   },
   "architecture": { "style": "feature-first", "level": 1, "features": { "facturation": 2 } },
-  "tracks": { "S": { "spec": false }, "M": { "spec": true, "design": "optional" }, "L": { "spec": true, "design": "required", "adr": "required" } }
+  "trace": { "min_coverage": 100 },
+  "tracks": { "S": { "spec": false }, "M": { "spec": true, "design": "optional" }, "L": { "spec": true, "design": "required", "adr": "required" } },
+  "ship": { "auto": false, "min_confidence": 80, "max_rounds": 3 }
 }
 ```
 
@@ -128,6 +130,7 @@ JSON plutôt que YAML : `hx` n'a aucune dépendance et Node le lit nativement.
 | `detect [--write]` | Propose composants et commandes depuis les manifestes |
 | `worktree <change>` | Branche + worktree pour le run d'un change validé |
 | `status` · `stats` | État des runs · mesures d'élagage des changes archivés |
+| `confidence <change>` | Indice de confiance d'un run terminé : sortie 0 si `/hx-ship` peut partir seul ; plafond atteignable et suite |
 | `trace` · `migrate` · `openspec` | Scénarios ↔ tests · clés nouvelles du contrat · OpenSpec épinglé |
 
 Détail complet : `node .harness/hx.mjs help`.
@@ -348,6 +351,7 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | **P4 Fiabilité** ✅ | Plus de faux verts, hook `Stop` fondé sur git, chemins protégés | v0.3.0 |
 | **P5 Démarrage** ✅ | Lanceur `npx`, `INSTALL.md` | v0.4.0 |
 | **P6 Runs sans interruption** ✅ | Porte de cadrage, `hx worktree`, rapport de fin de run | v0.5.0 |
+| **P7 Desktop et livraison** ✅ | Un change par session, choix cliquables, `/hx-update`, livraison automatique (`hx confidence`, boucle de correction, revue de PR) | non publiée |
 
 **Leçons de la réalisation**, désormais encodées :
 
@@ -370,6 +374,7 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | Conflits ou projets en retard | Spécifique hors template ; `hx doctor` détecte conflits et retard ; `hx migrate` complète le contrat |
 | Stack exotique, monorepo | Toute commande shell acceptée ; composants multi-stack |
 | Besoin d'un autre outil IA | Skills au standard `SKILL.md` ; outil de synchronisation (rulesync, APM) |
+| Livraison automatique d'un mauvais change | Opt-in, piste M seule ; indice calculé sur les fichiers et git, pas sur l'avis de l'agent ; PR en brouillon, revue neuve en commentaire ; jamais de merge |
 | Lourdeur | Pistes S/M/L ; élagage mesuré |
 
 ---
@@ -389,4 +394,4 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | Architecture | **Feature-first + règle de dépendance**, niveau proportionné au besoin (§5) |
 | Hook sur `openspec/specs/` | **Rappel**, ni blocage ni confirmation |
 | Modèle des agents | **Hérité de la session**, sauf `hx-explorer` (`haiku`) |
-| Place de l'humain en M/L | **Une porte, au cadrage**, puis run sans interruption et livraison par l'utilisateur. Le but n'est pas un agent sans humain : l'utilisateur cadre le change suivant pendant le run. |
+| Place de l'humain en M/L | **Une porte, au cadrage**, puis run sans interruption et livraison par l'utilisateur (ou seule si `hx confidence` l'autorise, merge toujours humain). Le but n'est pas un agent sans humain : l'utilisateur cadre le change suivant pendant le run. |

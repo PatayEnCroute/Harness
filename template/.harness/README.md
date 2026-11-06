@@ -1,10 +1,10 @@
 # .harness
 
-Installé par le template [Harness](https://github.com/PatayEnCroute/Harness). Mise à jour : `uvx copier update --trust`.
+Installé par le template [Harness](https://github.com/PatayEnCroute/Harness). Mise à jour : dis « mets à jour le harness » (`/hx-update`).
 
 | Fichier | Nature | Rôle |
 |---|---|---|
-| `config.json` | **spécifique** (rempli par `/hx-setup`) | Contrat de commandes par composant, profil d'architecture, pistes |
+| `config.json` | **spécifique** (rempli par `/hx-setup`) | Contrat de commandes par composant, profil d'architecture, pistes, seuil de `trace`, livraison automatique (`ship`) |
 | `project.md` | **spécifique** (rempli par `/hx-setup`) | Carte du projet, importée par `CLAUDE.md` |
 | `ci/setup/action.yml` | **spécifique** (rempli par `/hx-setup`) | Outillage de la stack pour le workflow `hx-check` |
 | `hx.mjs` | générique | CLI `hx` (aucune dépendance) |
