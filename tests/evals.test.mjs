@@ -26,6 +26,43 @@ function transcript(steps) {
   return file;
 }
 
+import { metrics } from '../evals/lib/metrics.mjs';
+
+describe('evals : metrics.mjs', () => {
+  const usage = (input, read, creation, output) => ({ input_tokens: input, cache_read_input_tokens: read, cache_creation_input_tokens: creation, output_tokens: output });
+  const turn = (cost, model) => [
+    { type: 'system', subtype: 'init', permissionMode: 'acceptEdits' },
+    { type: 'assistant', parent_tool_use_id: null, message: { usage: usage(10, 1000, 200, 5) } },
+    { type: 'assistant', parent_tool_use_id: 'toolu_1', message: { usage: usage(1, 90000, 0, 5) } },
+    { type: 'result', duration_ms: 1500, total_cost_usd: cost, result: `fin ${cost}`, usage: usage(10, 1000, 200, 5), modelUsage: model },
+  ].map((e) => JSON.stringify(e));
+
+  test('deux tours : mesures cumulées, sous-agents comptés dans les tokens, pas dans le pic de contexte', () => {
+    const m = metrics([
+      ...turn(0.1, { a: { inputTokens: 10, cacheReadInputTokens: 1000, cacheCreationInputTokens: 200, outputTokens: 5 }, b: { inputTokens: 1, cacheReadInputTokens: 90000, cacheCreationInputTokens: 0, outputTokens: 5 } }),
+      'ligne illisible',
+      ...turn(0.25, { a: { inputTokens: 20, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, outputTokens: 1 } }),
+    ]);
+    assert.deepEqual(m, {
+      duration_s: 3, cost_usd: 0.35, permission_mode: 'acceptEdits',
+      input_tokens: 1210 + 90001 + 20, cache_read_tokens: 91000, output_tokens: 11,
+      peak_context_tokens: 1210, result: 'fin 0.25',
+    });
+  });
+
+  test('sans modelUsage : repli sur usage de la boucle principale', () => {
+    const m = metrics([JSON.stringify({ type: 'result', duration_ms: 0, total_cost_usd: 0, usage: usage(3, 4, 5, 6) })]);
+    assert.equal(m.input_tokens, 12);
+    assert.equal(m.output_tokens, 6);
+  });
+
+  test('transcript vide : null partout, jamais 0', () => {
+    const { result, ...m } = metrics(['']);
+    assert.equal(result, '');
+    for (const [key, value] of Object.entries(m)) assert.equal(value, null, key);
+  });
+});
+
 const testFirst = (file) => spawnSync(process.execPath, [path.join(lib, 'test-first.mjs'), file, 'src/mult\\.js', '(^|/)test/'], { encoding: 'utf8' });
 const writeTest = { tool: 'Write', input: { file_path: '/p/test/mult.test.js' } };
 const writeCode = { tool: 'Write', input: { file_path: '/p/src/mult.js' } };

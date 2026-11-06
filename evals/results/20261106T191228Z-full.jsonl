@@ -1,0 +1,1 @@
+{"date":"2026-11-06T19:13:10Z","sha":"2a756e1","scenario":"ship-minors","variant":"full","run":1,"pass":false,"verdict":"FAIL","reason":"1 appel(s) refusé(s) faute de permission : Skill","duration_s":31,"cost_usd":0.2702,"claude_version":"2.1.319 (Claude Code)","model":"claude-sonnet-5-5","kept_dir":"/tmp/hx-evals.jqX64e/ship-minors-1"}

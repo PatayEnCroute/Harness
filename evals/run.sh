@@ -3,7 +3,8 @@
 # Usage : evals/run.sh [--runs N] [--without <skill|agent>] [scénario…]
 #   --runs N          : N exécutions par scénario (taux k/n ; il faut n ≥ 10 pour distinguer 90 % de 70 %).
 #   --without <nom>   : retire ce skill (ou cet agent) et les lignes qui le citent (A/B, pour mesurer son apport réel).
-# Variables : EVAL_MODEL (modèle épinglé), EVAL_TIMEOUT (secondes par exécution), EVAL_MAX_TURNS.
+# Variables : EVAL_MODEL (modèle épinglé), EVAL_EFFORT (low à max ; défaut : celui de claude), EVAL_TIMEOUT (secondes
+# par exécution), EVAL_MAX_TURNS.
 # Coût : chaque exécution appelle réellement le modèle (claude -p).
 set -euo pipefail
 
@@ -32,6 +33,11 @@ fi
 model="${EVAL_MODEL:-claude-sonnet-5-5}"
 timeout_s="${EVAL_TIMEOUT:-1200}"
 max_turns="${EVAL_MAX_TURNS:-80}"
+effort="${EVAL_EFFORT:-}"
+case "$effort" in ""|low|medium|high|xhigh|max) ;; *) echo "evals : EVAL_EFFORT attend low, medium, high, xhigh ou max" >&2; exit 2 ;; esac
+effort_args=()
+[ -z "$effort" ] || effort_args=(--effort "$effort")
+permission_mode=acceptEdits
 variant="${without:+without:$without}"
 variant="${variant:-full}"
 copier=(uvx --from "copier==${COPIER_VERSION:-9.19.1}" copier)
@@ -99,15 +105,24 @@ integrity() {
   fi
 }
 
+# Une ligne JSON par exécution. Les mesures (durée, coût, tokens, mode de permission effectif) viennent de
+# metrics.mjs ; effort et mode demandés viennent de la configuration de la campagne, pour comparer deux campagnes.
 record() {
   R_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" R_SHA="$sha" R_SCENARIO="$1" R_VARIANT="$variant" R_RUN="$2" \
-  R_VERDICT="$3" R_DURATION="$4" R_COST="$5" R_VERSION="$claude_version" R_MODEL="$model" R_DIR="$6" R_REASON="$7" \
+  R_VERDICT="$3" R_METRICS="$4" R_VERSION="$claude_version" R_MODEL="$model" R_EFFORT="$effort" R_MODE="$permission_mode" \
+  R_DIR="$5" R_REASON="$6" \
   node -e '
-    const e = process.env, num = (v) => (v === "" || Number.isNaN(Number(v)) ? null : Number(v));
+    const e = process.env;
+    let m = {};
+    try { m = JSON.parse(require("fs").readFileSync(e.R_METRICS, "utf8")); } catch {}
+    const v = (key) => m[key] ?? null;
     console.log(JSON.stringify({
       date: e.R_DATE, sha: e.R_SHA, scenario: e.R_SCENARIO, variant: e.R_VARIANT, run: Number(e.R_RUN),
-      pass: e.R_VERDICT === "pass", verdict: e.R_VERDICT, reason: e.R_REASON || null, duration_s: num(e.R_DURATION), cost_usd: num(e.R_COST),
-      claude_version: e.R_VERSION, model: e.R_MODEL, kept_dir: e.R_DIR || null,
+      pass: e.R_VERDICT === "pass", verdict: e.R_VERDICT, reason: e.R_REASON || null, duration_s: v("duration_s"), cost_usd: v("cost_usd"),
+      claude_version: e.R_VERSION, model: e.R_MODEL, effort: e.R_EFFORT || "défaut",
+      permission_mode: v("permission_mode") ?? e.R_MODE,
+      input_tokens: v("input_tokens"), cache_read_tokens: v("cache_read_tokens"), output_tokens: v("output_tokens"),
+      peak_context_tokens: v("peak_context_tokens"), kept_dir: e.R_DIR || null,
     }));
   ' >> "$results"
 }
@@ -115,15 +130,15 @@ record() {
 declare -A pass_by
 passed=0
 total=0
-echo "Modèle $model · $claude_version · template $sha · variante $variant · $runs exécution(s) par scénario"
-printf '%-14s %-4s %-8s %8s %8s  %s\n' scénario run verdict durée coût dossier
+echo "Modèle $model · effort ${effort:-défaut} · $claude_version · template $sha · variante $variant · $runs exécution(s) par scénario"
+printf '%-14s %-4s %-8s %8s %8s %9s  %s\n' scénario run verdict durée coût pic-ctx dossier
 for scenario in "${scenarios[@]}"; do
   dir="$evals/scenarios/$scenario"
   pass_by[$scenario]=0
   for run in $(seq 1 "$runs"); do
     work="$campaign/$scenario-$run"
     mkdir -p "$work"
-    verdict=FAIL duration="" cost="" reason=""
+    verdict=FAIL duration="" cost="" peak="" reason=""
     total=$((total + 1))
 
     # set -e reste actif dans le sous-shell seulement hors contexte « || » ou « if ».
@@ -145,25 +160,17 @@ for scenario in "${scenarios[@]}"; do
       turn=()
       for prompt in "$dir/prompt.md" "$dir/followup.md"; do
         [ -f "$prompt" ] || continue
-        timeout "$timeout_s" claude -p "$(cat "$prompt")" "${turn[@]}" --settings "$permissions" --model "$model" \
-          --output-format stream-json --verbose --permission-mode acceptEdits \
+        timeout "$timeout_s" claude -p "$(cat "$prompt")" "${turn[@]}" --settings "$permissions" --model "$model" "${effort_args[@]}" \
+          --output-format stream-json --verbose --permission-mode "$permission_mode" \
           --max-turns "$max_turns" --allowedTools "${tools[@]}" \
           >> "$work/transcript.jsonl" 2>> "$work/stderr.log" < /dev/null || rc=$?
         [ "$rc" -ne 124 ] || echo "⚠ $scenario #$run : délai de ${timeout_s}s dépassé" >&2
         [ "$rc" -eq 0 ] || break
         turn=(--continue)
       done
-      # Durée et coût cumulés sur les tours ; result.txt : réponse du dernier tour.
-      node -e '
-        const fs = require("fs");
-        const results = fs.readFileSync(process.argv[1], "utf8").split("\n")
-          .map((l) => { try { return JSON.parse(l); } catch { return null; } })
-          .filter((e) => e?.type === "result");
-        const sum = (key) => results.reduce((n, r) => n + (r[key] ?? 0), 0);
-        fs.writeFileSync(process.argv[2], results.at(-1)?.result ?? "");
-        console.log((sum("duration_ms") / 1000).toFixed(0), sum("total_cost_usd").toFixed(4));
-      ' "$work/transcript.jsonl" "$work/result.txt" > "$work/metrics" 2>> "$work/stderr.log" || echo "" > "$work/metrics"
-      read -r duration cost < "$work/metrics" || true
+      # Mesures cumulées sur les tours (metrics.mjs) ; result.txt : réponse du dernier tour.
+      node "$evals/lib/metrics.mjs" "$work/transcript.jsonl" "$work/result.txt" > "$work/metrics.json" 2>> "$work/stderr.log" || echo "{}" > "$work/metrics.json"
+      read -r duration cost peak < <(node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(m.duration_s ?? "?", m.cost_usd ?? "?", m.peak_context_tokens ?? "?")' "$work/metrics.json" 2>/dev/null) || true
 
       set +e; trap - ERR
       (
@@ -189,8 +196,8 @@ for scenario in "${scenarios[@]}"; do
     if [ "$verdict" = pass ]; then
       passed=$((passed + 1)); pass_by[$scenario]=$((pass_by[$scenario] + 1)); keep=""
     fi
-    record "$scenario" "$run" "$verdict" "$duration" "$cost" "$keep" "$reason"
-    printf '%-14s %-4s %-8s %8s %8s  %s\n' "$scenario" "$run" "$verdict" "${duration:-?}s" "${cost:-?}\$" "$keep"
+    record "$scenario" "$run" "$verdict" "$work/metrics.json" "$keep" "$reason"
+    printf '%-14s %-4s %-8s %8s %8s %9s  %s\n' "$scenario" "$run" "$verdict" "${duration:-?}s" "${cost:-?}\$" "${peak:-?}" "$keep"
     [ -z "$reason" ] || echo "    ✗ $reason"
     [ -n "$keep" ] || rm -rf "$work"
   done

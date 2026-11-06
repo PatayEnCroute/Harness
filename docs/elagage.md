@@ -102,6 +102,7 @@ On n'ajoute un composant que si l'usage en montre le besoin.
 | 2026-10-19 | `implement-m` après la porte et le run enchaîné (0df52c3) | 10/10, inchangé. Coût moyen 0,53 $ au lieu de 0,39 $ (+37 %) : `hx-implement` enchaîne désormais verify et review. | [`20261018T235030Z-full.jsonl`](../evals/results/20261018T235030Z-full.jsonl) |
 | 2026-10-27 | Repli des sous-agents dans une boucle unique (billet Anthropic du 22/10) | Non mené : 6 agents sur 7 vérifient ou explorent, des usages que le billet garde. Tester la boucle unique de `hx-implement` quand un change de 5 tâches ou plus paraît lent ou cher. | [`sous-agents-2026-10.md`](research/sous-agents-2026-10.md) |
 | 2026-11-06 | Études sur l'industrie et le contexte | Nouvelles fonctions gelées jusqu'aux A/B : la valeur des skills qui compensent le modèle n'est pas démontrée face aux modèles forts. Phase P8 du [PLAN](PLAN.md#7-roadmap). | [`harness-industrie-2026-11.md`](research/harness-industrie-2026-11.md) |
+| 2026-11-06 | Evals complètes (P8, étape 1) : effort, mode de permission, tokens, pic de contexte | `ship-minors` 0/3 (effort `low` une fois, défaut deux fois, ancien `run.sh` une fois) : régression depuis la garde de livraison du 30/10 (5a01b96), pas un effet de la mesure. Pic de contexte ~56 k tokens. | `evals/results/20261106T1910*`, `…1911*`, `…1912*` |
 
 <details>
 <summary><b>Réserves sur la ligne de base du 2026-10-18</b></summary>
