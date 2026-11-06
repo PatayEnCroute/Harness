@@ -1437,7 +1437,8 @@ function cmdWorktree(root, args) {
     `Worktree prêt : ${result.target} (branche ${result.branch})${result.moved ? ` ; change déplacé et commité : « ${change} : proposition »` : ''}.`,
     ...(result.stayed ? [`⚠ ${change} était déjà commité : il reste aussi dans ce dossier, dont hx check restera rouge sur ses scénarios tant qu'il n'est pas mergé.`] : []),
     ...(fs.existsSync(path.join(result.target, LOCAL_SETTINGS)) ? [`Permissions locales (${LOCAL_SETTINGS}) reprises dans le worktree.`] : []),
-    `Lancer le run : dans Claude Code Desktop, nouvelle session sur le dossier ${result.target}, mode Auto (Cmd/Ctrl+Shift+M), puis écrire « go » : la session lance /hx-implement ${change} d'elle-même.`,
+    `Lancer le run : la session entre dans ce worktree (outil EnterWorktree, path ${result.target}) et lance /hx-implement ${change}.`,
+    `Repli, si la session ne peut pas y entrer : dans Claude Code Desktop, nouvelle session sur le dossier ${result.target}, mode Auto (Cmd/Ctrl+Shift+M), puis écrire « go » : la session lance /hx-implement ${change} d'elle-même.`,
     'Après le merge : une session sur le dossier principal propose « Capitaliser et nettoyer » (hx-learn, puis suppression du worktree et de sa branche).',
   ].join('\n'));
   return 0;
