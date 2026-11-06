@@ -84,7 +84,7 @@ flowchart LR
 
 > **Pourquoi un worktree par run ?** `trace` et `pistes` portent sur tous les changes d'un dossier : deux changes au même endroit se gêneraient. Le dossier principal reste libre pour cadrer le suivant.
 >
-> **Dans Desktop : un change, une session.** Une session créée avec l'option **Worktree** porte le change du cadrage à la PR : pas de changement de session, aucune commande à taper. `hx worktree` reste pour lancer le run depuis le dossier principal.
+> **Dans Desktop : un change, une session.** Une session créée avec l'option **Worktree** porte le change du cadrage à la PR : pas de changement de session, aucune commande à taper. Depuis le dossier principal, `hx worktree` crée le worktree et la session y entre (outil `EnterWorktree`) : le run part sans nouvelle session.
 
 Les critères de piste vivent dans `hx-triage` seul. Sur un projet existant sans specs, `hx-discover` dérive d'abord des specs depuis le code.
 

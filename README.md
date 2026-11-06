@@ -112,7 +112,7 @@ flowchart LR
 
 Le langage naturel remplace toute commande : « go », « livre <change> », « où en sont mes changes ? », « mets à jour le harness ». À l'ouverture, chaque session affiche la prochaine action de chaque change.
 
-> 💡 Session ouverte sur le dossier principal ? À la porte, « Valider, run dans un worktree séparé » crée le worktree : ouvre une session dessus et écris « go ».
+> 💡 Session ouverte sur le dossier principal ? À la porte, « Valider, run dans un worktree séparé » crée le worktree et la session y entre d'elle-même pour lancer le run : rien à rouvrir.
 
 ### Livraison automatique
 

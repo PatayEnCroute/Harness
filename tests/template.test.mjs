@@ -145,7 +145,9 @@ describe('cohérence et budgets', () => {
     const triage = read(path.join(claude, 'skills', 'hx-triage', 'SKILL.md'));
     assert.match(triage, /\*\*choix cliquable\*\* \(outil AskUserQuestion, en-tête `Porte`\)/);
     assert.match(triage, /`git rev-parse --git-dir` et `git rev-parse --git-common-dir` diffèrent/);
-    assert.match(triage, /Relaie ces consignes à l'utilisateur, sans aucune commande à taper/);
+    assert.match(triage, /\*\*entre toi-même dans le worktree\*\* : outil `EnterWorktree` avec `path`/);
+    assert.match(triage, /Pas de nouvelle session à ouvrir/);
+    assert.match(md, /`hx worktree <change>` suivi de l'outil `EnterWorktree`/);
     const header = /export const SHIP_HEADER = '([^']+)'/.exec(read(path.join(template, '.harness', 'hooks.mjs')))[1];
     assert.match(read(path.join(claude, 'skills', 'hx-review', 'SKILL.md')), new RegExp(`en-tête exactement \`${header}\``));
     const post = JSON.parse(read(path.join(claude, 'settings.json'))).hooks.PostToolUse[0].matcher.split('|');

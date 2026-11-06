@@ -581,7 +581,8 @@ describe('worktree : un change, une branche, un dossier', () => {
     } finally {
       console.log = log;
     }
-    assert.match(lines.join('\n'), /Desktop, nouvelle session sur le dossier .*mode Auto.*écrire « go » : la session lance \/hx-implement add-mult/);
+    assert.match(lines.join('\n'), /la session entre dans ce worktree \(outil EnterWorktree, path .*\) et lance \/hx-implement add-mult/);
+    assert.match(lines.join('\n'), /Repli.*Desktop, nouvelle session sur le dossier .*mode Auto.*écrire « go » : la session lance \/hx-implement add-mult/);
     assert.doesNotMatch(lines.join('\n'), /Terminal|claude --permission-mode|git worktree remove/);
     assert.match(lines.join('\n'), /Capitaliser et nettoyer/);
     assert.equal(main(['worktree'], root), 2);
