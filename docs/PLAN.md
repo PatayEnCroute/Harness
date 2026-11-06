@@ -2,9 +2,9 @@
 
 Le **pourquoi** et le **comment** du template. Pour l'installer et s'en servir, voir le [`README`](../README.md).
 
-> **Statut** : phases 0 à 6 publiées, éprouvées sur un vrai projet ; phase 7 sur `main`, non publiée (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
+> **Statut** : phases 0 à 6 publiées, éprouvées sur un vrai projet ; phase 7 sur `main`, non publiée ; phase 8 (mesurer avant d'ajouter) à venir (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
 > **Cadre** : Claude Code · projets solo · GitHub Actions · agnostique de la stack · OpenSpec 1.14.x
-> **Sources** : [état de l'art d'octobre 2026](research/etat-de-l-art-2026-10.md)
+> **Sources** : [état de l'art d'octobre 2026](research/etat-de-l-art-2026-10.md), [état de l'industrie de novembre 2026](research/harness-industrie-2026-11.md), [ingénierie de contexte](research/ingenierie-de-contexte-2026-11.md)
 
 ---
 
@@ -44,6 +44,9 @@ flowchart LR
 | P9 | **Élaguer** | Un composant sans gain mesurable est retiré ([`elagage.md`](elagage.md)). | Anthropic |
 | P10 | **Architecture proportionnée** | Feature-first ; une couche seulement pour un besoin nommé (§5). | Clean Arch., YAGNI |
 | P11 | **Standard quand c'est gratuit** | Skills au format `SKILL.md`, portables sans effort. | Agent Skills |
+| P12 | **Le durable est déterministe** | La valeur du harness tient à ce qui rend le travail de l'agent vérifiable et rapide à valider (`hx check`, `hx trace`, porte, `hx confidence`, rapport), pas à l'aide au codage, que chaque modèle rend moins utile. L'effort va d'abord là. | [industrie 2026-11](research/harness-industrie-2026-11.md) §10 |
+| P13 | **Ne pas refaire la plateforme** | Ce que Claude Code fait nativement (worktrees, revue, orchestration, mémoire) ne se reconstruit pas ; un composant devenu natif se retire. Le harness garde ce que Claude Code ne fera pas : contrat `hx`, OpenSpec, pistes, livraison fondée sur des faits. | [industrie 2026-11](research/harness-industrie-2026-11.md) §2, §9 |
+| P14 | **Rien d'utile ne vit seulement dans la conversation** | Hypothèses, décisions, état du run : dans des fichiers du change. Un run interrompu ou compacté reprend depuis eux. | [contexte 2026-11](research/ingenierie-de-contexte-2026-11.md) |
 
 **Non-objectifs** : forker OpenSpec ou modifier ses skills `openspec-*` · supporter un autre outil que Claude Code ([ADR-002](adr/002-claude-code-seul-standards-gratuits.md)) · des « packs » de stack précâblés · une spec pour un correctif d'une ligne.
 
@@ -352,6 +355,19 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | **P5 Démarrage** ✅ | Lanceur `npx`, `INSTALL.md` | v0.4.0 |
 | **P6 Runs sans interruption** ✅ | Porte de cadrage, `hx worktree`, rapport de fin de run | v0.5.0 |
 | **P7 Desktop et livraison** ✅ | Un change par session, choix cliquables, `/hx-update`, livraison automatique (`hx confidence`, boucle de correction, revue de PR) | non publiée |
+| **P8 Mesurer avant d'ajouter** | Voir ci-dessous | — |
+
+**P8 : mesurer avant d'ajouter.** Le harness a grossi plus vite qu'il n'a été mesuré : aucun A/B `--without` n'a été mené ([`elagage.md`](elagage.md)). **Aucune nouvelle fonction avant la fin des étapes 1 et 2.** Dans l'ordre :
+
+| # | Étape | Contenu | Fini quand |
+|---|---|---|---|
+| 1 | **Evals complètes** | Chaque résultat enregistre aussi l'effort, le mode de permission et les tokens (entrée, pic de contexte) | colonnes présentes dans `evals/results/` |
+| 2 | **A/B des composants fragiles** | `--runs 10 --without` sur `hx-triage`, `hx-tdd`, `hx-implement`, hook `PostToolUse` ; puis une campagne sur Opus 5.5. Bruit ~6 points : seul un grand écart de réussite ou de coût décide | une ligne par composant dans le journal d'élagage |
+| 3 | **Run robuste** (P14) | Journal de run (`run-log.md` : hypothèses, décisions par tâche), transmis à chaque `hx-implementer` ; hook qui réinjecte l'état après un compactage | eval avec compactage forcé : le run va au rapport, hypothèses intactes |
+| 4 | **Sécurité du run autonome** | `hx doctor` exige une version minimale de Claude Code ; `/hx-setup` propose le sandbox en option ; PLAN §4.2 : l'auto mode ne juge pas les éditions de fichiers, les gardes du harness restent déterministes | `hx doctor` le vérifie |
+| 5 | **Élaguer** | Retirer ce que l'étape 2 ou Claude Code rend inutile (P9, P13) | journal d'élagage à jour |
+
+À ignorer tant qu'aucun besoin n'est observé : agent teams, multi-harness, Agent Plugins, A2A, mémoire automatique, `/goal` comme fin de run (juge sans outils, contraire à P6).
 
 **Leçons de la réalisation**, désormais encodées :
 
@@ -376,6 +392,10 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | Besoin d'un autre outil IA | Skills au standard `SKILL.md` ; outil de synchronisation (rulesync, APM) |
 | Livraison automatique d'un mauvais change | Opt-in, piste M seule ; indice calculé sur les fichiers et git, pas sur l'avis de l'agent ; PR en brouillon, revue neuve en commentaire ; jamais de merge |
 | Lourdeur | Pistes S/M/L ; élagage mesuré |
+| Valeur du harness non démontrée face aux modèles forts | P12 ; A/B de P8 avant toute nouvelle fonction |
+| Claude Code rend un composant natif | P13 ; changelog de Claude Code relu à chaque revue d'élagage |
+| Run interrompu ou compacté : hypothèses perdues, reprise à l'aveugle | P14 ; journal de run et réinjection par hook (P8, étape 3) |
+| Dépôt piégé pendant un run autonome (config, hooks, git) ; auto mode aveugle aux éditions | Version minimale de Claude Code, sandbox en option, gardes déterministes (P8, étape 4) |
 
 ---
 
@@ -394,4 +414,5 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | Architecture | **Feature-first + règle de dépendance**, niveau proportionné au besoin (§5) |
 | Hook sur `openspec/specs/` | **Rappel**, ni blocage ni confirmation |
 | Modèle des agents | **Hérité de la session**, sauf `hx-explorer` (`haiku`) |
+| Nouvelles fonctions | **Gelées** jusqu'à la fin des étapes 1 et 2 de P8 (evals complètes, A/B) |
 | Place de l'humain en M/L | **Une porte, au cadrage**, puis run sans interruption et livraison par l'utilisateur (ou seule si `hx confidence` l'autorise, merge toujours humain). Le but n'est pas un agent sans humain : l'utilisateur cadre le change suivant pendant le run. |

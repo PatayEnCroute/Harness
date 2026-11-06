@@ -19,6 +19,7 @@ flowchart LR
 |---|---|
 | **Mesurer** | Usage réel : `node .harness/hx.mjs stats` dans un projet. Effet d'un skill : `evals/run.sh --runs 10 <scénario>`, puis la même chose avec `--without <skill>`. |
 | **Quand** | À chaque nouvelle génération de modèle, au plus tard chaque trimestre. |
+| **Veille** | Relire le changelog de Claude Code : un composant devenu natif se retire (P13). |
 | **Tracer** | Chaque retrait ou simplification va dans le [journal](#journal), avec sa mesure (fichier de `evals/results/`, commité). |
 
 > **Pourquoi 10 exécutions ?** En dessous, 90 % et 70 % de réussite ne se distinguent pas.
@@ -100,6 +101,7 @@ On n'ajoute un composant que si l'usage en montre le besoin.
 | 2026-10-18 | Ligne de base `--runs 10`, `claude-sonnet-5-5` | `architect` 10/10 · `implement-m` 10/10 · `setup` 10/10 · `tdd-s` 8/10. 11,74 $ au total. | `evals/results/20261018T2029*`, `…205427*`, `…205546*`, `…2108*` |
 | 2026-10-19 | `implement-m` après la porte et le run enchaîné (0df52c3) | 10/10, inchangé. Coût moyen 0,53 $ au lieu de 0,39 $ (+37 %) : `hx-implement` enchaîne désormais verify et review. | [`20261018T235030Z-full.jsonl`](../evals/results/20261018T235030Z-full.jsonl) |
 | 2026-10-27 | Repli des sous-agents dans une boucle unique (billet Anthropic du 22/10) | Non mené : 6 agents sur 7 vérifient ou explorent, des usages que le billet garde. Tester la boucle unique de `hx-implement` quand un change de 5 tâches ou plus paraît lent ou cher. | [`sous-agents-2026-10.md`](research/sous-agents-2026-10.md) |
+| 2026-11-06 | Études sur l'industrie et le contexte | Nouvelles fonctions gelées jusqu'aux A/B : la valeur des skills qui compensent le modèle n'est pas démontrée face aux modèles forts. Phase P8 du [PLAN](PLAN.md#7-roadmap). | [`harness-industrie-2026-11.md`](research/harness-industrie-2026-11.md) |
 
 <details>
 <summary><b>Réserves sur la ligne de base du 2026-10-18</b></summary>
