@@ -2,7 +2,7 @@
 
 Le **pourquoi** et le **comment** du template. Pour l'installer et s'en servir, voir le [`README`](../README.md).
 
-> **Statut** : phases 0 à 6 publiées, éprouvées sur un vrai projet ; phase 7 sur `main`, non publiée ; phase 8 (mesurer avant d'ajouter) à venir (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
+> **Statut** : phases 0 à 6 publiées, éprouvées sur un vrai projet ; phase 7 sur `main`, non publiée ; phase 8 (mesurer avant d'ajouter) faite sur la branche de travail, non publiée (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
 > **Cadre** : Claude Code · projets solo · GitHub Actions · agnostique de la stack · OpenSpec 1.14.x
 > **Sources** : [état de l'art d'octobre 2026](research/etat-de-l-art-2026-10.md), [état de l'industrie de novembre 2026](research/harness-industrie-2026-11.md), [ingénierie de contexte](research/ingenierie-de-contexte-2026-11.md)
 
@@ -377,7 +377,7 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | 2 ✅ | **A/B des composants fragiles** | `--runs 10 --without` sur `hx-triage`, `hx-tdd`, `hx-implement`, hook `PostToolUse` ; puis une campagne sur Opus 5.5. Bruit ~6 points : seul un grand écart de réussite ou de coût décide | une ligne par composant dans le journal d'élagage |
 | 3 ✅ | **Run robuste** (P14) | Journal de run (`run-log.md` : hypothèses, décisions par tâche), transmis à chaque `hx-implementer` ; hook qui réinjecte l'état après un compactage | eval avec compactage forcé : le run va au rapport, hypothèses intactes |
 | 4 ✅ | **Sécurité du run autonome** | `hx doctor` exige une version minimale de Claude Code ; `/hx-setup` propose le sandbox en option ; PLAN §4.2 : l'auto mode ne juge pas les éditions de fichiers, les gardes du harness restent déterministes | `hx doctor` le vérifie |
-| 5 | **Élaguer** | Retirer ce que l'étape 2 ou Claude Code rend inutile (P9, P13) | journal d'élagage à jour |
+| 5 ✅ | **Élaguer** | Retirer ce que l'étape 2 ou Claude Code rend inutile (P9, P13) | journal d'élagage à jour |
 
 **Bilan de l'étape 2** (Sonnet 5.5 et Opus 5.5, [journal](elagage.md#journal)) :
 
@@ -387,6 +387,8 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | `hx-tdd` | Gardé sur l'ancien `tdd-s` ; sur la piste S, les bugs vont à `hx-debug` et le comportement nouveau en M | re-mesurer sur le nouveau `tdd-s` (correctif) |
 | `hx-implement` | **Candidat au repli** : Opus 10/10 avec et sans, coût ×2,2 avec | confirmer sur Sonnet, puis sur un change de 5 tâches liées ou plus |
 | Hook `PostToolUse` | Non mesurable : aucun `lint-file` dans les projets de démo | scénario avec un vrai linter |
+
+**Décision (07/11/2026)** : rien n'est retiré. L'utilisateur garde `hx-implement`, `hx-tdd` et le hook `PostToolUse` malgré les questions ouvertes ci-dessus ; elles reviendront à la prochaine revue d'élagage (nouvelle génération de modèles, ou au plus tard dans un trimestre). Le gel des nouvelles fonctions est levé.
 
 À ignorer tant qu'aucun besoin n'est observé : agent teams, multi-harness, Agent Plugins, A2A, mémoire automatique, `/goal` comme fin de run (juge sans outils, contraire à P6).
 
@@ -435,5 +437,5 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | Architecture | **Feature-first + règle de dépendance**, niveau proportionné au besoin (§5) |
 | Hook sur `openspec/specs/` | **Rappel**, ni blocage ni confirmation |
 | Modèle des agents | **Hérité de la session**, sauf `hx-explorer` (`haiku`) |
-| Nouvelles fonctions | **Gelées** jusqu'à la fin des étapes 1 et 2 de P8 (evals complètes, A/B) |
+| Nouvelles fonctions | Gel levé le 07/11/2026, après les étapes 1 et 2 de P8 |
 | Place de l'humain en M/L | **Une porte, au cadrage**, puis run sans interruption et livraison par l'utilisateur (ou seule si `hx confidence` l'autorise, merge toujours humain). Le but n'est pas un agent sans humain : l'utilisateur cadre le change suivant pendant le run. |
