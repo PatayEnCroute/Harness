@@ -13,6 +13,7 @@ paths:
 - **Porte de cadrage** : `x-validated: AAAA-MM-JJ`, ajouté seulement après validation explicite de l'utilisateur (`hx-triage`). `hx-implement` ne démarre pas sans.
 - **Mesures** : `x-gate-corrections`, `x-gate-removed` (porte, `hx-triage`), `x-review-*` (`hx-review`, dont la boucle de correction), des entiers lus par `hx stats` et `hx confidence`. N'en écris une que si l'étape a eu lieu.
 - **Rapport de fin de run** : `run-report.md` du change, écrit par `hx-review`, archivé avec le change.
+- **Journal de run** : `run-log.md` du change, une entrée par tâche (hypothèses, décisions, écarts), ajoutée par `hx-implement` et commitée avec la tâche ; jamais réécrit.
 - **Piste L** : `design.md` commence par le besoin, indique le niveau d'architecture visé et cite son ADR (`docs/adr/NNN-titre.md`).
 - **Specs principales** : `openspec/specs/` ne change que pendant `/opsx:sync` ou l'archive (`/hx-ship`). Écris les changements dans les delta specs du change.
 - **Concision** : le moins d'exigences possible pour couvrir le besoin. Une spec se relit en deux minutes.

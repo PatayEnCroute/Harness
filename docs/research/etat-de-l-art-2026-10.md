@@ -39,6 +39,8 @@
 | Le goulot passe de l'écriture du code à l'intégration et à l'attention humaine ; relire l'intention plutôt que chaque ligne. Répercussions : [`scion-2026-10.md`](scion-2026-10.md) | [Anthropic, oct. 2026](https://www.anthropic.com/research/redesigning-source-control) |
 | Moins de sous-agents : une boucle unique avec skills bat souvent les sous-agents ; garder ceux qui vérifient, explorent ou travaillent en parallèle. Répercussions : [`sous-agents-2026-10.md`](sous-agents-2026-10.md) | [Anthropic, oct. 2026](https://claude.com/blog/building-agents-when-to-fold-subagents-into-your-main-agent-loop) |
 | Les fichiers de contexte améliorent peu la réussite et coûtent +20 % en inférence ; utiles seulement pour le non-standard | [ETH, arXiv 2602.11988](https://arxiv.org/abs/2602.11988) |
+| Ingénierie de contexte : budget d'attention, context rot, découverte à la demande, notes externes, relais par artefact. Répercussions et guidelines : [`ingenierie-de-contexte-2026-11.md`](ingenierie-de-contexte-2026-11.md) | [Anthropic, sept. 2025](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) |
+| État de l'industrie en novembre 2026 : CLI des éditeurs, IDE, agents cloud, open source, standards, évaluation, sécurité, marché. Mise à jour de ce document : [`harness-industrie-2026-11.md`](harness-industrie-2026-11.md) | 17 axes contre-vérifiés |
 
 ## 4. Packs existants : rôles et phases récurrents
 

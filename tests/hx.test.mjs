@@ -35,6 +35,8 @@ import {
   stats,
   validateConfig,
   worktreeStatus,
+  claudeCodeCheck,
+  sandboxCheck,
 } from '../template/.harness/hx.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -378,6 +380,31 @@ describe('CLI', () => {
     assert.equal(nodeVersionOk('20.19.0'), true);
     assert.equal(nodeVersionOk('21.0.0'), true);
     assert.equal(nodeVersionOk('19.99.0'), false);
+  });
+
+  test('doctor : version minimale de Claude Code (correctifs de sécurité publiés)', () => {
+    assert.equal(claudeCodeCheck('2.1.260 (Claude Code)').level, 'ok');
+    assert.equal(claudeCodeCheck('2.2.0').level, 'ok');
+    assert.equal(claudeCodeCheck('3.0.0 (Claude Code)').level, 'ok');
+    const old = claudeCodeCheck('2.1.259 (Claude Code)');
+    assert.equal(old.level, 'error');
+    assert.match(old.detail, /2\.1\.259 < 2\.1\.260/);
+    assert.equal(claudeCodeCheck('2.0.999').level, 'error');
+    assert.equal(claudeCodeCheck(null).level, 'warn', 'absente du PATH (Desktop embarque la sienne) : non vérifiable');
+    assert.equal(claudeCodeCheck('version inconnue').level, 'warn');
+  });
+
+  test('doctor : sandbox, opt-in ; repli silencieux et livraison automatique sans isolation signalés', () => {
+    assert.equal(sandboxCheck({}, false).level, 'ok');
+    assert.match(sandboxCheck({}, false).detail, /désactivé.*\/hx-setup/);
+    const unsafe = sandboxCheck({}, true);
+    assert.equal(unsafe.level, 'warn');
+    assert.match(unsafe.detail, /livraison automatique sans sandbox/);
+    const fallback = sandboxCheck({ sandbox: { enabled: true } }, false);
+    assert.equal(fallback.level, 'warn');
+    assert.match(fallback.detail, /failIfUnavailable/);
+    assert.equal(sandboxCheck({ sandbox: { enabled: true, failIfUnavailable: true } }, true).level, 'ok');
+    assert.equal(sandboxCheck({ sandbox: { enabled: false, failIfUnavailable: true } }, true).level, 'warn');
   });
 
   test('openspec : la version épinglée est respectée', () => {

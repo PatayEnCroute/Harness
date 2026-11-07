@@ -1,0 +1,50 @@
+full gate-stops pass
+full gate-stops pass
+full gate-stops pass
+full gate-stops pass
+full gate-stops pass
+full gate-stops pass
+full gate-stops pass
+full gate-stops pass
+full gate-stops pass
+full gate-stops pass
+full tdd-s pass
+full implement-m pass
+full implement-m pass
+full implement-m pass
+full implement-m pass
+full implement-m FAIL:✗ tâches non cochées
+full implement-m pass
+full implement-m pass
+full implement-m pass
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage gate-stops FAIL:✗ aucun change OpenSpec proposé
+without-hx-triage tdd-s FAIL:✗ test d'abord : aucune écriture de test dans le transcript
+without-hx-triage tdd-s FAIL:✗ test d'abord : le code est écrit avant le test
+without-hx-triage tdd-s FAIL:✗ test d'abord : le code est écrit avant le test
+without-hx-tdd tdd-s FAIL:✗ change OpenSpec créé pour un petit changement : openspec/changes/add-mult
+without-hx-tdd tdd-s FAIL:✗ change OpenSpec créé pour un petit changement : openspec/changes/add-mult
+without-hx-tdd tdd-s FAIL:✗ change OpenSpec créé pour un petit changement : openspec/changes/add-mult
+without-hx-tdd tdd-s FAIL:✗ change OpenSpec créé pour un petit changement : openspec/changes/add-mult
+without-hx-tdd tdd-s FAIL:✗ change OpenSpec créé pour un petit changement : openspec/changes/add-mult
+without-hx-tdd tdd-s FAIL:✗ change OpenSpec créé pour un petit changement : openspec/changes/add-mult
+without-hx-tdd tdd-s FAIL:✗ change OpenSpec créé pour un petit changement : openspec/changes/add-mult
+without-hx-tdd tdd-s FAIL:✗ change OpenSpec créé pour un petit changement : openspec/changes/add-mult
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées
+without-hx-implement implement-m FAIL:✗ tâches non cochées

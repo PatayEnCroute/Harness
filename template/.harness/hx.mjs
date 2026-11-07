@@ -8,6 +8,9 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const MIN_NODE = [20, 19];
+// Plus ancienne version de Claude Code qui contient tous les correctifs de sécurité publiés (avis GHSA de
+// anthropics/claude-code, dernier : GHSA-gfvf-j8jh-jxxw, 29/09/2026). À relever à chaque nouvel avis.
+export const MIN_CLAUDE_CODE = [2, 1, 260];
 export const CHECK_STEPS = ['lint', 'typecheck', 'arch', 'test'];
 export const FAST_STEPS = ['lint', 'typecheck'];
 export const DOCTOR_STEPS = ['lint', 'typecheck', 'build', 'arch', 'test'];
@@ -624,6 +627,11 @@ export function readChangeMeta(dir) {
   return meta;
 }
 
+// Première tâche non cochée de tasks.md (texte sans la case), ou null.
+export function nextTask(dir) {
+  return /^\s*-\s*\[ \]\s*(.+?)\s*$/m.exec(readText(path.join(dir, 'tasks.md')))?.[1] ?? null;
+}
+
 export function taskProgress(dir) {
   const tasks = readText(path.join(dir, 'tasks.md'));
   const done = (tasks.match(/^\s*-\s*\[[xX]\]/gm) ?? []).length;
@@ -835,6 +843,8 @@ export function createWorktree(root, change, { target, branch = change } = {}) {
 }
 
 export const RUN_REPORT = 'run-report.md';
+// Journal de run écrit par hx-implement : hypothèses et décisions de chaque tâche, relu après un compactage et par hx-review.
+export const RUN_LOG = 'run-log.md';
 
 // Verdict du rapport de fin de run écrit par hx-review, lu sur son titre « ## <change> : <verdict> ».
 // null sans rapport ; « illisible » si le titre n'a pas ce format.
@@ -1227,7 +1237,24 @@ export function nodeVersionOk(version = process.versions.node) {
   return major > MIN_NODE[0] || (major === MIN_NODE[0] && minor >= MIN_NODE[1]);
 }
 
-const HOOK_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop'];
+// Version de Claude Code (« 2.1.319 (Claude Code) ») comparée au minimum. Absente ou illisible : avertissement,
+// car Claude Code Desktop embarque sa propre version, hors du PATH.
+export function claudeCodeCheck(version) {
+  const min = MIN_CLAUDE_CODE.join('.');
+  const parts = /^(\d+)\.(\d+)\.(\d+)/.exec(String(version ?? '').trim())?.slice(1).map(Number);
+  if (!parts) return { level: 'warn', detail: `version non vérifiable (claude absent du PATH ?) : vérifie qu'elle est ≥ ${min} (/status)` };
+  const diff = parts.map((n, i) => n - MIN_CLAUDE_CODE[i]).find((d) => d !== 0) ?? 0;
+  return diff >= 0
+    ? { level: 'ok', detail: `${parts.join('.')} (minimum ${min})` }
+    : { level: 'error', detail: `${parts.join('.')} < ${min} : correctifs de sécurité manquants, mets Claude Code à jour (claude update)` };
+}
+
+export function installedClaudeCodeVersion() {
+  const r = spawnSync('claude --version', { shell: true, encoding: 'utf8', env: env(), timeout: 15000 });
+  return r.status === 0 ? r.stdout.trim() : null;
+}
+
+const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'];
 
 // .claude/settings.json : JSON valide (un conflit de fusion le rend illisible, et Claude Code ignore alors les hooks)
 // et chaque événement du harness câblé sur .harness/hooks.mjs.
@@ -1246,6 +1273,33 @@ export function checkSettings(root) {
   return missing.length
     ? { level: 'warn', detail: `hooks non câblés : ${missing.join(', ')}` }
     : { level: 'ok', detail: '.claude/settings.json' };
+}
+
+// Sandbox de Claude Code (commandes shell seulement), opt-in proposé par /hx-setup. Sans failIfUnavailable, une
+// plateforme qui ne le supporte pas repasse en silence hors sandbox. settings : réglages du projet fusionnés.
+export function sandboxCheck(settings, shipAuto) {
+  const sandbox = settings?.sandbox ?? {};
+  if (sandbox.enabled === true) {
+    return sandbox.failIfUnavailable === true
+      ? { level: 'ok', detail: 'activé, sans repli hors sandbox' }
+      : { level: 'warn', detail: 'activé, mais repli silencieux hors sandbox si la plateforme ne le supporte pas : ajoute sandbox.failIfUnavailable: true' };
+  }
+  return shipAuto
+    ? { level: 'warn', detail: 'livraison automatique sans sandbox : les commandes shell du run tournent sans isolation (/hx-setup peut l\'activer)' }
+    : { level: 'ok', detail: 'désactivé (opt-in, proposé par /hx-setup)' };
+}
+
+function projectSettings(root) {
+  const read = (name) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(root, '.claude', name), 'utf8'));
+    } catch {
+      return {};
+    }
+  };
+  const shared = read('settings.json');
+  const local = read('settings.local.json');
+  return { ...shared, ...local, sandbox: { ...shared.sandbox, ...local.sandbox } };
 }
 
 const CONFLICT_MARKER = /^(<{7}|>{7})( |$)/m;
@@ -1320,6 +1374,8 @@ function cmdDoctor(root, args) {
 
   const settings = checkSettings(root);
   add(settings.level, 'Hooks Claude Code', settings.detail);
+  const sandbox = sandboxCheck(projectSettings(root), config?.ship?.auto === true);
+  add(sandbox.level, 'Sandbox', sandbox.detail);
 
   const conflicts = mergeLeftovers(root);
   if (conflicts.length) add('error', 'Fusion copier update', `conflits non résolus : ${conflicts.join(', ')}`);
@@ -1338,6 +1394,8 @@ function cmdDoctor(root, args) {
   if (!opts['no-run']) {
     const template = templateStatus(root);
     if (template) add(template.level, 'Template Harness', template.detail);
+    const claudeCode = claudeCodeCheck(installedClaudeCodeVersion());
+    add(claudeCode.level, 'Claude Code', claudeCode.detail);
     const installed = installedOpenspecVersion();
     if (!installed) add('warn', 'CLI openspec', `absente du PATH (requise par /opsx:*) : npm i -g @fission-ai/openspec@${pinned}`);
     else if (pinned && installed !== pinned) add('warn', 'CLI openspec', `${installed} installée, ${pinned} épinglée`);

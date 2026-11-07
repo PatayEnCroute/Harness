@@ -13,13 +13,13 @@ argument-hint: "[nom du change]"
 | **Manuel** | l'utilisateur : `/hx-ship`, « livre <change> », ou un choix « livrer » à la question « Livraison » de `hx-review` | sa décision, correctifs commités avant l'archive | prête à relire |
 | **Automatique** | `hx-review`, en fin de run, si `node .harness/hx.mjs confidence <change>` sort en 0 | appliqués avant par la boucle de correction de `hx-review` si le score l'exigeait ; les autres vont dans la revue de la PR | brouillon, puis revue publiée en commentaire (étape 6) |
 
-Tu as lancé ce skill toi-même après un choix « livrer » de l'utilisateur à la question « Livraison » : c'est le mode manuel, et le hook `PreToolUse` te le confirme. L'utilisateur dit « livre <change> » sans être passé par cette question : pose-la d'abord (`hx-review`, « Question Livraison »), avec le rapport relu dans `run-report.md`. Tu l'as lancé sans aucun choix de l'utilisateur : c'est le mode automatique. Le hook `PreToolUse` le refuse si `hx confidence` ne l'autorise pas : n'insiste pas. Suis la boucle de correction de `hx-review` si le refus l'indique, sinon rends la main avec le rapport de fin de run et sa question.
+Tu as lancé ce skill toi-même après une décision de l'utilisateur, choix « livrer » à la question « Livraison » ou message « livre <change> » (« livre-le ») : c'est le mode manuel, et le hook `PreToolUse` te le confirme (le hook `UserPromptSubmit` consigne le message). Un message « livre » décide la livraison, pas les mineurs : s'il y en a de proposés, voir Préalables. Tu l'as lancé sans aucun choix de l'utilisateur : c'est le mode automatique. Le hook `PreToolUse` le refuse si `hx confidence` ne l'autorise pas : n'insiste pas. Suis la boucle de correction de `hx-review` si le refus l'indique, sinon rends la main avec le rapport de fin de run et sa question.
 
 ## Préalables, sinon arrête-toi
 
 - `hx-verify` vert dans cette conversation, après le dernier changement de code.
 - `hx-review` sans constat bloquant restant.
-- **Manuel** : décision de l'utilisateur sur les mineurs du rapport de fin de run (`openspec/changes/<change>/run-report.md` si la conversation ne l'a plus), et correctifs retenus commités, mesures à jour (« Corrections après le rapport » de `hx-review`). Sans réponse, pose la question « Livraison » de `hx-review` : l'archive vient après.
+- **Manuel** : décision de l'utilisateur sur les mineurs du rapport de fin de run (`openspec/changes/<change>/run-report.md` si la conversation ne l'a plus), et correctifs retenus commités, mesures à jour (« Corrections après le rapport » de `hx-review`). Sans réponse (un « livre <change> » ne tranche pas les mineurs), pose la question « Livraison » de `hx-review`, ou en texte sans l'outil AskUserQuestion, et arrête-toi : l'archive vient après sa réponse. Ne livre jamais hors de ce skill (archive ou commit d'archive par Bash).
 - **Automatique** : `node .harness/hx.mjs confidence <change>` sort en 0, relancé ici. Aucun mineur n'est appliqué ici : la boucle de correction l'a fait avant, si le score l'exigeait.
 - Aucune modification non commitée hors de `openspec/`.
 

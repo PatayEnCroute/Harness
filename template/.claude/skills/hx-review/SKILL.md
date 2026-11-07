@@ -27,7 +27,7 @@ C'est le dernier message du run : l'utilisateur doit pouvoir décider en quelque
 
 Si un change OpenSpec est concerné, le rapport survit aussi à la session :
 
-1. Écris-le dans `openspec/changes/<change>/run-report.md` (remplacé à chaque run). `/hx-ship` le relit, `hx status` en affiche le verdict.
+1. Écris-le dans `openspec/changes/<change>/run-report.md` (remplacé à chaque run). `/hx-ship` le relit, `hx status` en affiche le verdict. Ses **hypothèses** viennent du journal `run-log.md` (toutes ses lignes « Hypothèse »), plus celles de la revue : jamais de mémoire, un compactage a pu effacer la conversation.
 2. Ajoute à son `.openspec.yaml` les mesures du run, lues par `hx stats` et `hx confidence` (des entiers, 0 compris) :
    - `x-review-confirmed: <n>` : bloquants et importants confirmés, tous tours confondus ;
    - `x-review-discarded: <n>` : écartés à l'étape 3, tous tours confondus ;
@@ -35,7 +35,7 @@ Si un change OpenSpec est concerné, le rapport survit aussi à la session :
    - `x-review-minors: <n>` : mineurs proposés et non appliqués, importants reportés compris ;
    - `x-review-deferred: <n>` : importants reportés hors du change (étape 4) ;
    - `x-review-rounds: <n>` : revues faites, 1 à la première, + 1 par tour de correction ;
-   - `x-run-assumptions: <n>` : hypothèses à confirmer.
+   - `x-run-assumptions: <n>` : hypothèses à confirmer, toutes tâches confondues.
 3. **Livraison** : `node .harness/hx.mjs confidence <change>`. Recopie sa sortie dans la section « Livraison » du rapport. Revue non indépendante (sans sous-agents, voir `hx-implement`) : livraison par l'utilisateur, quel que soit le score.
 4. Commite le rapport et `.openspec.yaml` : `<change> : rapport de fin de run`.
 5. **Sortie 0** (livraison automatique) : enchaîne `/hx-ship <change>` sans rendre la main. **Sortie 1 avec `Suite : corriger`** : boucle de correction, ci-dessous. **Sinon** : le rapport est ton dernier message, suivi de la question « Livraison » (ci-dessous) ; avec `tours de correction épuisés`, c'est la question de fin de boucle, posée de la même façon (ci-dessous).
@@ -85,9 +85,9 @@ Suite selon la réponse :
 
 - **« … livrer »** : mineurs retenus, s'il y en a : un tour de « Corrections après le rapport » (ci-dessous), pour que les mesures suivent le code. Puis lance `/hx-ship <change>` sans rendre la main.
 - **Réponse libre** (« applique 1 et 3 ») : fais ce qu'elle demande (« Corrections après le rapport »), puis repose la question, avec les seules options « Livrer (Recommandé) » et « Ne pas livrer maintenant ».
-- **« Ne pas livrer maintenant »** : rends la main. Plus tard, « livre <change> » repose la question.
+- **« Ne pas livrer maintenant »** : rends la main. Plus tard, un message « livre <change> » de l'utilisateur vaut décision de livrer (hook `UserPromptSubmit`) : lance `/hx-ship <change>`, qui demande d'abord la décision sur les mineurs s'il en reste.
 
-Sans l'outil AskUserQuestion (session sans interface), pose la même question en texte : l'utilisateur livre alors par `/hx-ship <change>`, car le hook ne lit que la réponse rendue par l'outil.
+Sans l'outil AskUserQuestion (session sans interface), pose la même question en texte : l'utilisateur répond par message (« livre-le », « applique le mineur et livre », `/hx-ship <change>`), que le hook `UserPromptSubmit` consigne comme un clic.
 
 Rapport « Bloqué » : pas de question « Livraison ». Termine par ce qu'il faut trancher, en choix cliquables quand les options sont connues.
 

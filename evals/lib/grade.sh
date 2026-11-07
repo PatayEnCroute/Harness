@@ -76,8 +76,10 @@ subagent_called() {
   ' "$TRANSCRIPT" "$1" 2>&1)" || fail "$msg"
 }
 
-# Aucun appel refusé faute de permission (résultat de chaque tour du transcript) : chaque refus est une confirmation
-# que l'utilisateur aurait dû donner, donc un run qui n'est pas autonome avec les permissions du template.
+# Aucun appel refusé (résultat de chaque tour du transcript), ou aucun refus de l'outil donné. run.sh ne l'applique
+# plus d'office : les refus sont une mesure (permission_denials). Un scénario s'en sert quand un refus trahit un
+# comportement interdit, par exemple « no_permission_denials Skill » : /hx-ship refusé par la garde de livraison.
+# Usage : no_permission_denials [outil]
 no_permission_denials() {
   local msg
   msg="$(node -e '
@@ -87,11 +89,13 @@ no_permission_denials() {
       try { e = JSON.parse(line); } catch { continue; }
       if (e?.type === "result") denials.push(...(e.permission_denials ?? []));
     }
+    const only = process.argv[2];
+    denials = [...new Map(denials.map((d) => [d.tool_use_id, d])).values()].filter((d) => !only || d.tool_name === only);
     if (!denials.length) process.exit(0);
     const what = denials.map((d) => d.tool_name === "Bash" ? `Bash(${String(d.tool_input?.command ?? "").split("\n")[0].slice(0, 80)})` : d.tool_name);
     console.error(`${denials.length} appel(s) refusé(s) faute de permission : ${[...new Set(what)].join(" ; ")}`);
     process.exit(1);
-  ' "$TRANSCRIPT" 2>&1)" || fail "$msg"
+  ' "$TRANSCRIPT" "${1:-}" 2>&1)" || fail "$msg"
 }
 
 # L'archive OpenSpec de <change> est le dernier commit, sans réécriture d'historique (rebase, reset, amend).

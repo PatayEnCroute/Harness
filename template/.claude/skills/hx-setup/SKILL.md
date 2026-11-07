@@ -21,7 +21,7 @@ Tu remplis **uniquement les fichiers spécifiques au projet**. Tous les autres s
 
 Fichiers à **ne pas modifier** : `CLAUDE.md`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `.harness/config.schema.json`, `.harness/versions.json`, `openspec/config.yaml`, `.claude/settings.json`, `.claude/rules/{openspec,testing,architecture,comments}.md`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, `.github/workflows/hx-check.yml`.
 
-Seule exception : sur un projet existant, l'étape 1 fusionne dans `.claude/settings.json` les réglages du projet que l'installation a remplacés (`permissions`, `model`, `env`, hooks du projet). Rien d'autre n'y change, et les hooks et permissions du harness restent tels quels.
+Deux exceptions : sur un projet existant, l'étape 1 fusionne dans `.claude/settings.json` les réglages du projet que l'installation a remplacés (`permissions`, `model`, `env`, hooks du projet) ; l'étape 13 y ajoute le bloc `sandbox` si l'utilisateur l'accepte. Rien d'autre n'y change, et les hooks et permissions du harness restent tels quels.
 
 Si l'utilisateur a passé une consigne (`$ARGUMENTS`), concentre-toi dessus et ne refais que les étapes utiles.
 
@@ -31,7 +31,7 @@ Si l'utilisateur a passé une consigne (`$ARGUMENTS`), concentre-toi dessus et n
 2. **Commande fausse ≠ code en échec.** Si `test` échoue parce que des tests sont rouges, la commande est juste : signale l'échec, ne change pas la commande pour qu'elle ne teste plus rien.
 3. **Préférer ce que le projet utilise déjà** (scripts du manifeste, Makefile, justfile, CI existante) aux commandes génériques.
 4. **Un composant = une unité qui se teste ou se construit indépendamment.** Pas plus de composants que nécessaire.
-5. **Au plus 4 questions**, regroupées en un seul message, chacune avec une proposition par défaut.
+5. **Au plus 4 questions**, regroupées en un seul message, chacune avec une proposition par défaut. Seule la question du sandbox (étape 13) vient à part.
 6. **N'écris que ce qu'un agent ne devinerait pas seul.** Les conventions standard de la stack n'ont rien à faire dans les rules ou la carte.
 
 ## Étapes
@@ -157,7 +157,23 @@ Réécris `.harness/project.md` en **40 lignes au plus** et **supprime le marque
 - **Conventions propres au projet** : seulement celles qui sont non standard.
 - **Architecture** : niveau, features en écart, écarts constatés.
 
-### 13. Conclure
+### 13. Sandbox des commandes shell (opt-in)
+
+Les runs tournent seuls, en mode Auto. Le sandbox de Claude Code isole leurs commandes shell (fichiers hors du projet, réseau). Il ne couvre ni Edit, ni Write, ni les hooks, ni MCP : les gardes du harness restent en place.
+
+1. **Prérequis** : macOS ; Linux ou WSL2 avec `bwrap` et `socat` (`command -v bwrap socat`). Windows natif : pas de sandbox, dis-le et passe à l'étape 14. Prérequis manquants : propose de les installer d'abord (`sudo apt-get install bubblewrap socat`), avec l'accord de l'utilisateur.
+2. **Domaines réseau** : le réseau du sandbox est fermé au départ. Relève les hôtes dont les commandes du contrat ont besoin (`setup` surtout : `registry.npmjs.org`, `pypi.org` et `files.pythonhosted.org`, `api.nuget.org`, `proxy.golang.org`…).
+3. **Question** (outil AskUserQuestion, en-tête `Sandbox`) : « Isoler les commandes shell de Claude dans un sandbox ? Réseau limité à <domaines>. » Options : « Activer » en premier quand les prérequis sont là (recommandé si `ship.auto` est activé), puis « Pas maintenant ».
+4. **Activé** : ajoute à `.claude/settings.json` (versionné, pour valoir dans chaque worktree) :
+
+   ```json
+   "sandbox": { "enabled": true, "failIfUnavailable": true, "network": { "allowedDomains": ["<domaines de l'étape 2>"] } }
+   ```
+
+   `failIfUnavailable` est obligatoire : sans lui, une plateforme qui ne supporte pas le sandbox repasse en silence hors sandbox. Le réglage vaut à la prochaine session ; `hx doctor` le vérifie (ligne « Sandbox »).
+5. **Pas de réponse possible** (outil absent, session non interactive) : ne change rien, et signale dans la conclusion que le sandbox reste à décider.
+
+### 14. Conclure
 
 ```bash
 node .harness/hx.mjs doctor

@@ -28,6 +28,9 @@ import {
   shippedAction,
   tail,
   taskProgress,
+  nextTask,
+  changeState,
+  RUN_LOG,
   worktreeStatus,
 } from './hx.mjs';
 
@@ -70,7 +73,7 @@ const protectionOf = (rel) => PROTECTED.find((p) => p.test(CASE_INSENSITIVE_FS ?
 
 // État de la session, hors du dépôt, une entrée par projet et session : commit de départ, empreinte des fichiers
 // déjà vus (modifiés avant la session, ou contrôlés au vert), et livraison décidée par l'utilisateur (shipApproval).
-// Écrit par SessionStart et Stop, et pour la livraison par PostToolUse (AskUserQuestion) et PreToolUse (hx-ship).
+// Écrit par SessionStart et Stop, et pour la livraison par UserPromptSubmit, PostToolUse (AskUserQuestion) et PreToolUse (hx-ship).
 function sessionFile(root, input) {
   const key = createHash('sha256').update(`${realPath(root)}\0${input.session_id ?? 'sans-session'}`).digest('hex').slice(0, 16);
   return path.join(os.tmpdir(), 'hx-hooks', `${key}.json`);
@@ -196,6 +199,14 @@ export function sessionStart(root, input, env = process.env) {
     const report = reportVerdict(change.dir);
     const state = here?.changes.find((c) => c.name === change.name);
     lines.push(`- Change OpenSpec en cours : ${change.name} (piste ${meta['x-track'] ?? '?'}, ${gate}, ${done}/${total} tâches${report ? `, rapport : ${report}` : ''})${state ? ` → ${nextAction(state)}` : ''}`);
+    // Compactage pendant un run : la conversation résumée ne suffit pas, l'état du run est dans les fichiers du change.
+    if (input.source === 'compact' && changeState(change.dir).stage === 'run en cours') {
+      const next = nextTask(change.dir);
+      const log = `openspec/changes/${change.name}/${RUN_LOG}`;
+      lines.push(`  Reprise après compactage : le run de ${change.name} continue sans rendre la main. ${next
+        ? `Reprends hx-implement ${change.name}, à la tâche « ${next} » (les tâches cochées sont faites et commitées).`
+        : 'Toutes les tâches sont cochées : hx-verify, puis hx-review.'} Relis ${log} : hypothèses et décisions des tâches faites, pour le rapport et pour les tâches suivantes.`);
+    }
     if (state?.stage === 'validé, run à lancer') {
       lines.push(`  Run prêt à lancer : si l'utilisateur écrit « go » (ou ne demande rien d'autre), lance hx-implement ${change.name} sans autre question.`);
     }
@@ -235,13 +246,37 @@ function recordShipDecision(root, input) {
   return 0;
 }
 
+// Demande de livraison tapée par l'utilisateur, au même titre qu'un clic : « /hx-ship [change] » en début de message, ou
+// « livre » à l'impératif en tête de phrase (« Livre-le », « ok, livre add-mult »). Une phrase négative (« ne livre
+// pas », « pas maintenant ») retire une décision consignée. Seule la dernière ligne qui en parle compte : un rapport
+// collé au-dessus ne décide rien.
+const SHIP_ORDER = /(?:^|[.!?;:]\s*|\b(?:oui|ok|go|vas-y|bon|alors)[,\s]+)(?:livre|livrez|livrons)(?:-(?:le|la|les))?(?=$|[\s,.!?;:])/i;
+const SHIP_REFUSAL = /\bne\s+(?:\S+\s+)?livre[sz]?\s+pas\b|ne pas livrer|\bpas (?:maintenant|encore)\b/i;
+
+export function shipRequest(prompt) {
+  const text = String(prompt ?? '').trim();
+  if (/^\/(?:[\w-]+:)?hx-ship(?:\s|$)/.test(text)) return { decision: 'approve', said: text.split(/\r?\n/)[0] };
+  const said = text.split(/\r?\n/).map((l) => l.trim()).findLast((l) => SHIP_REFUSAL.test(l) || SHIP_ORDER.test(l));
+  if (!said) return null;
+  return { decision: SHIP_REFUSAL.test(said) ? 'refuse' : 'approve', said: said.slice(0, 120) };
+}
+
+export function userPromptSubmit(root, input) {
+  const request = shipRequest(input.prompt);
+  if (!request) return 0;
+  const state = readState(root, input) ?? initialState(root) ?? { base: null, seen: {} };
+  const { shipApproval, ...rest } = state;
+  writeState(root, input, request.decision === 'approve' ? { ...rest, shipApproval: { at: new Date().toISOString(), answer: request.said } } : rest);
+  return 0;
+}
+
 // Skills installés par OpenSpec qui court-circuitent le workflow du harness (réécrits par `openspec update` : on ne les modifie pas).
 // Refusés avec l'alternative : Claude bascule seul, sans solliciter l'utilisateur, qui garde /opsx:apply.
 const REDIRECTED_SKILLS = {
   'openspec-apply-change': 'Le harness implémente un change avec hx-implement (sous-agent neuf par tâche, revue de conformité, preuve). Pour openspec-apply-change, l\'utilisateur lance /opsx:apply lui-même.',
 };
 
-// /hx-ship lancé par Claude (outil Skill) sans choix « livrer » de l'utilisateur : livraison automatique, permise
+// /hx-ship lancé par Claude (outil Skill) sans décision de livrer de l'utilisateur (clic ou message) : livraison automatique, permise
 // seulement si `hx confidence` l'autorise. Renvoie la raison du refus, ou null.
 function automaticShipRefusal(root, args) {
   const named = String(args ?? '').trim().split(/\s+/)[0];
@@ -251,7 +286,7 @@ function automaticShipRefusal(root, args) {
   if (r?.auto) return null;
   const why = r ? `score ${r.score}/100, seuil ${r.threshold}${r.exclusions.length ? ` ; ${r.exclusions.join(' ; ')}` : ''}` : 'change non précisé';
   if (r?.next === 'fix') return `Livraison automatique refusée par hx confidence (${why}), mais le plafond ${r.ceiling} atteint le seuil : suis la boucle de correction de hx-review (${r.reason}), puis relance hx confidence.`;
-  return `Livraison automatique refusée par hx confidence (${why}). Termine le rapport de fin de run par la question « ${SHIP_HEADER} » (choix cliquable, voir hx-review) : seul un choix « livrer » de l'utilisateur autorise /hx-ship.`;
+  return `Livraison automatique refusée par hx confidence (${why}). Termine le rapport de fin de run par la question « ${SHIP_HEADER} » (choix cliquable, voir hx-review) : seule une décision de l'utilisateur (choix « livrer », ou message « livre <change> ») autorise /hx-ship.`;
 }
 
 // Ne demande jamais confirmation : le mode de permission (Auto de préférence) décide. Skill qui court-circuite le
@@ -267,7 +302,7 @@ export function preToolUse(root, input) {
       if (state?.shipApproval) {
         const { shipApproval, ...rest } = state;
         writeState(root, input, rest);
-        output({ additionalContext: `Livraison décidée par l'utilisateur (« ${shipApproval.answer} ») : mode manuel de /hx-ship.` });
+        output({ additionalContext: `Livraison décidée par l'utilisateur (« ${shipApproval.answer} ») : mode manuel de /hx-ship. Mineurs proposés sans décision de l'utilisateur : demande-la avant l'archive.` });
         return 0;
       }
     }
@@ -345,7 +380,7 @@ export function stop(root, input) {
   return 0;
 }
 
-const HANDLERS = { 'session-start': sessionStart, 'pre-tool-use': preToolUse, 'post-tool-use': postToolUse, stop };
+const HANDLERS = { 'session-start': sessionStart, 'user-prompt-submit': userPromptSubmit, 'pre-tool-use': preToolUse, 'post-tool-use': postToolUse, stop };
 
 export function runHook(event, root, input) {
   const handler = HANDLERS[event];

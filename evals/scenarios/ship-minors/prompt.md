@@ -13,10 +13,10 @@ Aucune
 ### Revue
 | Gravité | Fichier:ligne | Constat | Suite (corrigé, proposé, écarté et pourquoi) |
 |---|---|---|---|
-| mineur | src/mult.js:1 | `mult` n'a pas de commentaire de documentation | proposé : un commentaire JSDoc d'une ligne au-dessus de `mult` |
+| mineur | src/mult.js:2 | `export default mult` double l'export nommé, que seul le test importe | proposé : retirer l'export par défaut |
 
 ### Mineurs proposés (non appliqués)
-- src/mult.js:1 — lisibilité — `mult` sans commentaire de documentation — ajouter un commentaire JSDoc d'une ligne
+- src/mult.js:2 — simplicité — export par défaut inutilisé, doublon de l'export nommé — retirer `export default mult;`
 
 Applique-t-on ces mineurs : tous, une partie (lesquels) ou aucun ?
 

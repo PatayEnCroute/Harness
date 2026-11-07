@@ -107,7 +107,7 @@ describe('hooks Claude Code', () => {
     write(root, 'openspec/changes/add-mult/run-report.md', '## add-mult : Bloqué : spec fausse\n');
     const refused = decision(ship('add-mult'));
     assert.equal(refused.permissionDecision, 'deny');
-    assert.match(refused.permissionDecisionReason, /rapport de fin de run : Bloqué.*question « Livraison ».*seul un choix « livrer » de l'utilisateur autorise \/hx-ship/);
+    assert.match(refused.permissionDecisionReason, /rapport de fin de run : Bloqué.*question « Livraison ».*seule une décision de l'utilisateur.*autorise \/hx-ship/);
     const off = project({ components: {} }, change);
     assert.match(decision(hook('pre-tool-use', off, { tool_name: 'Skill', tool_input: { skill: 'hx-ship', args: 'add-mult' } })).permissionDecisionReason, /ship\.auto/);
   });
@@ -140,6 +140,29 @@ describe('hooks Claude Code', () => {
     ask('Livrer');
     ask('Ne pas livrer maintenant');
     assert.equal(ship().permissionDecision, 'deny', 'la dernière réponse compte');
+  });
+
+  test('livraison : « livre <change> » tapé par l\'utilisateur autorise hx-ship une fois, comme un clic', () => {
+    const change = { 'openspec/changes/add-mult/.openspec.yaml': 'x-track: M\nx-validated: 2026-10-18\n', 'openspec/changes/add-mult/run-report.md': '## add-mult : Prêt à livrer\n' };
+    const { root } = gitProject({ components: {} }, change);
+    const session = { session_id: `p-${Date.now()}` };
+    hook('session-start', root, session);
+    const say = (prompt, s = session) => hook('user-prompt-submit', root, { ...s, prompt });
+    const ship = (s = session) => decision(hook('pre-tool-use', root, { ...s, tool_name: 'Skill', tool_input: { skill: 'hx-ship', args: 'add-mult' } }));
+    say('Où en est add-mult ? J\'ai lu un livre sur le sujet, le change est livré ?');
+    assert.equal(ship().permissionDecision, 'deny', 'aucune demande de livraison');
+    const report = '## add-mult : Prêt à livrer\nOptions : « Livrer (Recommandé) » · « Ne pas livrer maintenant »\n';
+    assert.equal(say(`${report}\nLivre-le : archive OpenSpec, puis PR.`).code, 0);
+    assert.equal(ship({ session_id: 'autre' }).permissionDecision, 'deny', 'autre session');
+    const allowed = ship();
+    assert.equal(allowed.permissionDecision, undefined, 'la dernière ligne décide, pas le rapport collé');
+    assert.match(allowed.additionalContext, /Livre-le.*mode manuel.*Mineurs proposés sans décision/);
+    assert.equal(ship().permissionDecision, 'deny', 'une seule fois');
+    say('/hx-ship add-mult Applique d\'abord le mineur.');
+    assert.equal(ship().permissionDecision, undefined, 'commande tapée');
+    say('ok, livre add-mult');
+    say('En fait non, ne le livre pas encore');
+    assert.equal(ship().permissionDecision, 'deny', 'contre-ordre');
   });
 
   test('pre-tool-use : un lien symbolique vers le projet ne fait pas manquer un chemin protégé', () => {
@@ -267,6 +290,26 @@ describe('hooks Claude Code', () => {
     assert.match(r.stdout, /add-mult \(piste M, cadrage non validé, 1\/2 tâches\)/);
     assert.match(r.stdout, /add-div \(piste M, cadrage validé le 2026-10-18, 0\/0 tâches, rapport : Prêt à livrer\)/);
     assert.doesNotMatch(r.stdout, /autres worktrees/);
+  });
+
+  test('session-start après compactage : un run en cours reprend depuis ses fichiers, sans rendre la main', () => {
+    const change = (tasks, extra = {}) => project({ components: {} }, {
+      'openspec/changes/add-mult/.openspec.yaml': 'x-track: M\nx-validated: 2026-11-07\n',
+      'openspec/changes/add-mult/tasks.md': tasks,
+      'openspec/changes/add-mult/run-log.md': '## 1.1 a\n- Hypothèse : entiers seulement\n',
+      ...extra,
+    });
+    const mid = change('## 1\n- [x] 1.1 a\n- [ ] 1.2 multiplier par zéro\n- [ ] 1.3 c\n');
+    const r = hook('session-start', mid, { source: 'compact' });
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /Reprise après compactage : le run de add-mult continue sans rendre la main/);
+    assert.match(r.stdout, /hx-implement add-mult, à la tâche « 1\.2 multiplier par zéro »/);
+    assert.match(r.stdout, /openspec\/changes\/add-mult\/run-log\.md/);
+    assert.doesNotMatch(hook('session-start', mid, { source: 'startup' }).stdout, /Reprise après compactage/, 'seulement après un compactage');
+    const end = hook('session-start', change('- [x] 1.1 a\n'), { source: 'compact' }).stdout;
+    assert.match(end, /Toutes les tâches sont cochées : hx-verify, puis hx-review/);
+    const reported = change('- [x] 1.1 a\n', { 'openspec/changes/add-mult/run-report.md': '## add-mult : Prêt à livrer\n' });
+    assert.doesNotMatch(hook('session-start', reported, { source: 'compact' }).stdout, /Reprise après compactage/, 'run terminé');
   });
 
   test('session-start : changes des autres worktrees signalés, avec leur étape', () => {
