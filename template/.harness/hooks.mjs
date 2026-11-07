@@ -28,6 +28,9 @@ import {
   shippedAction,
   tail,
   taskProgress,
+  nextTask,
+  changeState,
+  RUN_LOG,
   worktreeStatus,
 } from './hx.mjs';
 
@@ -196,6 +199,14 @@ export function sessionStart(root, input, env = process.env) {
     const report = reportVerdict(change.dir);
     const state = here?.changes.find((c) => c.name === change.name);
     lines.push(`- Change OpenSpec en cours : ${change.name} (piste ${meta['x-track'] ?? '?'}, ${gate}, ${done}/${total} tâches${report ? `, rapport : ${report}` : ''})${state ? ` → ${nextAction(state)}` : ''}`);
+    // Compactage pendant un run : la conversation résumée ne suffit pas, l'état du run est dans les fichiers du change.
+    if (input.source === 'compact' && changeState(change.dir).stage === 'run en cours') {
+      const next = nextTask(change.dir);
+      const log = `openspec/changes/${change.name}/${RUN_LOG}`;
+      lines.push(`  Reprise après compactage : le run de ${change.name} continue sans rendre la main. ${next
+        ? `Reprends hx-implement ${change.name}, à la tâche « ${next} » (les tâches cochées sont faites et commitées).`
+        : 'Toutes les tâches sont cochées : hx-verify, puis hx-review.'} Relis ${log} : hypothèses et décisions des tâches faites, pour le rapport et pour les tâches suivantes.`);
+    }
     if (state?.stage === 'validé, run à lancer') {
       lines.push(`  Run prêt à lancer : si l'utilisateur écrit « go » (ou ne demande rien d'autre), lance hx-implement ${change.name} sans autre question.`);
     }

@@ -158,9 +158,9 @@ for scenario in "${scenarios[@]}"; do
       # Dossier temporaire jamais approuvé (trust) : claude -p y ignore permissions.allow du projet. On repasse les
       # permissions du template par --settings, qui s'applique toujours : mêmes règles que chez l'utilisateur, rien d'ajouté.
       permissions="$(node -e 'const s = JSON.parse(require("fs").readFileSync(".claude/settings.json", "utf8")); console.log(JSON.stringify({ permissions: s.permissions }))')"
-      # Un tour par prompt : prompt.md, puis followup.md s'il existe (réponse de l'utilisateur, même conversation).
+      # Un tour par prompt : prompt.md, puis followup.md, followup-2.md, followup-3.md s'ils existent (même conversation).
       turn=()
-      for prompt in "$dir/prompt.md" "$dir/followup.md"; do
+      for prompt in "$dir/prompt.md" "$dir/followup.md" "$dir/followup-2.md" "$dir/followup-3.md"; do
         [ -f "$prompt" ] || continue
         timeout "$timeout_s" claude -p "$(cat "$prompt")" "${turn[@]}" --settings "$permissions" --model "$model" "${effort_args[@]}" \
           --output-format stream-json --verbose --permission-mode "$permission_mode" \

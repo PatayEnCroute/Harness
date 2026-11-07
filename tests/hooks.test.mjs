@@ -292,6 +292,26 @@ describe('hooks Claude Code', () => {
     assert.doesNotMatch(r.stdout, /autres worktrees/);
   });
 
+  test('session-start après compactage : un run en cours reprend depuis ses fichiers, sans rendre la main', () => {
+    const change = (tasks, extra = {}) => project({ components: {} }, {
+      'openspec/changes/add-mult/.openspec.yaml': 'x-track: M\nx-validated: 2026-11-07\n',
+      'openspec/changes/add-mult/tasks.md': tasks,
+      'openspec/changes/add-mult/run-log.md': '## 1.1 a\n- Hypothèse : entiers seulement\n',
+      ...extra,
+    });
+    const mid = change('## 1\n- [x] 1.1 a\n- [ ] 1.2 multiplier par zéro\n- [ ] 1.3 c\n');
+    const r = hook('session-start', mid, { source: 'compact' });
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /Reprise après compactage : le run de add-mult continue sans rendre la main/);
+    assert.match(r.stdout, /hx-implement add-mult, à la tâche « 1\.2 multiplier par zéro »/);
+    assert.match(r.stdout, /openspec\/changes\/add-mult\/run-log\.md/);
+    assert.doesNotMatch(hook('session-start', mid, { source: 'startup' }).stdout, /Reprise après compactage/, 'seulement après un compactage');
+    const end = hook('session-start', change('- [x] 1.1 a\n'), { source: 'compact' }).stdout;
+    assert.match(end, /Toutes les tâches sont cochées : hx-verify, puis hx-review/);
+    const reported = change('- [x] 1.1 a\n', { 'openspec/changes/add-mult/run-report.md': '## add-mult : Prêt à livrer\n' });
+    assert.doesNotMatch(hook('session-start', reported, { source: 'compact' }).stdout, /Reprise après compactage/, 'run terminé');
+  });
+
   test('session-start : changes des autres worktrees signalés, avec leur étape', () => {
     const { root, git } = gitProject({ components: {} });
     const other = `${root}-add-mult`;

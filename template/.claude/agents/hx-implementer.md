@@ -26,6 +26,7 @@ Tu réalises **une seule tâche**, décrite dans le message qui te lance. Rien d
 - **Preuve** : commandes lancées, avec le résultat rouge puis vert (extraits courts).
 - **Tags** : scénarios couverts.
 - **Hypothèses** : chaque choix que la spec ne tranchait pas (valeur, nommage visible, cas limite), et l'option retenue. « Aucune » si rien.
+- **Décisions** : ce que les tâches suivantes doivent respecter (nom, signature, format, emplacement). « Aucune » si rien. Respecte celles qu'on t'a transmises : si une décision précédente bloque la tâche, signale-le au lieu de la changer.
 - **Écarts ou blocages** : ce qui n'a pas pu être fait, ou ce qui dépasse la tâche.
 
 Un rapport sans preuve d'exécution est un rapport incomplet.

@@ -624,6 +624,11 @@ export function readChangeMeta(dir) {
   return meta;
 }
 
+// Première tâche non cochée de tasks.md (texte sans la case), ou null.
+export function nextTask(dir) {
+  return /^\s*-\s*\[ \]\s*(.+?)\s*$/m.exec(readText(path.join(dir, 'tasks.md')))?.[1] ?? null;
+}
+
 export function taskProgress(dir) {
   const tasks = readText(path.join(dir, 'tasks.md'));
   const done = (tasks.match(/^\s*-\s*\[[xX]\]/gm) ?? []).length;
@@ -835,6 +840,8 @@ export function createWorktree(root, change, { target, branch = change } = {}) {
 }
 
 export const RUN_REPORT = 'run-report.md';
+// Journal de run écrit par hx-implement : hypothèses et décisions de chaque tâche, relu après un compactage et par hx-review.
+export const RUN_LOG = 'run-log.md';
 
 // Verdict du rapport de fin de run écrit par hx-review, lu sur son titre « ## <change> : <verdict> ».
 // null sans rapport ; « illisible » si le titre n'a pas ce format.
