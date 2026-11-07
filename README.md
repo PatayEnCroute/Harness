@@ -152,7 +152,7 @@ Le commentaire de revue donne : verdict, indice et contrôles, constats triés p
 | **16 skills** | Workflow : `hx-setup`, `hx-triage`, `hx-clarify`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr`, `hx-debug`, `hx-learn`, `hx-discover` · À la demande : `hx-security-audit`, `hx-explain`, `hx-dream`, `hx-update` |
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **4 rules** | `openspec` · `testing` · `architecture` (feature-first, proportionnée) · `comments` (aucun par défaut, liste fermée d'exceptions) |
-| **4 hooks** | `SessionStart` : prochaine action de chaque change · `PreToolUse` : rappel sur un fichier sensible, `/hx-ship` refusé à Claude sans ton clic « livrer » ni indice suffisant · `PostToolUse` : lint du fichier édité, réponse à « Livraison » notée · `Stop` : contrôles rapides et chemins protégés avant de rendre la main |
+| **5 hooks** | `SessionStart` : prochaine action de chaque change · `UserPromptSubmit` : ton « livre <change> » noté comme un clic · `PreToolUse` : rappel sur un fichier sensible, `/hx-ship` refusé à Claude sans ta décision (clic « livrer » ou « livre <change> ») ni indice suffisant · `PostToolUse` : lint du fichier édité, réponse à « Livraison » notée · `Stop` : contrôles rapides et chemins protégés avant de rendre la main |
 | **CLI `hx`** | `check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `run` (une commande du contrat) · `status` (état des runs) · `confidence` (livraison automatique) · `worktree` · `doctor` · `stats` (mesures d'élagage) · `trace` · `detect` · `migrate` · `openspec` (version épinglée) |
 
 <details>
