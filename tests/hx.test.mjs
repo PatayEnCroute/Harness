@@ -36,6 +36,7 @@ import {
   validateConfig,
   worktreeStatus,
   claudeCodeCheck,
+  sandboxCheck,
 } from '../template/.harness/hx.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -391,6 +392,19 @@ describe('CLI', () => {
     assert.equal(claudeCodeCheck('2.0.999').level, 'error');
     assert.equal(claudeCodeCheck(null).level, 'warn', 'absente du PATH (Desktop embarque la sienne) : non vérifiable');
     assert.equal(claudeCodeCheck('version inconnue').level, 'warn');
+  });
+
+  test('doctor : sandbox, opt-in ; repli silencieux et livraison automatique sans isolation signalés', () => {
+    assert.equal(sandboxCheck({}, false).level, 'ok');
+    assert.match(sandboxCheck({}, false).detail, /désactivé.*\/hx-setup/);
+    const unsafe = sandboxCheck({}, true);
+    assert.equal(unsafe.level, 'warn');
+    assert.match(unsafe.detail, /livraison automatique sans sandbox/);
+    const fallback = sandboxCheck({ sandbox: { enabled: true } }, false);
+    assert.equal(fallback.level, 'warn');
+    assert.match(fallback.detail, /failIfUnavailable/);
+    assert.equal(sandboxCheck({ sandbox: { enabled: true, failIfUnavailable: true } }, true).level, 'ok');
+    assert.equal(sandboxCheck({ sandbox: { enabled: false, failIfUnavailable: true } }, true).level, 'warn');
   });
 
   test('openspec : la version épinglée est respectée', () => {

@@ -1275,6 +1275,33 @@ export function checkSettings(root) {
     : { level: 'ok', detail: '.claude/settings.json' };
 }
 
+// Sandbox de Claude Code (commandes shell seulement), opt-in proposé par /hx-setup. Sans failIfUnavailable, une
+// plateforme qui ne le supporte pas repasse en silence hors sandbox. settings : réglages du projet fusionnés.
+export function sandboxCheck(settings, shipAuto) {
+  const sandbox = settings?.sandbox ?? {};
+  if (sandbox.enabled === true) {
+    return sandbox.failIfUnavailable === true
+      ? { level: 'ok', detail: 'activé, sans repli hors sandbox' }
+      : { level: 'warn', detail: 'activé, mais repli silencieux hors sandbox si la plateforme ne le supporte pas : ajoute sandbox.failIfUnavailable: true' };
+  }
+  return shipAuto
+    ? { level: 'warn', detail: 'livraison automatique sans sandbox : les commandes shell du run tournent sans isolation (/hx-setup peut l\'activer)' }
+    : { level: 'ok', detail: 'désactivé (opt-in, proposé par /hx-setup)' };
+}
+
+function projectSettings(root) {
+  const read = (name) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(root, '.claude', name), 'utf8'));
+    } catch {
+      return {};
+    }
+  };
+  const shared = read('settings.json');
+  const local = read('settings.local.json');
+  return { ...shared, ...local, sandbox: { ...shared.sandbox, ...local.sandbox } };
+}
+
 const CONFLICT_MARKER = /^(<{7}|>{7})( |$)/m;
 
 // Restes d'un `copier update` en conflit dans les fichiers du harness : marqueurs <<<<<<< / >>>>>>> ou fichiers .rej.
@@ -1347,6 +1374,8 @@ function cmdDoctor(root, args) {
 
   const settings = checkSettings(root);
   add(settings.level, 'Hooks Claude Code', settings.detail);
+  const sandbox = sandboxCheck(projectSettings(root), config?.ship?.auto === true);
+  add(sandbox.level, 'Sandbox', sandbox.detail);
 
   const conflicts = mergeLeftovers(root);
   if (conflicts.length) add('error', 'Fusion copier update', `conflits non résolus : ${conflicts.join(', ')}`);

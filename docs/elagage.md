@@ -74,6 +74,7 @@ Contrôles déterministes, quasi gratuits et indépendants du modèle, ou outils
 | `hx worktree` | Deux changes ne se gênent pas dans un même dossier |
 | `hx status` | L'utilisateur ne perd pas le fil des runs en cours |
 | `hx confidence` + garde de `PreToolUse` | La livraison seule dépend de faits (fichiers, git), pas de l'avis de l'agent qui a codé |
+| Version minimale de Claude Code, contrôle du sandbox (`hx doctor`) | Un run autonome ne tourne pas sur une version aux failles connues, ni sans isolation à l'insu de l'utilisateur. Minimum à relever à chaque nouvel avis de sécurité. |
 | Hook `Stop` (chemins protégés) | Une protection contournée par Bash (`cd`, script) se voit quand même |
 | `hx-setup` | Gain de temps, pas une faiblesse du modèle (eval `setup`) |
 | `hx-update` | Gain de temps : mise à jour et conflits sans commande à taper |

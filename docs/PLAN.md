@@ -216,6 +216,18 @@ Seul `hx-explorer` fixe son modèle ; les autres héritent de la session. « Non
 
 **Pas de confirmation imposée** : personne ne relit une confirmation répétée, et elle interromprait le mode Auto. Les actions risquées reviennent au mode de permission. `permissions.deny` interdit d'éditer `hx.mjs`, `hooks.mjs` et `versions.json`.
 
+**Le mode Auto ne garde pas tout.** Son classifieur juge les commandes, pas les éditions de fichiers dans le projet : une évaluation indépendante en trouve 36,8 % hors de son périmètre ([étude](research/harness-industrie-2026-11.md#11-sécurité-incidents-et-gouvernance)). Le sandbox de Claude Code, lui, ne couvre que les commandes shell, ni Edit, ni Write, ni les hooks. Les gardes du harness ne reposent donc sur aucun des deux et restent déterministes :
+
+| Garde | Ce qu'elle tient |
+|---|---|
+| `permissions.deny` | outils du harness non modifiables |
+| Hook `PreToolUse` | `/hx-ship` sans décision de l'utilisateur, `openspec-apply-change` |
+| Hook `Stop` | chemins protégés modifiés, quel que soit l'outil (Bash compris) |
+| `hx confidence` | aucune livraison seule d'un change qui touche `.harness/`, `.claude/`, `.github/`, `CLAUDE.md` |
+| `hx doctor` | Claude Code ≥ 2.1.260 (tous les correctifs de sécurité publiés) ; sandbox signalé s'il manque à la livraison automatique ou s'il peut repasser hors sandbox en silence |
+
+Le sandbox reste **opt-in** (`/hx-setup`, étape 13) : désactivé par défaut dans Claude Code, absent sous Windows natif, réseau à ouvrir domaine par domaine. Activé, il exige `failIfUnavailable`.
+
 ### 4.3 Contrôles (`hx check`, identiques en local et en CI)
 
 | Étape | Vérifie |
@@ -364,7 +376,7 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | 1 ✅ | **Evals complètes** | Chaque résultat enregistre aussi l'effort, le mode de permission et les tokens (entrée, pic de contexte) | colonnes présentes dans `evals/results/` |
 | 2 ◐ | **A/B des composants fragiles** | `--runs 10 --without` sur `hx-triage`, `hx-tdd`, `hx-implement`, hook `PostToolUse` ; puis une campagne sur Opus 5.5. Bruit ~6 points : seul un grand écart de réussite ou de coût décide | une ligne par composant dans le journal d'élagage |
 | 3 ✅ | **Run robuste** (P14) | Journal de run (`run-log.md` : hypothèses, décisions par tâche), transmis à chaque `hx-implementer` ; hook qui réinjecte l'état après un compactage | eval avec compactage forcé : le run va au rapport, hypothèses intactes |
-| 4 | **Sécurité du run autonome** | `hx doctor` exige une version minimale de Claude Code ; `/hx-setup` propose le sandbox en option ; PLAN §4.2 : l'auto mode ne juge pas les éditions de fichiers, les gardes du harness restent déterministes | `hx doctor` le vérifie |
+| 4 ✅ | **Sécurité du run autonome** | `hx doctor` exige une version minimale de Claude Code ; `/hx-setup` propose le sandbox en option ; PLAN §4.2 : l'auto mode ne juge pas les éditions de fichiers, les gardes du harness restent déterministes | `hx doctor` le vérifie |
 | 5 | **Élaguer** | Retirer ce que l'étape 2 ou Claude Code rend inutile (P9, P13) | journal d'élagage à jour |
 
 À ignorer tant qu'aucun besoin n'est observé : agent teams, multi-harness, Agent Plugins, A2A, mémoire automatique, `/goal` comme fin de run (juge sans outils, contraire à P6).
