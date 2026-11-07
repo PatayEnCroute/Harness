@@ -4,6 +4,10 @@ Versions du template, au format [Keep a Changelog](https://keepachangelog.com/fr
 
 ## [Non publié]
 
+## [0.15.0] — 2026-11-07
+
+Regroupe les versions 0.6.0 à 0.15.0, taguées du 20/10 au 07/11/2026 sans entrée dédiée dans ce fichier : phase 7 (Desktop et livraison automatique) et phase 8 (mesurer avant d'ajouter : evals complètes, run robuste, sécurité du run autonome).
+
 **Fluidité dans Claude Code Desktop** : un change tient dans une seule session Desktop, et l'utilisateur ne tape plus aucune commande. Les trois arrêts prévus (porte de cadrage, livraison, après le merge) se franchissent d'un clic.
 
 Plus aucune confirmation imposée par le harness : personne ne les relisait, et elles interrompaient aussi le mode Auto, qui décide désormais seul des actions risquées. L'archive OpenSpec reste le dernier commit, même quand la PR est demandée avant la décision sur les mineurs. Le cadrage d'un change M avec design ou L est contesté par un relecteur avant la porte.

@@ -2,7 +2,7 @@
 
 Le **pourquoi** et le **comment** du template. Pour l'installer et s'en servir, voir le [`README`](../README.md).
 
-> **Statut** : phases 0 à 6 publiées, éprouvées sur un vrai projet ; phase 7 sur `main`, non publiée ; phase 8 (mesurer avant d'ajouter) faite sur la branche de travail, non publiée (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
+> **Statut** : phases 0 à 6 éprouvées sur un vrai projet ; phases 7 et 8 publiées en v0.15.0, pas encore éprouvées sur un vrai projet (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
 > **Cadre** : Claude Code · projets solo · GitHub Actions · agnostique de la stack · OpenSpec 1.14.x
 > **Sources** : [état de l'art d'octobre 2026](research/etat-de-l-art-2026-10.md), [état de l'industrie de novembre 2026](research/harness-industrie-2026-11.md), [ingénierie de contexte](research/ingenierie-de-contexte-2026-11.md)
 
@@ -366,8 +366,8 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | **P4 Fiabilité** ✅ | Plus de faux verts, hook `Stop` fondé sur git, chemins protégés | v0.3.0 |
 | **P5 Démarrage** ✅ | Lanceur `npx`, `INSTALL.md` | v0.4.0 |
 | **P6 Runs sans interruption** ✅ | Porte de cadrage, `hx worktree`, rapport de fin de run | v0.5.0 |
-| **P7 Desktop et livraison** ✅ | Un change par session, choix cliquables, `/hx-update`, livraison automatique (`hx confidence`, boucle de correction, revue de PR) | non publiée |
-| **P8 Mesurer avant d'ajouter** | Voir ci-dessous | — |
+| **P7 Desktop et livraison** ✅ | Un change par session, choix cliquables, `/hx-update`, livraison automatique (`hx confidence`, boucle de correction, revue de PR) | v0.15.0 |
+| **P8 Mesurer avant d'ajouter** ✅ | Voir ci-dessous | v0.15.0 |
 
 **P8 : mesurer avant d'ajouter.** Le harness a grossi plus vite qu'il n'a été mesuré : aucun A/B `--without` n'a été mené ([`elagage.md`](elagage.md)). **Aucune nouvelle fonction avant la fin des étapes 1 et 2.** Dans l'ordre :
 
