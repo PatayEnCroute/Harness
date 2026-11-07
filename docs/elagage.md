@@ -37,6 +37,7 @@ flowchart LR
 | `hx-implement` | Contexte dégradé sur un long change, sortie de la spec | eval `implement-m` | réussite égale sans lui, sur ≥ 5 tâches |
 | `hx-verify` + hook `Stop` | « Terminé » déclaré sans preuve | `hx check` vert en fin d'evals | plus aucun échec de `check` sans lui |
 | Hook `PostToolUse` | Erreurs de lint accumulées jusqu'à la fin | échecs `lint` en fin de tâche | le lint final passe toujours sans lui |
+| Journal de run + reprise après compactage | Hypothèses perdues par un compactage, décisions ignorées d'une tâche à l'autre, reprise à l'aveugle | eval `resume-run` | Claude Code garde l'état du run à travers un compactage sans lui |
 
 ### Cadrage
 
