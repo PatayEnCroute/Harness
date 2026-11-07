@@ -6,7 +6,16 @@ import { pathToFileURL } from 'node:url';
 
 export function metrics(lines) {
   const events = lines.map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-  const results = events.filter((e) => e.type === 'result');
+  // Un processus claude -p (un tour) commence par system/init. Il peut émettre plusieurs « result » (un par réveil, par
+  // exemple à la fin d'un sous-agent en arrière-plan), chacun cumulé depuis le début du processus : seul le dernier de
+  // chaque processus compte, sinon coût et tokens sont multipliés.
+  const results = [];
+  let last = null;
+  for (const e of events) {
+    if (e.type === 'system' && e.subtype === 'init') { if (last) results.push(last); last = null; }
+    if (e.type === 'result') last = e;
+  }
+  if (last) results.push(last);
   const init = events.find((e) => e.type === 'system' && e.subtype === 'init');
   const sum = (values) => (values.length ? values.reduce((n, v) => n + (v ?? 0), 0) : null);
 

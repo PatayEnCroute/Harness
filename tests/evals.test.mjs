@@ -50,6 +50,14 @@ describe('evals : metrics.mjs', () => {
     });
   });
 
+  test('plusieurs result dans un même processus (réveils) : seul le dernier, cumulé, compte', () => {
+    const r = (cost) => JSON.stringify({ type: 'result', duration_ms: 1000, total_cost_usd: cost, result: `r${cost}`, modelUsage: { a: { inputTokens: 100, outputTokens: 10 } } });
+    const m = metrics([JSON.stringify({ type: 'system', subtype: 'init' }), r(0.5), r(0.65), r(0.65), JSON.stringify({ type: 'system', subtype: 'init' }), r(0.1)]);
+    assert.equal(m.cost_usd, 0.75);
+    assert.equal(m.input_tokens, 200);
+    assert.equal(m.result, 'r0.1');
+  });
+
   test('sans modelUsage : repli sur usage de la boucle principale', () => {
     const m = metrics([JSON.stringify({ type: 'result', duration_ms: 0, total_cost_usd: 0, usage: usage(3, 4, 5, 6) })]);
     assert.equal(m.input_tokens, 12);
