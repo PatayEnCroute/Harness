@@ -42,7 +42,8 @@ variant="${without:+without:$without}"
 variant="${variant:-full}"
 copier=(uvx --from "copier==${COPIER_VERSION:-9.19.1}" copier)
 # Aucune règle Bash ici : les commandes passent par les seules permissions du template (.claude/settings.json),
-# comme chez l'utilisateur. Une commande refusée fait échouer l'exécution (no_permission_denials).
+# comme chez l'utilisateur. Une commande refusée n'échoue pas d'office : elle est comptée (permission_denials), le
+# verdict porte sur le travail rendu. Un scénario qui interdit un refus précis appelle no_permission_denials <outil>.
 tools=(Read Edit Write Glob Grep Agent Task Skill TodoWrite)
 git_env=(-c user.email=eval@example.com -c user.name=eval)
 
@@ -122,7 +123,8 @@ record() {
       claude_version: e.R_VERSION, model: e.R_MODEL, effort: e.R_EFFORT || "défaut",
       permission_mode: v("permission_mode") ?? e.R_MODE,
       input_tokens: v("input_tokens"), cache_read_tokens: v("cache_read_tokens"), output_tokens: v("output_tokens"),
-      peak_context_tokens: v("peak_context_tokens"), kept_dir: e.R_DIR || null,
+      peak_context_tokens: v("peak_context_tokens"), permission_denials: v("permission_denials"), denied: v("denied"),
+      kept_dir: e.R_DIR || null,
     }));
   ' >> "$results"
 }
@@ -131,14 +133,14 @@ declare -A pass_by
 passed=0
 total=0
 echo "Modèle $model · effort ${effort:-défaut} · $claude_version · template $sha · variante $variant · $runs exécution(s) par scénario"
-printf '%-14s %-4s %-8s %8s %8s %9s  %s\n' scénario run verdict durée coût pic-ctx dossier
+printf '%-14s %-4s %-8s %8s %8s %9s %6s  %s\n' scénario run verdict durée coût pic-ctx refus dossier
 for scenario in "${scenarios[@]}"; do
   dir="$evals/scenarios/$scenario"
   pass_by[$scenario]=0
   for run in $(seq 1 "$runs"); do
     work="$campaign/$scenario-$run"
     mkdir -p "$work"
-    verdict=FAIL duration="" cost="" peak="" reason=""
+    verdict=FAIL duration="" cost="" peak="" denials="" reason=""
     total=$((total + 1))
 
     # set -e reste actif dans le sous-shell seulement hors contexte « || » ou « if ».
@@ -170,13 +172,12 @@ for scenario in "${scenarios[@]}"; do
       done
       # Mesures cumulées sur les tours (metrics.mjs) ; result.txt : réponse du dernier tour.
       node "$evals/lib/metrics.mjs" "$work/transcript.jsonl" "$work/result.txt" > "$work/metrics.json" 2>> "$work/stderr.log" || echo "{}" > "$work/metrics.json"
-      read -r duration cost peak < <(node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(m.duration_s ?? "?", m.cost_usd ?? "?", m.peak_context_tokens ?? "?")' "$work/metrics.json" 2>/dev/null) || true
+      read -r duration cost peak denials < <(node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(m.duration_s ?? "?", m.cost_usd ?? "?", m.peak_context_tokens ?? "?", m.permission_denials ?? "?")' "$work/metrics.json" 2>/dev/null) || true
 
       set +e; trap - ERR
       (
         set -e
         integrity "$dir" "$work"
-        TRANSCRIPT="$work/transcript.jsonl" bash -c 'source "$1"; no_permission_denials' grade "$evals/lib/grade.sh"
         RESULT="$work/result.txt" TRANSCRIPT="$work/transcript.jsonl" EVAL_LIB="$evals/lib" INITIAL_SHA="$(cat "$work/initial-sha")" \
           bash -c 'set -eE; trap "echo \"✗ échec : \$BASH_COMMAND\" >&2" ERR; source "$1"' grade "$dir/grade.sh"
       ) > "$work/grade.log" 2>&1
@@ -197,7 +198,7 @@ for scenario in "${scenarios[@]}"; do
       passed=$((passed + 1)); pass_by[$scenario]=$((pass_by[$scenario] + 1)); keep=""
     fi
     record "$scenario" "$run" "$verdict" "$work/metrics.json" "$keep" "$reason"
-    printf '%-14s %-4s %-8s %8s %8s %9s  %s\n' "$scenario" "$run" "$verdict" "${duration:-?}s" "${cost:-?}\$" "${peak:-?}" "$keep"
+    printf '%-14s %-4s %-8s %8s %8s %9s %6s  %s\n' "$scenario" "$run" "$verdict" "${duration:-?}s" "${cost:-?}\$" "${peak:-?}" "${denials:-?}" "$keep"
     [ -z "$reason" ] || echo "    ✗ $reason"
     [ -n "$keep" ] || rm -rf "$work"
   done

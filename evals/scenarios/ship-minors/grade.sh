@@ -1,5 +1,7 @@
 # Mineur décidé après la demande de PR : il est commité avant l'archive, qui reste le dernier commit, sans réécriture d'historique.
 source "$EVAL_LIB/grade.sh"
+# /hx-ship refusé par la garde : l'agent a voulu livrer sans décision reconnue de l'utilisateur.
+no_permission_denials Skill
 ! grep -q 'export default' src/mult.js || fail "mineur non appliqué : export par défaut encore présent dans src/mult.js"
 grep -q 'export const mult' src/mult.js || fail "export nommé de mult retiré de src/mult.js"
 [ -n "$(git log --format=%H "$INITIAL_SHA"..HEAD -- src/mult.js)" ] || fail "correctif de src/mult.js non commité"

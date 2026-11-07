@@ -46,7 +46,7 @@ describe('evals : metrics.mjs', () => {
     assert.deepEqual(m, {
       duration_s: 3, cost_usd: 0.35, permission_mode: 'acceptEdits',
       input_tokens: 1210 + 90001 + 20, cache_read_tokens: 91000, output_tokens: 11,
-      peak_context_tokens: 1210, result: 'fin 0.25',
+      peak_context_tokens: 1210, permission_denials: 0, denied: [], result: 'fin 0.25',
     });
   });
 
@@ -64,9 +64,20 @@ describe('evals : metrics.mjs', () => {
     assert.equal(m.output_tokens, 6);
   });
 
+  test('refus de permission : comptés une fois par appel, même répétés dans plusieurs result', () => {
+    const d = (id, command) => ({ tool_name: 'Bash', tool_use_id: id, tool_input: { command } });
+    const m = metrics([
+      JSON.stringify({ type: 'result', total_cost_usd: 0, permission_denials: [d('a', 'python3 -c 1')] }),
+      JSON.stringify({ type: 'result', total_cost_usd: 0, permission_denials: [d('a', 'python3 -c 1'), d('b', 'for x in y; do :; done')] }),
+    ]);
+    assert.equal(m.permission_denials, 2);
+    assert.deepEqual(m.denied, ['Bash(python3 -c 1)', 'Bash(for x in y; do :; done)']);
+  });
+
   test('transcript vide : null partout, jamais 0', () => {
-    const { result, ...m } = metrics(['']);
+    const { result, denied, ...m } = metrics(['']);
     assert.equal(result, '');
+    assert.deepEqual(denied, []);
     for (const [key, value] of Object.entries(m)) assert.equal(value, null, key);
   });
 });
@@ -184,6 +195,19 @@ describe('evals : aides de grade.sh', { skip: !BASH && 'bash indisponible' }, ()
     const r = grade(root, 'no_permission_denials', { TRANSCRIPT: withResult(denied) });
     assert.equal(r.status, 1);
     assert.match(r.stderr, /2 appel\(s\) refusé\(s\).*Bash\(git worktree list\) ; WebFetch/);
+  });
+
+  test('no_permission_denials <outil> : seuls les refus de cet outil comptent', () => {
+    const { root } = demo();
+    const file = transcript([run('# fail 0')]);
+    const bash = { tool_name: 'Bash', tool_use_id: 'x', tool_input: { command: 'python3 -c 1' } };
+    fs.appendFileSync(file, `${JSON.stringify({ type: 'result', permission_denials: [bash] })}\n`);
+    assert.equal(grade(root, 'no_permission_denials Skill', { TRANSCRIPT: file }).status, 0);
+    const skill = { tool_name: 'Skill', tool_use_id: 'y', tool_input: { skill: 'hx-ship' } };
+    fs.appendFileSync(file, `${JSON.stringify({ type: 'result', permission_denials: [bash, skill] })}\n`);
+    const r = grade(root, 'no_permission_denials Skill', { TRANSCRIPT: file });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /1 appel\(s\) refusé\(s\).*Skill/);
   });
 
   test('no_permission_denials : un refus au premier tour compte aussi (scénario à plusieurs tours)', () => {

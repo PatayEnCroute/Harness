@@ -31,6 +31,12 @@ export function metrics(lines) {
     .filter((e) => e.type === 'assistant' && !e.parent_tool_use_id && e.message?.usage)
     .map(({ message: { usage: u } }) => (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0));
 
+  // Refus de permission (règles du template, ou hook PreToolUse qui refuse), comptés une fois par appel d'outil.
+  const denials = [...new Map(events.filter((e) => e.type === 'result')
+    .flatMap((r) => r.permission_denials ?? []).map((d) => [d.tool_use_id, d])).values()];
+  const describe = (d) => (d.tool_name === 'Bash' ? `Bash(${String(d.tool_input?.command ?? '').split('\n')[0].slice(0, 80)})`
+    : d.tool_name === 'Skill' ? `Skill(${d.tool_input?.skill ?? '?'})` : d.tool_name);
+
   return {
     duration_s: results.length ? Math.round(sum(results.map((r) => r.duration_ms)) / 1000) : null,
     cost_usd: results.length ? Number(sum(results.map((r) => r.total_cost_usd)).toFixed(4)) : null,
@@ -39,6 +45,8 @@ export function metrics(lines) {
     cache_read_tokens: sum(usages.map((u) => u.cacheReadInputTokens)),
     output_tokens: sum(usages.map((u) => u.outputTokens)),
     peak_context_tokens: contexts.length ? Math.max(...contexts) : null,
+    permission_denials: results.length ? denials.length : null,
+    denied: denials.length ? [...new Set(denials.map(describe))].slice(0, 5) : [],
     result: results.at(-1)?.result ?? '',
   };
 }
