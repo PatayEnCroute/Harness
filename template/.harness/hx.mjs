@@ -1227,7 +1227,7 @@ export function nodeVersionOk(version = process.versions.node) {
   return major > MIN_NODE[0] || (major === MIN_NODE[0] && minor >= MIN_NODE[1]);
 }
 
-const HOOK_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop'];
+const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'];
 
 // .claude/settings.json : JSON valide (un conflit de fusion le rend illisible, et Claude Code ignore alors les hooks)
 // et chaque événement du harness câblé sur .harness/hooks.mjs.

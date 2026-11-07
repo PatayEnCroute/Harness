@@ -85,9 +85,9 @@ Suite selon la réponse :
 
 - **« … livrer »** : mineurs retenus, s'il y en a : un tour de « Corrections après le rapport » (ci-dessous), pour que les mesures suivent le code. Puis lance `/hx-ship <change>` sans rendre la main.
 - **Réponse libre** (« applique 1 et 3 ») : fais ce qu'elle demande (« Corrections après le rapport »), puis repose la question, avec les seules options « Livrer (Recommandé) » et « Ne pas livrer maintenant ».
-- **« Ne pas livrer maintenant »** : rends la main. Plus tard, « livre <change> » repose la question.
+- **« Ne pas livrer maintenant »** : rends la main. Plus tard, un message « livre <change> » de l'utilisateur vaut décision de livrer (hook `UserPromptSubmit`) : lance `/hx-ship <change>`, qui demande d'abord la décision sur les mineurs s'il en reste.
 
-Sans l'outil AskUserQuestion (session sans interface), pose la même question en texte : l'utilisateur livre alors par `/hx-ship <change>`, car le hook ne lit que la réponse rendue par l'outil.
+Sans l'outil AskUserQuestion (session sans interface), pose la même question en texte : l'utilisateur répond par message (« livre-le », « applique le mineur et livre », `/hx-ship <change>`), que le hook `UserPromptSubmit` consigne comme un clic.
 
 Rapport « Bloqué » : pas de question « Livraison ». Termine par ce qu'il faut trancher, en choix cliquables quand les options sont connues.
 

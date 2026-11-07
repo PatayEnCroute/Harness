@@ -107,7 +107,7 @@ describe('hooks Claude Code', () => {
     write(root, 'openspec/changes/add-mult/run-report.md', '## add-mult : Bloqué : spec fausse\n');
     const refused = decision(ship('add-mult'));
     assert.equal(refused.permissionDecision, 'deny');
-    assert.match(refused.permissionDecisionReason, /rapport de fin de run : Bloqué.*question « Livraison ».*seul un choix « livrer » de l'utilisateur autorise \/hx-ship/);
+    assert.match(refused.permissionDecisionReason, /rapport de fin de run : Bloqué.*question « Livraison ».*seule une décision de l'utilisateur.*autorise \/hx-ship/);
     const off = project({ components: {} }, change);
     assert.match(decision(hook('pre-tool-use', off, { tool_name: 'Skill', tool_input: { skill: 'hx-ship', args: 'add-mult' } })).permissionDecisionReason, /ship\.auto/);
   });
@@ -140,6 +140,29 @@ describe('hooks Claude Code', () => {
     ask('Livrer');
     ask('Ne pas livrer maintenant');
     assert.equal(ship().permissionDecision, 'deny', 'la dernière réponse compte');
+  });
+
+  test('livraison : « livre <change> » tapé par l\'utilisateur autorise hx-ship une fois, comme un clic', () => {
+    const change = { 'openspec/changes/add-mult/.openspec.yaml': 'x-track: M\nx-validated: 2026-10-18\n', 'openspec/changes/add-mult/run-report.md': '## add-mult : Prêt à livrer\n' };
+    const { root } = gitProject({ components: {} }, change);
+    const session = { session_id: `p-${Date.now()}` };
+    hook('session-start', root, session);
+    const say = (prompt, s = session) => hook('user-prompt-submit', root, { ...s, prompt });
+    const ship = (s = session) => decision(hook('pre-tool-use', root, { ...s, tool_name: 'Skill', tool_input: { skill: 'hx-ship', args: 'add-mult' } }));
+    say('Où en est add-mult ? J\'ai lu un livre sur le sujet, le change est livré ?');
+    assert.equal(ship().permissionDecision, 'deny', 'aucune demande de livraison');
+    const report = '## add-mult : Prêt à livrer\nOptions : « Livrer (Recommandé) » · « Ne pas livrer maintenant »\n';
+    assert.equal(say(`${report}\nLivre-le : archive OpenSpec, puis PR.`).code, 0);
+    assert.equal(ship({ session_id: 'autre' }).permissionDecision, 'deny', 'autre session');
+    const allowed = ship();
+    assert.equal(allowed.permissionDecision, undefined, 'la dernière ligne décide, pas le rapport collé');
+    assert.match(allowed.additionalContext, /Livre-le.*mode manuel.*Mineurs proposés sans décision/);
+    assert.equal(ship().permissionDecision, 'deny', 'une seule fois');
+    say('/hx-ship add-mult Applique d\'abord le mineur.');
+    assert.equal(ship().permissionDecision, undefined, 'commande tapée');
+    say('ok, livre add-mult');
+    say('En fait non, ne le livre pas encore');
+    assert.equal(ship().permissionDecision, 'deny', 'contre-ordre');
   });
 
   test('pre-tool-use : un lien symbolique vers le projet ne fait pas manquer un chemin protégé', () => {
