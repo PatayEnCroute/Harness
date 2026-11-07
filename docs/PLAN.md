@@ -363,7 +363,7 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 |---|---|---|---|
 | 1 ✅ | **Evals complètes** | Chaque résultat enregistre aussi l'effort, le mode de permission et les tokens (entrée, pic de contexte) | colonnes présentes dans `evals/results/` |
 | 2 ◐ | **A/B des composants fragiles** | `--runs 10 --without` sur `hx-triage`, `hx-tdd`, `hx-implement`, hook `PostToolUse` ; puis une campagne sur Opus 5.5. Bruit ~6 points : seul un grand écart de réussite ou de coût décide | une ligne par composant dans le journal d'élagage |
-| 3 | **Run robuste** (P14) | Journal de run (`run-log.md` : hypothèses, décisions par tâche), transmis à chaque `hx-implementer` ; hook qui réinjecte l'état après un compactage | eval avec compactage forcé : le run va au rapport, hypothèses intactes |
+| 3 ✅ | **Run robuste** (P14) | Journal de run (`run-log.md` : hypothèses, décisions par tâche), transmis à chaque `hx-implementer` ; hook qui réinjecte l'état après un compactage | eval avec compactage forcé : le run va au rapport, hypothèses intactes |
 | 4 | **Sécurité du run autonome** | `hx doctor` exige une version minimale de Claude Code ; `/hx-setup` propose le sandbox en option ; PLAN §4.2 : l'auto mode ne juge pas les éditions de fichiers, les gardes du harness restent déterministes | `hx doctor` le vérifie |
 | 5 | **Élaguer** | Retirer ce que l'étape 2 ou Claude Code rend inutile (P9, P13) | journal d'élagage à jour |
 

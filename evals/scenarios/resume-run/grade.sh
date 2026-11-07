@@ -5,7 +5,10 @@ change=openspec/changes/add-mult
 if grep -q -- '- \[ \]' "$change/tasks.md"; then fail "tâches non cochées : le run n'a pas repris jusqu'au bout"; fi
 grep -rqs '@scenario calc/multiply-by-zero' test/ || fail "tâche 1.2 non faite : tag @scenario calc/multiply-by-zero absent"
 [ -f "$change/run-report.md" ] || fail "pas de rapport de fin de run"
-grep -qi 'flottant' "$change/run-report.md" || fail "hypothèse de la tâche 1.1 (journal) absente du rapport"
+# L'hypothèse peut être reformulée (« flottants », « non entiers ») : section des hypothèses, type d'opérande et absence de contrôle.
+hypotheses="$(sed -n '/^### Hypothèses/,/^### /p' "$change/run-report.md")"
+grep -qiE 'flottant|non[- ]entier|décima' <<< "$hypotheses" && grep -qiE 'contr[ôo]l|valid' <<< "$hypotheses" \
+  || fail "hypothèse de la tâche 1.1 (journal) absente des hypothèses du rapport"
 grep -q '^## 1\.2' "$change/run-log.md" || fail "pas d'entrée du journal pour la tâche 1.2"
 [ "$(grep -c '^## 1\.1' "$change/run-log.md")" -eq 1 ] || fail "journal réécrit ou tâche 1.1 refaite"
 assumptions="$(sed -n 's/^x-run-assumptions: *\([0-9]*\).*/\1/p' "$change/.openspec.yaml")"
