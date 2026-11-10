@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const template = path.resolve(here, '..', 'template');
-const { MANIFEST, patchFiles, plan, preApproved, prefixRules, readManifest, sync, validTools } = await import(pathToFileURL(path.join(template, '.harness', 'adapters.mjs')).href);
+const { MANIFEST, harnessChecks, patchFiles, plan, preApproved, prefixRules, readManifest, sync, validTools } = await import(pathToFileURL(path.join(template, '.harness', 'adapters.mjs')).href);
 
 function project() {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-adapters-')));
@@ -120,6 +120,55 @@ describe('hx adapters', () => {
     assert.match(hx(root, 'doctor', '--no-run').out, /✓ Autres harness : Codex/);
     fs.appendFileSync(path.join(root, 'CLAUDE.md'), '\nUne consigne de plus.\n');
     assert.match(hx(root, 'doctor', '--no-run').out, /✗ Autres harness : fichiers périmés[^\n]*AGENTS\.md/);
+  });
+});
+
+describe('hx doctor : ce qui manque sur le poste pour chaque harness', () => {
+  const home = () => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'hx-home-')));
+  const put = (dir, rel, content) => {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), content);
+  };
+  const checks = (root, tools, options) => harnessChecks(root, tools, { env: {}, version: () => '9.9.9', ...options }).map((c) => `${c.level} ${c.label} : ${c.detail}`);
+
+  test('poste vierge : chaque harness dit quoi faire avant la première session', () => {
+    const root = project();
+    const lines = checks(root, ['codex', 'opencode', 'antigravity', 'dsh'], { home: home(), version: () => null });
+    assert.equal(lines.filter((l) => /^warn .* absente du PATH/.test(l)).length, 4);
+    assert.ok(lines.some((l) => /^warn Codex : projet non approuvé[^\n]*\/hooks/.test(l)));
+    assert.ok(lines.some((l) => /^warn Antigravity : dossier non approuvé/.test(l)));
+    assert.ok(lines.some((l) => /^warn DeepSeek Harness : pont de hooks absent[^\n]*dsh-hooks-claude-code/.test(l)));
+    assert.ok(lines.some((l) => /^ok OpenCode : plugin/.test(l)));
+  });
+
+  test('poste prêt : projet approuvé, pont installé, versions suffisantes', () => {
+    const root = project();
+    const h = home();
+    put(h, '.codex/config.toml', `model = "x"\n\n[projects.${JSON.stringify('/ailleurs')}]\ntrust_level = "trusted"\n\n[projects.${JSON.stringify(root)}]\ntrust_level = "trusted"\n`);
+    put(h, '.gemini/antigravity-cli/settings.json', JSON.stringify({ trustedWorkspaces: [root] }));
+    put(h, '.dsh/profiles/web/cordis.patch.yml', "- insert:\n    - name: '@deepseek-ai/dsh-hooks-claude-code'\n");
+    const lines = checks(root, ['codex', 'opencode', 'antigravity', 'dsh'], { home: h });
+    assert.deepEqual(lines.filter((l) => !l.startsWith('ok ')), []);
+    assert.ok(lines.includes('ok Codex : codex 9.9.9'));
+  });
+
+  test('Codex : l\'approbation d\'un autre projet ne compte pas', () => {
+    const root = project();
+    const h = home();
+    put(h, '.codex/config.toml', `[projects.${JSON.stringify(`${root}-autre`)}]\ntrust_level = "trusted"\n\n[projects.${JSON.stringify(root)}]\ntrust_level = "untrusted"\n`);
+    assert.ok(checks(root, ['codex'], { home: h }).some((l) => /^warn Codex : projet non approuvé/.test(l)));
+  });
+
+  test('OpenCode trop ancien : le plugin n\'est pas chargé, c\'est une erreur', () => {
+    const root = project();
+    assert.ok(checks(root, ['opencode'], { home: home(), version: () => '1.18.28' }).some((l) => /^error OpenCode : 1\.18\.28 < 1\.18\.29/.test(l)));
+    assert.ok(checks(root, ['opencode'], { home: home(), version: () => '2.2.7' }).every((l) => l.startsWith('ok ')));
+  });
+
+  test('--no-run : aucun binaire appelé, les contrôles de fichiers restent', () => {
+    const root = project();
+    const lines = checks(root, ['codex'], { home: home(), run: false, version: () => assert.fail('binaire appelé') });
+    assert.equal(lines.length, 1);
   });
 });
 

@@ -16,6 +16,7 @@ concurrency:
 
 env:
   COPIER_VERSION: "9.19.1"
+  CODEX_VERSION: "0.167.0" # CLI Codex qui valide les règles générées (tests/e2e-adapters.sh)
   OPENSPEC_TELEMETRY: "0"
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
@@ -117,7 +118,8 @@ jobs:
 
   # Parité des harness : le tableau publié (docs/parite.md) est à jour et au-dessus du plancher, chaque niveau déclaré
   # est prouvé (fichiers générés, mêmes décisions de hooks dans le protocole de chaque harness), et une installation
-  # avec tous les harness fonctionne de bout en bout. Le tableau part dans le résumé du job.
+  # avec tous les harness fonctionne de bout en bout, ses fichiers validés par de vrais outils (CLI Codex, schéma
+  # officiel d'OpenCode, parseurs TOML et YAML ; réseau). Le tableau part dans le résumé du job.
   parity:
     name: parité des harness
     runs-on: ubuntu-latest

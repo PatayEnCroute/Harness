@@ -33,7 +33,8 @@ Utiliser le même harness (consignes, skills, sous-agents, rules, hooks, permiss
 ## Conséquences
 - Un nouveau skill, agent, rule ou hook arrive dans les cinq harness sans travail de plus.
 - Ce qu'un harness ne sait pas faire est déclaré « dégradé » ou « absent », avec sa raison, au lieu d'être caché.
-- Les formats ont été relevés dans les documentations officielles, et les hooks rejoués dans le protocole de chaque harness. Aucun des quatre binaires n'est lancé en CI : un changement de format côté éditeur se voit à l'usage, pas au test.
+- Les formats ont été relevés dans les documentations officielles, et les hooks rejoués dans le protocole de chaque harness. La CI valide par de vrais outils ce qui peut l'être sans clé d'API (règles Codex par la CLI Codex, `opencode.json` par le schéma officiel, TOML et YAML par leurs parseurs). Le plugin OpenCode, les hooks Antigravity et le pont DeepSeek ne tournent sur aucun binaire en CI : un changement de format côté éditeur s'y voit à l'usage, pas au test.
+- La garde de livraison vit dans `hx` (`ship-gate`, `openspec archive`), pas seulement dans un hook : elle vaut même là où les hooks ne voient pas le lancement d'un skill.
 - DeepSeek Harness est en préversion, et son pont de hooks est expérimental : c'est le portage le plus fragile.
 
 ## Révision

@@ -9,6 +9,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 export const MANIFEST = '.harness/adapters.json';
@@ -132,6 +133,15 @@ const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const command = (tool, event, prefix) => `node ${prefix}.harness/hooks.mjs ${HOOK_EVENTS[event]} --tool ${tool}`;
 const seconds = (source, event) => (source.hooks[event].timeout ? { timeout: source.hooks[event].timeout } : {});
 
+// Claude Code tolère « description: … : … » sans guillemets ; un parseur YAML strict refuse le skill. Les valeurs
+// non citées qui contiennent « : » ou « # » sont mises entre guillemets dans la copie.
+function strictFrontmatter(text) {
+  const m = /^---\n([\s\S]*?)\n---\n/.exec(text);
+  if (!m) return text;
+  const head = m[1].replace(/^([\w-]+): (?!["'[{|>])(.*(?:: | #).*)$/gm, (_line, key, value) => `${key}: ${JSON.stringify(value)}`);
+  return `---\n${head}\n---\n${text.slice(m[0].length)}`;
+}
+
 // Copie des skills dans .agents/skills (Codex, Antigravity, DeepSeek Harness). « $ARGUMENTS » n'est remplacé que par Claude Code.
 function sharedSkills(source) {
   const out = {};
@@ -139,7 +149,7 @@ function sharedSkills(source) {
     for (const rel of skill.files) {
       const file = path.join(skill.dir, rel);
       out[`.agents/skills/${skill.name}/${rel}`] = rel === 'SKILL.md'
-        ? readText(file).replace(/`?\$ARGUMENTS`?/g, 'l\'argument donné avec la demande')
+        ? strictFrontmatter(readText(file)).replace(/`?\$ARGUMENTS`?/g, 'l\'argument donné avec la demande')
         : fs.readFileSync(file);
     }
   }
@@ -629,6 +639,72 @@ export function sync(root, tools, { force = false } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Diagnostic : ce qui manque sur ce poste pour qu'un harness charge les fichiers générés (hx doctor)
+// ---------------------------------------------------------------------------
+
+const cliVersion = (bin) => {
+  const r = spawnSync(`${bin} --version`, { shell: true, encoding: 'utf8', timeout: 15000 });
+  return r.status === 0 ? /\d+\.\d+\.\d+/.exec(r.stdout)?.[0] ?? r.stdout.trim() : null;
+};
+const lower = (a, b) => {
+  const [x, y] = [a, b].map((v) => v.split('.').map(Number));
+  return (x[0] - y[0] || x[1] - y[1] || x[2] - y[2]) < 0;
+};
+const filesUnder = (dir, depth = 2) => {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries.flatMap((e) => (e.isDirectory() ? (depth ? filesUnder(path.join(dir, e.name), depth - 1) : []) : [path.join(dir, e.name)]));
+};
+
+const HARNESS_CHECKS = {
+  codex: { bin: 'codex', check: (root, home, env) => {
+    const config = readText(path.join(env.CODEX_HOME ?? path.join(home, '.codex'), 'config.toml'));
+    const section = config.split(/^\[/m).find((s) => s.startsWith('projects.') && s.split('\n')[0].includes(JSON.stringify(root)));
+    return section && /^trust_level\s*=\s*"trusted"/m.test(section)
+      ? ['ok', 'projet approuvé ; hooks à valider une fois dans Codex (/hooks), puis après chaque mise à jour du harness']
+      : ['warn', 'projet non approuvé : hooks, règles et config.toml du dépôt sont ignorés. Ouvre Codex dans ce dossier, approuve le projet, puis valide les hooks (/hooks)'];
+  } },
+  opencode: { bin: 'opencode', min: '1.18.29', check: () => ['ok', 'plugin .opencode/plugins/hx-harness.js chargé au démarrage'] },
+  antigravity: { bin: 'agy', check: (root, home) => (readText(path.join(home, '.gemini', 'antigravity-cli', 'settings.json')).includes(JSON.stringify(root).slice(1, -1))
+    ? ['ok', 'dossier approuvé (Workspace Trust)']
+    : ['warn', 'dossier non approuvé dans la CLI (Workspace Trust) : hooks et skills du dépôt non chargés. Ouvre Antigravity dans ce dossier et approuve-le (l\'application garde ses approbations ailleurs)']) },
+  dsh: { bin: 'dsh', check: (_root, home, env) => {
+    const dir = env.DSH_HOME ?? path.join(home, '.dsh');
+    return filesUnder(dir).some((file) => /\.(ya?ml|json)$/.test(file) && readText(file).includes('dsh-hooks-claude-code'))
+      ? ['ok', 'pont de hooks installé ; lancer avec dsh --patch .dsh/harness.patch.yml']
+      : ['warn', 'pont de hooks absent du profil : dsh plugin --profile <profil> add @deepseek-ai/dsh-hooks-claude-code@next, puis lancer avec dsh --patch .dsh/harness.patch.yml'];
+  } },
+};
+
+// Une ligne par contrôle : { level, label, detail }. run: false saute l'appel des binaires (hx doctor --no-run).
+export function harnessChecks(root, tools, { home = os.homedir(), env = process.env, version = cliVersion, run = true } = {}) {
+  let real = root;
+  try {
+    real = fs.realpathSync(root);
+  } catch {
+    real = root;
+  }
+  const out = [];
+  for (const tool of tools.filter((t) => HARNESS_CHECKS[t])) {
+    const { bin, min, check } = HARNESS_CHECKS[tool];
+    const label = TOOLS[tool].label;
+    if (run) {
+      const found = version(bin);
+      if (!found) out.push({ level: 'warn', label, detail: `CLI « ${bin} » absente du PATH (application de bureau ? version non vérifiable)` });
+      else if (min && /^\d+\.\d+\.\d+$/.test(found) && lower(found, min)) out.push({ level: 'error', label, detail: `${found} < ${min} : le plugin du harness n'est pas chargé, mets ${label} à jour` });
+      else out.push({ level: 'ok', label, detail: `${bin} ${found}` });
+    }
+    const [level, detail] = check(real, home, env);
+    out.push({ level, label, detail });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Parité : ce que chaque harness obtient, capacité par capacité
 // ---------------------------------------------------------------------------
 
@@ -664,7 +740,7 @@ export const CAPABILITIES = [
   { id: 'hook-protected', label: 'Rappel sur un fichier protégé', claude: 'hook `PreToolUse`',
     codex: [N, '`.codex/hooks.json`'], opencode: [E, 'plugin : note jointe au résultat de l\'outil'], antigravity: [D, 'motif joint à la décision, sans garantie qu\'il atteigne l\'agent'], dsh: [N, 'pont de hooks'] },
   { id: 'hook-ship-guard', label: '`/hx-ship` refusé sans décision ni indice suffisant', claude: 'hook `PreToolUse` sur l\'outil Skill',
-    codex: [D, 'pas d\'outil Skill : seule la lecture de `SKILL.md` par le shell est vue'], opencode: [N, 'plugin, outil `skill`'], antigravity: [E, 'lecture de `SKILL.md` vue ; confirmation native demandée à l\'utilisateur'], dsh: [N, 'pont de hooks, outil `skill`'] },
+    codex: [E, 'pas d\'outil Skill visible : la garde est dans `hx` (`hx ship-gate`, `hx openspec archive`)'], opencode: [N, 'plugin, outil `skill`'], antigravity: [E, 'lecture de `SKILL.md` vue ; confirmation native demandée à l\'utilisateur'], dsh: [N, 'pont de hooks, outil `skill`'] },
   { id: 'hook-lint', label: 'Lint du fichier édité', claude: 'hook `PostToolUse`',
     codex: [N, '`.codex/hooks.json`'], opencode: [E, 'plugin : retour joint au résultat de l\'outil'], antigravity: [E, 'retour gardé par `PostToolUse`, injecté par `PreInvocation` à l\'appel suivant au modèle'], dsh: [N, 'pont de hooks'] },
   { id: 'hook-ship-click', label: 'Clic « livrer » noté comme une décision', claude: 'hook `PostToolUse` sur AskUserQuestion',

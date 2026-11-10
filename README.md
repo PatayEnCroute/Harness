@@ -169,7 +169,7 @@ flowchart LR
 
 | Harness | `tools` | Parité | Pour démarrer |
 |---|---|---|---|
-| **Codex** | `codex` | 88 % | Approuve le projet, puis les hooks (`/hooks`). Skills : `$hx-setup`. `.codex/config.toml` est généré. |
+| **Codex** | `codex` | 90 % | Approuve le projet, puis les hooks (`/hooks`). Skills : `$hx-setup`. `.codex/config.toml` est généré. |
 | **OpenCode** (V1 ≥ 1.18.29, V2) | `opencode` | 98 % | Rien à faire : le plugin `.opencode/plugins/hx-harness.js` se charge seul. |
 | **Antigravity** (app, IDE, `agy`) | `antigravity` | 88 % | Approuve le dossier (Workspace Trust). Skills : `/hx-setup`. |
 | **DeepSeek Harness** (préversion) | `dsh` | 74 % | Ajoute le pont de hooks `@deepseek-ai/dsh-hooks-claude-code` à ton profil, puis lance `dsh --patch .dsh/harness.patch.yml`. |
@@ -179,12 +179,15 @@ flowchart LR
 | Ajouter ou retirer un harness après coup | `node .harness/hx.mjs adapters --tools claude,codex,opencode` |
 | Régénérer après un changement de `.claude/` ou de la carte du projet | `node .harness/hx.mjs adapters` |
 | Vérifier que rien n'est périmé | `node .harness/hx.mjs adapters --check` (inclus dans `hx check` et `hx doctor`) |
+| Savoir ce qui manque sur ton poste | `node .harness/hx.mjs doctor` : CLI absente ou trop ancienne, projet non approuvé (Codex, Antigravity), pont de hooks absent (DeepSeek Harness) |
 
-**Ce que la parité mesure** : 21 capacités (skills, sous-agents, rules, chaque hook, permissions…), chacune notée natif, équivalent, dégradé ou absent, avec sa raison : [`docs/parite.md`](docs/parite.md). Les écarts restants viennent des harness eux-mêmes : Codex ne montre pas aux hooks le lancement d'un skill et ne restreint pas un sous-agent ; Antigravity ne montre pas la réponse à une question ; DeepSeek Harness n'a ni sous-agents en fichiers ni règles de permission.
+**Ce que la parité mesure** : 21 capacités (skills, sous-agents, rules, chaque hook, permissions…), chacune notée natif, équivalent, dégradé ou absent, avec sa raison : [`docs/parite.md`](docs/parite.md). Les écarts restants viennent des harness eux-mêmes : Codex ne restreint pas un sous-agent et n'offre l'outil de question que dans certains modes ; Antigravity ne montre pas la réponse à une question ; DeepSeek Harness n'a ni sous-agents en fichiers ni règles de permission.
 
 **Modèle des sous-agents** : `hx-explorer` demande un modèle léger (`haiku`). Pour les autres harness, nomme-le dans `.harness/config.json`, puis relance `hx adapters` : `"adapters": { "models": { "codex": { "haiku": "<modèle>" }, "opencode": { "haiku": "<fournisseur>/<modèle>" } } }`. Vide : modèle de la session.
 
-> ⚠️ Les formats viennent des documentations officielles (10/11/2026) et les hooks sont rejoués en CI dans le protocole de chaque harness. Les quatre binaires eux-mêmes ne sont pas lancés en CI.
+**Garde de livraison, pour tout harness** : `hx openspec archive` (et `hx ship-gate`, première étape de `/hx-ship`) refuse sans décision de l'utilisateur ni indice de confiance suffisant. Elle ne dépend d'aucun hook pour refuser.
+
+> ⚠️ Vérifié en CI par de vrais outils : les règles Codex par la CLI Codex (`execpolicy check`), `.opencode/opencode.json` par le schéma officiel d'OpenCode, les fichiers TOML et YAML par leurs parseurs. Non vérifié sur binaire : le plugin OpenCode, les hooks Antigravity et le pont DeepSeek, rejoués seulement dans leur protocole documenté (10/11/2026).
 
 ---
 
@@ -196,7 +199,7 @@ flowchart LR
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **4 rules** | `openspec` · `testing` · `architecture` (feature-first, proportionnée) · `comments` (aucun par défaut, liste fermée d'exceptions) |
 | **5 hooks** | `SessionStart` : prochaine action de chaque change · `UserPromptSubmit` : ton « livre <change> » noté comme un clic · `PreToolUse` : rappel sur un fichier sensible, `/hx-ship` refusé à Claude sans ta décision (clic « livrer » ou « livre <change> ») ni indice suffisant · `PostToolUse` : lint du fichier édité, réponse à « Livraison » notée · `Stop` : contrôles rapides et chemins protégés avant de rendre la main |
-| **CLI `hx`** | `check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `run` (une commande du contrat) · `status` (état des runs) · `confidence` (livraison automatique) · `worktree` · `doctor` · `adapters` (fichiers des autres harness) · `stats` (mesures d'élagage) · `trace` · `detect` · `migrate` · `openspec` (version épinglée) |
+| **CLI `hx`** | `check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `run` (une commande du contrat) · `status` (état des runs) · `confidence` (livraison automatique) · `ship-gate` (garde de livraison) · `worktree` · `doctor` · `adapters` (fichiers des autres harness) · `stats` (mesures d'élagage) · `trace` · `detect` · `migrate` · `openspec` (version épinglée) |
 
 <details>
 <summary><b>Permissions</b> : pourquoi aucune confirmation n'est imposée</summary>

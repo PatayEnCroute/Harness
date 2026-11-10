@@ -25,7 +25,7 @@ Score : natif et équivalent comptent 1, dégradé 0,5, absent 0. Plancher : 66 
 | **Démarrage : prochaine action de chaque change** | 🟢 hook `SessionStart` | 🟢 natif · `.codex/hooks.json` | 🟢 équivalent · plugin, événement `session.created` | 🟢 natif · `.agents/hooks.json` | 🟡 dégradé · pont expérimental ; le contexte peut arriver après la première requête |
 | **« livre <change> » noté comme une décision** | 🟢 hook `UserPromptSubmit` | 🟢 natif · `.codex/hooks.json` | 🟢 équivalent · plugin, admission du prompt | 🟢 équivalent · hook `PreInvocation`, dédoublonné | 🟢 natif · pont de hooks |
 | **Rappel sur un fichier protégé** | 🟢 hook `PreToolUse` | 🟢 natif · `.codex/hooks.json` | 🟢 équivalent · plugin : note jointe au résultat de l'outil | 🟡 dégradé · motif joint à la décision, sans garantie qu'il atteigne l'agent | 🟢 natif · pont de hooks |
-| **`/hx-ship` refusé sans décision ni indice suffisant** | 🟢 hook `PreToolUse` sur l'outil Skill | 🟡 dégradé · pas d'outil Skill : seule la lecture de `SKILL.md` par le shell est vue | 🟢 natif · plugin, outil `skill` | 🟢 équivalent · lecture de `SKILL.md` vue ; confirmation native demandée à l'utilisateur | 🟢 natif · pont de hooks, outil `skill` |
+| **`/hx-ship` refusé sans décision ni indice suffisant** | 🟢 hook `PreToolUse` sur l'outil Skill | 🟢 équivalent · pas d'outil Skill visible : la garde est dans `hx` (`hx ship-gate`, `hx openspec archive`) | 🟢 natif · plugin, outil `skill` | 🟢 équivalent · lecture de `SKILL.md` vue ; confirmation native demandée à l'utilisateur | 🟢 natif · pont de hooks, outil `skill` |
 | **Lint du fichier édité** | 🟢 hook `PostToolUse` | 🟢 natif · `.codex/hooks.json` | 🟢 équivalent · plugin : retour joint au résultat de l'outil | 🟢 équivalent · retour gardé par `PostToolUse`, injecté par `PreInvocation` à l'appel suivant au modèle | 🟢 natif · pont de hooks |
 | **Clic « livrer » noté comme une décision** | 🟢 hook `PostToolUse` sur AskUserQuestion | 🟡 dégradé · `request_user_input` selon le mode ; sinon message « livre <change> » | 🟢 équivalent · plugin, outil `question` | 🟢 équivalent · réponse invisible aux hooks : confirmation native au lancement de `/hx-ship` | 🟡 dégradé · réponse en texte libre : notée seulement si un seul choix y figure |
 | **Contrôles rapides avant de rendre la main** | 🟢 hook `Stop` | 🟢 natif · `.codex/hooks.json` | 🟢 équivalent · plugin : nouveau tour si un contrôle échoue | 🟢 natif · `.agents/hooks.json` | 🟢 équivalent · pont de hooks, garde anti-boucle dans hooks.mjs |
@@ -35,11 +35,11 @@ Score : natif et équivalent comptent 1, dégradé 0,5, absent 0. Plancher : 66 
 | **Choix cliquables aux arrêts prévus** | 🟢 outil AskUserQuestion | 🟡 dégradé · `request_user_input` selon le mode, sinon texte | 🟢 natif · outil `question` | 🟢 natif · outil `ask_question` | 🟢 natif · outil `ask_user_question` |
 | **Run dans un worktree sans changer de session** | 🟢 outil EnterWorktree | 🟡 dégradé · commandes lancées depuis le worktree | 🟡 dégradé · commandes lancées depuis le worktree | 🟡 dégradé · commandes lancées depuis le worktree | 🟡 dégradé · `create_worktree` expérimental, sinon commandes depuis le worktree |
 | **Commandes OpenSpec** | 🟢 `/opsx:*` | 🟢 natif · `$openspec-*` | 🟢 natif · `/opsx-*` | 🟢 natif · `/opsx-*` | 🟢 natif · `/openspec-*` |
-| **Score** | **100 %** | **88 %** | **98 %** | **88 %** | **74 %** |
+| **Score** | **100 %** | **90 %** | **98 %** | **88 %** | **74 %** |
 
 | Harness | 🟢 | 🟡 | 🔴 |
 |---|---|---|---|
-| Codex | 16 | 5 | 0 |
+| Codex | 17 | 4 | 0 |
 | OpenCode | 20 | 1 | 0 |
 | Antigravity | 17 | 3 | 1 |
 | DeepSeek Harness | 13 | 5 | 3 |

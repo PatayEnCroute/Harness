@@ -16,6 +16,8 @@ import {
   adaptersDrift,
   confidence,
   execute,
+  grantShipPass,
+  noteShipDecision,
   findComponentForFile,
   installedOpenspecVersion,
   listChanges,
@@ -252,6 +254,7 @@ function recordShipDecision(root, input) {
   const state = readState(root, input) ?? initialState(root) ?? { base: null, seen: {} };
   const { shipApproval, ...rest } = state;
   writeState(root, input, approvesShip(answer) ? { ...rest, shipApproval: { at: new Date().toISOString(), answer } } : rest);
+  noteShipDecision(root, approvesShip(answer) ? answer : null);
   return 0;
 }
 
@@ -277,6 +280,7 @@ export function userPromptSubmit(root, input) {
   const state = readState(root, input) ?? initialState(root) ?? { base: null, seen: {} };
   const { shipApproval, ...rest } = state;
   writeState(root, input, request.decision === 'approve' ? { ...rest, shipApproval: { at: new Date().toISOString(), answer: request.said } } : rest);
+  noteShipDecision(root, request.decision === 'approve' ? request.said : null);
   return 0;
 }
 
@@ -288,10 +292,14 @@ const REDIRECTED_SKILLS = {
 
 // /hx-ship lancé par Claude (outil Skill) sans décision de livrer de l'utilisateur (clic ou message) : livraison automatique, permise
 // seulement si `hx confidence` l'autorise. Renvoie la raison du refus, ou null.
-function automaticShipRefusal(root, args) {
+function shipChange(root, args) {
   const named = String(args ?? '').trim().split(/\s+/)[0];
   const active = listChanges(root).map((c) => c.name);
-  const change = named || (active.length === 1 ? active[0] : null);
+  return named || (active.length === 1 ? active[0] : null);
+}
+
+function automaticShipRefusal(root, args) {
+  const change = shipChange(root, args);
   const r = change ? confidence(root, change) : null;
   if (r?.auto) return null;
   const why = r ? `score ${r.score}/100, seuil ${r.threshold}${r.exclusions.length ? ` ; ${r.exclusions.join(' ; ')}` : ''}` : 'change non précisé';
@@ -312,12 +320,15 @@ export function preToolUse(root, input) {
       if (state?.shipApproval) {
         const { shipApproval, ...rest } = state;
         writeState(root, input, rest);
+        grantShipPass(root, shipChange(root, input.tool_input?.args), 'manual', shipApproval.answer);
         output({ additionalContext: `Livraison décidée par l'utilisateur (« ${shipApproval.answer} ») : mode manuel de /hx-ship. Mineurs proposés sans décision de l'utilisateur : demande-la avant l'archive.` });
         return 0;
       }
     }
     const refusal = skill === 'hx-ship' ? automaticShipRefusal(root, input.tool_input?.args) : redirect;
     if (refusal) output({ permissionDecision: 'deny', permissionDecisionReason: refusal });
+    // Livraison automatique permise ici : la garde de l'archive (hx openspec archive) ne recalcule pas l'indice après le pull.
+    else if (skill === 'hx-ship') grantShipPass(root, shipChange(root, input.tool_input?.args), 'auto');
     return 0;
   }
   const file = input.tool_input?.file_path;

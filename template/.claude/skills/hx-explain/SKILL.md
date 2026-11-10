@@ -1,6 +1,6 @@
 ---
 name: hx-explain
-description: Pédagogie pour un utilisateur non développeur, hors du workflow. Trois usages : expliquer une décision prise dans la session (pourquoi l'agent a fait ou proposé X), faire le bilan de la façon dont l'utilisateur se sert du harness dans la session, ou expliquer une notion d'ingénierie logicielle avec des mots simples. Lecture seule. À lancer explicitement, quand l'utilisateur veut comprendre plutôt qu'avancer.
+description: "Pédagogie pour un utilisateur non développeur, hors du workflow. Trois usages : expliquer une décision prise dans la session (pourquoi l'agent a fait ou proposé X), faire le bilan de la façon dont l'utilisateur se sert du harness dans la session, ou expliquer une notion d'ingénierie logicielle avec des mots simples. Lecture seule. À lancer explicitement, quand l'utilisateur veut comprendre plutôt qu'avancer."
 argument-hint: "[vide : dernières décisions | « bilan » | question sur un choix | notion]"
 disable-model-invocation: true
 ---

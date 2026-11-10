@@ -361,6 +361,24 @@ describe('parité : mêmes décisions de hooks dans chaque harness', () => {
       if (tool === 'antigravity') assert.equal(second.asked, true, 'décision déjà consommée');
     });
 
+    test(`${tool} : sans décision, ni garde ni archive ; « livre <change> » les ouvre, un refus les referme`, () => {
+      const { root } = project();
+      const hx = (...args) => spawnSync(process.execPath, [path.join(root, '.harness', 'hx.mjs'), ...args], { cwd: root, encoding: 'utf8' });
+      const id = session();
+      assert.equal(hx('ship-gate', 'add-mult').status, 1);
+      const archive = hx('openspec', 'archive', 'add-mult', '-y');
+      assert.equal(archive.status, 1);
+      assert.match(archive.stderr, /archive refusée, aucune décision de l'utilisateur/);
+      assert.ok(fs.existsSync(path.join(root, 'openspec', 'changes', 'add-mult')), 'rien n\'est archivé');
+      run(tool, root, id, 'user-prompt-submit', input.prompt('ok, livre add-mult'));
+      const open = hx('ship-gate', 'add-mult');
+      assert.equal(open.status, 0, open.stderr);
+      assert.match(open.stdout, /décidée par l'utilisateur \(« ok, livre add-mult »\) : mode manuel/);
+      assert.equal(hx('ship-gate', 'add-mult').status, 0, 'le laissez-passer couvre aussi l\'archive qui suit');
+      run(tool, root, id, 'user-prompt-submit', input.prompt('finalement ne livre pas'));
+      assert.equal(hx('ship-gate', 'add-mult').status, 1, 'un refus retire la décision');
+    });
+
     test(`${tool} : un clic « livrer » autorise /hx-ship, un refus non`, () => {
       const { root } = project();
       if (!input.answer) {

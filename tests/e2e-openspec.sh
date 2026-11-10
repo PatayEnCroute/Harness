@@ -84,6 +84,11 @@ echo 'export const mult = (a, b) => a * b;' > src/mult.js
 hx check
 
 step "Archive : la spec principale garde la traçabilité"
+# Garde de livraison : pas d'archive sans décision de l'utilisateur ; « livre add-mult » (hook UserPromptSubmit) l'ouvre.
+if hx openspec archive add-mult -y > /dev/null 2>&1; then echo "ÉCHEC : archive sans décision de l'utilisateur" >&2; exit 1; fi
+[ -d openspec/changes/add-mult ] || { echo "ÉCHEC : change archivé malgré le refus" >&2; exit 1; }
+echo '{"session_id":"e2e","prompt":"livre add-mult"}' | CLAUDE_PROJECT_DIR="$PWD" node .harness/hooks.mjs user-prompt-submit
+hx ship-gate add-mult
 hx openspec archive add-mult -y > /dev/null
 [ -f openspec/specs/calc/spec.md ] || fail "spec principale absente après archive"
 hx check

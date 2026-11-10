@@ -39,6 +39,19 @@ done
 hx adapters --check
 hx doctor --no-run | grep -q "✓ Autres harness : Codex, OpenCode, Antigravity, DeepSeek Harness" || fail "doctor ne voit pas les autres harness"
 
+# Validation par de vrais outils, pas seulement par nos tests : parseurs TOML et YAML, schéma officiel d'OpenCode,
+# et la CLI Codex pour les règles de commandes (execpolicy : aucune clé d'API requise).
+curl -fsSL --retry 3 https://opencode.ai/config.json -o "$work/opencode-schema.json"
+uv run --no-project --quiet --with pyyaml --with jsonschema python "$repo/tests/validate-adapters.py" "$work/opencode-schema.json"
+policy() { npx --yes "@openai/codex@${CODEX_VERSION:-0.167.0}" execpolicy check --rules .codex/rules/harness.rules -- "$@"; }
+policy git status | grep -q '"decision":"allow"' || fail "Codex : git status non autorisé par harness.rules"
+policy node .harness/hx.mjs check | grep -q '"decision":"allow"' || fail "Codex : hx check non autorisé par harness.rules"
+policy git commit -m tâche | grep -q '"decision":"allow"' || fail "Codex : git commit non autorisé par harness.rules"
+for left in "git push" "git branch -D main" "rm -rf src"; do
+  # shellcheck disable=SC2086
+  policy $left | grep -q '"matchedRules":\[\]' || fail "Codex : « $left » doit rester au mode de permission"
+done
+
 # Les hooks câblés dans chaque fichier généré répondent dans le protocole du harness.
 codex_cmd="$(node -e 'console.log(require("./.codex/hooks.json").hooks.PreToolUse[0].hooks[0].command)')"
 patch=$'*** Begin Patch\n*** Update File: .harness/hx.mjs\n@@\n*** End Patch'

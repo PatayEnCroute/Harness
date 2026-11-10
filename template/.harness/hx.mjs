@@ -3,11 +3,13 @@
 // Fichier géré par le template Harness : les améliorations se font dans Harness, puis `copier update`.
 
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { MANIFEST, TOOLS, formatParity, parity, plan, readManifest, sync, validTools } from './adapters.mjs';
+import { MANIFEST, TOOLS, formatParity, harnessChecks, parity, plan, readManifest, sync, validTools } from './adapters.mjs';
 
 export const MIN_NODE = [20, 19];
 // Plus ancienne version de Claude Code qui contient tous les correctifs de sécurité publiés (avis GHSA de
@@ -1435,6 +1437,7 @@ function cmdDoctor(root, args) {
     add(drift.length ? 'error' : 'ok', 'Autres harness', drift.length
       ? `fichiers périmés, relance node .harness/hx.mjs adapters : ${drift.join(', ')}`
       : others.map((t) => TOOLS[t]?.label ?? t).join(', '));
+    for (const c of harnessChecks(root, others, { run: !opts['no-run'] })) add(c.level, c.label, c.detail);
   }
   const sandbox = sandboxCheck(projectSettings(root), config?.ship?.auto === true);
   add(sandbox.level, 'Sandbox', sandbox.detail);
@@ -1598,7 +1601,85 @@ function cmdConfidence(root, args) {
   return r.auto ? 0 : 1;
 }
 
+// ---------------------------------------------------------------------------
+// Garde de livraison : l'archive OpenSpec (dernier commit de la PR) n'a lieu que sur décision de l'utilisateur ou
+// si « hx confidence » l'autorise. Elle vit ici, pas seulement dans un hook : elle vaut pour tout harness, y compris
+// ceux dont les hooks ne voient pas le lancement d'un skill (Codex).
+// ---------------------------------------------------------------------------
+
+const SHIP_TTL_MS = 6 * 60 * 60 * 1000;
+
+// Hors du dépôt, par projet (un worktree est un projet) : « decision » est écrite par les hooks quand l'utilisateur
+// décide de livrer (clic ou message), « pass » par la garde quand elle laisse passer.
+function shipFile(root, kind) {
+  const key = createHash('sha256').update(realPath(root)).digest('hex').slice(0, 16);
+  return path.join(os.tmpdir(), 'hx-hooks', `${key}.${kind}.json`);
+}
+
+function readShip(root, kind, now) {
+  const data = readJson(shipFile(root, kind));
+  return data && now - Date.parse(data.at) < SHIP_TTL_MS ? data : null;
+}
+
+function writeShip(root, kind, data) {
+  const file = shipFile(root, kind);
+  if (!data) return fs.rmSync(file, { force: true });
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  return fs.writeFileSync(file, JSON.stringify(data));
+}
+
+// Décision de l'utilisateur, consignée par les hooks (answer) ou retirée par un refus (null).
+export function noteShipDecision(root, answer, now = Date.now()) {
+  writeShip(root, 'decision', answer ? { at: new Date(now).toISOString(), answer } : null);
+  if (!answer) writeShip(root, 'pass', null);
+}
+
+export function grantShipPass(root, change, mode, answer = null, now = Date.now()) {
+  writeShip(root, 'pass', { at: new Date(now).toISOString(), change: change ?? null, mode, answer });
+}
+
+// { ok, mode: 'manual' | 'auto', detail } ou { ok: false, detail }. Une décision vaut une livraison ; le laissez-passer
+// qu'elle donne couvre l'archive du même change, à nouveau après un correctif (revert puis archive).
+export function shipGate(root, named, now = Date.now()) {
+  const active = listChanges(root).map((c) => c.name);
+  const change = named || (active.length === 1 ? active[0] : null);
+  const pass = readShip(root, 'pass', now);
+  if (pass && (!pass.change || !change || pass.change === change)) {
+    return { ok: true, mode: pass.mode, detail: pass.mode === 'manual' ? `livraison décidée par l'utilisateur (« ${pass.answer ?? 'livrer'} »)` : 'livraison automatique autorisée par hx confidence' };
+  }
+  const decision = readShip(root, 'decision', now);
+  if (decision) {
+    writeShip(root, 'decision', null);
+    grantShipPass(root, change, 'manual', decision.answer, now);
+    return { ok: true, mode: 'manual', detail: `livraison décidée par l'utilisateur (« ${decision.answer} »)` };
+  }
+  const r = change ? confidence(root, change) : null;
+  if (r?.auto) {
+    grantShipPass(root, change, 'auto', null, now);
+    return { ok: true, mode: 'auto', detail: `livraison automatique autorisée par hx confidence (score ${r.score}/100, seuil ${r.threshold})` };
+  }
+  const why = r ? `score ${r.score}/100, seuil ${r.threshold}${r.exclusions.length ? ` ; ${r.exclusions.join(' ; ')}` : ''}` : 'change non précisé';
+  return {
+    ok: false,
+    detail: `aucune décision de l'utilisateur, et hx confidence n'autorise pas la livraison automatique (${why}).${r?.next === 'fix' ? ` Le plafond ${r.ceiling} atteint le seuil : suis la boucle de correction de hx-review, puis relance.` : ''}`
+      + ' Seule une décision de l\'utilisateur ouvre la livraison : choix « livrer » à la question « Livraison » (voir hx-review), ou message « livre <change> ».',
+  };
+}
+
+function cmdShipGate(root, args) {
+  const gate = shipGate(root, parseFlags(args)._[0]);
+  console[gate.ok ? 'log' : 'error'](`hx ship-gate : ${gate.ok ? `${gate.detail} : mode ${gate.mode === 'manual' ? 'manuel' : 'automatique'} de /hx-ship` : `livraison refusée, ${gate.detail}`}`);
+  return gate.ok ? 0 : 1;
+}
+
 function cmdOpenspec(root, args) {
+  if (args[0] === 'archive') {
+    const gate = shipGate(root, args.slice(1).find((a) => !a.startsWith('-')));
+    if (!gate.ok) {
+      console.error(`hx : archive refusée, ${gate.detail}`);
+      return 1;
+    }
+  }
   return execute(openspecCommand(root, args), root, { capture: false }).code;
 }
 
@@ -1625,6 +1706,9 @@ const HELP = `hx : contrat de commandes du harness
   hx adapters [--tools codex,opencode,antigravity,dsh] [--check] [--force] [--parity]
                       génère les fichiers des autres harness depuis CLAUDE.md et .claude/ (sans --tools : ceux déjà choisis)
                       --check : 1 si un fichier généré est périmé · --parity : tableau de parité par harness
+  hx ship-gate [<change>]
+                      0 si la livraison est ouverte (décision de l'utilisateur, ou hx confidence), 1 sinon ;
+                      « hx openspec archive » applique la même garde
   hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 
@@ -1640,6 +1724,7 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
     case 'trace': return cmdTrace(root, rest);
     case 'migrate': return cmdMigrate(root);
     case 'adapters': return cmdAdapters(root, rest);
+    case 'ship-gate': return cmdShipGate(root, rest);
     case 'worktree': return cmdWorktree(root, rest);
     case 'status': return cmdStatus(root, rest);
     case 'stats': return cmdStats(root, rest);
