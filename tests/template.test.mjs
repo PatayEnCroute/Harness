@@ -53,6 +53,9 @@ describe('skills (standard Agent Skills)', () => {
       assert.ok(data.description && data.description.length <= 1024, 'description présente, ≤ 1024 caractères');
       assert.match(data.description, /À (utiliser|lancer)/, 'la description dit quand l\'utiliser');
       assert.ok(body.split('\n').length < 500, 'corps < 500 lignes');
+      // YAML strict : OpenCode, Codex et Antigravity lisent ce fichier avec un vrai parseur, moins tolérant que Claude Code.
+      const head = /^---\n([\s\S]*?)\n---\n/.exec(read(path.join(claude, 'skills', name, 'SKILL.md')))[1];
+      assert.doesNotMatch(head, /^[\w-]+: (?!["'[{|>]).*(: | #)/m, 'valeur avec « : » ou « # » entre guillemets');
     });
   }
 });

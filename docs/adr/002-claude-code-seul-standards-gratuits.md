@@ -1,6 +1,6 @@
 # ADR-002 : Claude Code seul, standards quand c'est gratuit
 
-- Statut : Accepté
+- Statut : Remplacé par [ADR-005](005-autres-harness-generes.md)
 - Date : 2026-10-17
 
 ## Besoin

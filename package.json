@@ -1,7 +1,7 @@
 {
   "name": "harness",
   "private": true,
-  "description": "Template Copier : harness Claude Code + OpenSpec, agnostique de la stack",
+  "description": "Template Copier : harness Claude Code + OpenSpec, agnostique de la stack, porté sur Codex, OpenCode, Antigravity et DeepSeek Harness",
   "bin": {
     "harness": "bin/harness.mjs"
   },
@@ -9,9 +9,10 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "test": "node --test tests/hx.test.mjs tests/hooks.test.mjs tests/template.test.mjs tests/evals.test.mjs tests/launcher.test.mjs",
+    "test": "node --test tests/hx.test.mjs tests/hooks.test.mjs tests/template.test.mjs tests/evals.test.mjs tests/launcher.test.mjs tests/adapters.test.mjs tests/parity.test.mjs tests/docs.test.mjs",
+    "parity": "node scripts/parity.mjs && node --test tests/parity.test.mjs tests/adapters.test.mjs",
     "test:contract": "node --test tests/openspec-contract.test.mjs",
-    "e2e": "for f in node python dotnet go mixed; do tests/e2e.sh $f || exit 1; done && tests/e2e-openspec.sh && tests/e2e-update.sh && tests/e2e-launcher.sh",
+    "e2e": "for f in node python dotnet go mixed; do tests/e2e.sh $f || exit 1; done && tests/e2e-openspec.sh && tests/e2e-update.sh && tests/e2e-launcher.sh && tests/e2e-adapters.sh",
     "evals": "evals/run.sh"
   }
 }

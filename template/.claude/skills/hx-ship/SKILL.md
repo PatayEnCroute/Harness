@@ -25,6 +25,7 @@ Tu as lancé ce skill toi-même après une décision de l'utilisateur, choix « 
 
 ## Étapes
 
+0. **Garde** : `node .harness/hx.mjs ship-gate <change>`. Sortie 1 : arrête-toi et rends la raison à l'utilisateur, sans chercher à contourner. Sortie 0 : la commande dit le mode (manuel ou automatique). `node .harness/hx.mjs openspec archive` applique la même garde : sans décision de l'utilisateur ni indice suffisant, l'archive est refusée, quel que soit le harness.
 1. **Base à jour** (si le dépôt suit un distant) : un autre change a pu être mergé pendant le run, et son archive modifier les mêmes specs principales. Reprends la base sans réécrire l'historique : `git pull --no-rebase --no-edit origin <base>` (`default_branch` de `.copier-answers.yml`, sinon `main`). Un conflit sur `openspec/` ou sur le code du change : arrête-toi et expose-le. Puis `node .harness/hx.mjs check` : rouge, corrige avant d'archiver. En mode automatique, un correctif ici est du code non relu : arrête-toi, écris-le dans le rapport de fin de run, et rends la main.
 2. **Archive OpenSpec** (pistes M et L) : toutes les tâches doivent être cochées. Lance `node .harness/hx.mjs openspec archive <change> -y` : la CLI synchronise les specs principales et déplace le change dans `openspec/changes/archive/`, sans écriture à la main dans `openspec/specs/`. Puis `node .harness/hx.mjs check` : archives validées, trace sur les specs principales. S'il est vert, commit : `<change> : archive OpenSpec`. C'est le **dernier commit** de la PR.
 3. **Push** : `git push -u origin <branche>`.

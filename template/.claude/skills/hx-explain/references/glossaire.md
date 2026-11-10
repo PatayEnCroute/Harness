@@ -47,4 +47,7 @@ Une définition par terme, la même à chaque explication. L'analogie est facult
 | **Mineur** | Un défaut relevé en revue, sans gravité, que l'utilisateur choisit de corriger ou non | Une retouche de finition |
 | **Archive** | La dernière étape d'un change : sa spec devient la référence du projet | Le plan mis à jour après travaux |
 | **ADR** | Une note qui garde la trace d'une décision importante : le besoin, les options, le choix et son prix | Le compte rendu d'une réunion de décision |
+| **Garde de livraison** | Le contrôle qui refuse de livrer tant que l'utilisateur n'a pas dit « livre », ou que l'indice de confiance ne suffit pas | Le bon à tirer avant impression |
+| **Autres harness** | D'autres assistants de code que Claude Code (Codex, OpenCode, Antigravity, DeepSeek Harness), qui reçoivent les mêmes règles par des fichiers générés | La même notice, traduite pour d'autres machines |
+| **Parité** | La mesure de ce que chaque autre harness obtient par rapport à Claude Code, capacité par capacité | Le tableau comparatif des versions d'un même produit |
 | **`hx check`** | La commande qui lance tous les contrôles du projet ; vert = preuve que c'est terminé | Le contrôle technique avant de rendre la voiture |

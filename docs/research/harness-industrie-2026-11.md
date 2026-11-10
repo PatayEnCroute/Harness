@@ -1,5 +1,7 @@
 # Harness agentiques de développement : état de l'industrie
 
+> **Depuis cette étude** (10/11/2026) : le verdict « P11 tient : rien à porter » est dépassé. Un deuxième outil est utilisé ; les fichiers de Codex, OpenCode, Antigravity et DeepSeek Harness sont générés depuis la source Claude Code ([ADR-005](../adr/005-autres-harness-generes.md), [parité](../parite.md)). Le reste du document est laissé tel qu'écrit.
+
 > Étude de l'état de l'art des harness de développement dans l'industrie, confrontée au template. Rédigée le 06/11/2026.
 > **Périmètre** : harness CLI des éditeurs, IDE agentiques, agents cloud asynchrones, open source, standards, méthodologies, évaluation, sécurité, marché.
 > **Méthode** : 17 axes de recherche, chacun contre-vérifié sur ses sources primaires le 06/11/2026. Sur plusieurs axes, le quota de recherche web était épuisé : les dernières vérifications ont été faites par lecture directe des pages. Les éléments marqués ⚠️ viennent de sources secondaires ou n'ont pas pu être vérifiés.

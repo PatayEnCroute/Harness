@@ -46,6 +46,7 @@
     "deny": [
       "Edit(/.harness/hx.mjs)",
       "Edit(/.harness/hooks.mjs)",
+      "Edit(/.harness/adapters.mjs)",
       "Edit(/.harness/versions.json)"
     ]
   },

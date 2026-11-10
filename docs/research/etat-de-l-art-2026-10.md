@@ -1,5 +1,7 @@
 # État de l'art — octobre 2026
 
+> **Depuis cette étude** (10/11/2026) : « Claude Code seul » (ADR-002) est remplacé par [ADR-005](../adr/005-autres-harness-generes.md) ; `AGENTS.md` et `.agents/skills/` sont désormais générés pour les autres harness. Le reste du document est laissé tel qu'écrit.
+
 > Synthèse de la recherche qui fonde [`../PLAN.md`](../PLAN.md). Les éléments marqués ⚠️ n'ont pas pu être vérifiés sur une source primaire.
 
 ## 1. OpenSpec (Fission-AI)

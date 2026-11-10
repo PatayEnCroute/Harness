@@ -90,7 +90,7 @@ prepare() {
   if [ -n "$without" ]; then remove_component "$without"; fi
   # Référence pour l'intégrité de la notation : ce que l'agent ne doit pas pouvoir truquer.
   mkdir -p "$work/pristine"
-  cp .harness/hx.mjs .harness/hooks.mjs .harness/config.json "$work/pristine/"
+  cp .harness/hx.mjs .harness/hooks.mjs .harness/adapters.mjs .harness/config.json "$work/pristine/"
   git add -A && git "${git_env[@]}" commit -qm "état initial"
   git rev-parse HEAD > "$work/initial-sha"
 }
@@ -98,7 +98,7 @@ prepare() {
 # Avant de noter : outils du harness restaurés, contrat inchangé (sauf scénario qui a le droit de l'écrire).
 integrity() {
   local dir="$1" work="$2"
-  cp "$work/pristine/hx.mjs" "$work/pristine/hooks.mjs" .harness/
+  cp "$work/pristine/hx.mjs" "$work/pristine/hooks.mjs" "$work/pristine/adapters.mjs" .harness/
   if [ ! -f "$dir/config-writable" ] && ! cmp -s "$work/pristine/config.json" .harness/config.json; then
     echo "✗ .harness/config.json modifié par l'agent :"
     diff "$work/pristine/config.json" .harness/config.json || true
