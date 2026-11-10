@@ -57,6 +57,14 @@ flowchart LR
 | `hx-learn` | Leçons d'un incident oubliées au change suivant | même correction demandée deux fois | aucune leçon relue n'a changé une décision sur un trimestre |
 | `hx-dream` | Leçons accumulées sans relecture : redites, périmées, noyées | charge avant/après ; leçons réapprises | rien à condenser sur un trimestre (une leçon réapprise = il élague trop) |
 
+### Autres harness
+
+| Composant | Faiblesse compensée | Mesure | On retire si… |
+|---|---|---|---|
+| Adaptateur d'un harness (`adapters.mjs`, un par harness) | Maintenir à la main les fichiers d'un deuxième outil, qui divergent sans bruit | score du harness dans [`parite.md`](parite.md) ; job CI [`parité des harness`](../.github/workflows/ci.yml) | le harness n'est plus utilisé sur aucun projet (`tools` de `.copier-answers.yml`), ou il lit `.claude/` nativement |
+| Garde de livraison dans `hx` (`ship-gate`, archive gardée) | Un harness dont les hooks ne voient pas le lancement d'un skill livre sans décision | scénario « sans décision, ni garde ni archive » de [`parity.test.mjs`](../tests/parity.test.mjs) | tous les harness servis montrent le lancement d'un skill à leurs hooks |
+| `hx doctor` par harness | Premier quart d'heure perdu : projet non approuvé, pont de hooks absent, version trop ancienne | avertissements levés après lecture | les harness signalent eux-mêmes ce qui manque |
+
 ### À la demande
 
 | Composant | Faiblesse compensée | Mesure | On retire si… |

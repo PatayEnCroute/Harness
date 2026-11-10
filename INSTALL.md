@@ -44,10 +44,12 @@ npx --yes github:PatayEnCroute/Harness --defaults --no-claude \
 
 1. Montre à l'utilisateur ce que `git status` liste (fichiers créés ou remplacés). Ne commite qu'avec son accord.
 2. Dis-lui d'**ouvrir une nouvelle session** sur ce dossier (Desktop : nouvelle session, même dossier ; terminal : relancer `claude`) : `CLAUDE.md`, les hooks et les skills du harness ne se chargent qu'au démarrage. Le hook de démarrage installe aussi la CLI OpenSpec si elle manque.
-3. Dis-lui ensuite de taper **`/hx-setup`** dans cette nouvelle session : la personnalisation à la stack lui est réservée (tu ne peux pas lancer ce skill toi-même). Elle finit par `node .harness/hx.mjs doctor`.
+3. **Autres harness** (`tools` non vide) : leurs fichiers sont déjà générés (`AGENTS.md`, `.codex/`, `.agents/`, `.opencode/`, `.dsh/`). Lance `node .harness/hx.mjs doctor --no-run` et relaie ce qu'il dit pour chacun : approuver le projet (Codex, puis ses hooks avec `/hooks` ; Antigravity), ajouter le pont de hooks au profil (DeepSeek Harness, puis `dsh --patch .dsh/harness.patch.yml`). Ces gestes reviennent à l'utilisateur.
+4. Dis-lui ensuite de taper **`/hx-setup`** dans cette nouvelle session : la personnalisation à la stack lui est réservée (tu ne peux pas lancer ce skill toi-même). Elle finit par `node .harness/hx.mjs doctor`.
 
 ## À ne pas faire
 
 - Modifier les fichiers installés pour « finir » l'installation : c'est le rôle de `/hx-setup`.
+- Éditer un fichier d'un autre harness (`AGENTS.md`, `.codex/`, `.agents/`, `.opencode/`, `.dsh/`) : ils sont générés, `node .harness/hx.mjs adapters` les réécrit.
 - Appeler Copier sans `--trust` : `openspec init` ne serait pas lancé.
 - Installer uv, commiter ou écraser des fichiers sans accord explicite.

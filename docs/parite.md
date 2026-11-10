@@ -12,6 +12,23 @@ Fichier généré par `node scripts/parity.mjs --write` ; la CI (job `parity`) r
 
 Score : natif et équivalent comptent 1, dégradé 0,5, absent 0. Plancher : 66 %.
 
+## Comment c'est vérifié
+
+Job CI [`parité des harness`](../.github/workflows/ci.yml) ([exécutions](https://github.com/PatayEnCroute/Harness/actions/workflows/ci.yml)) ; en local : `npm run parity`, puis `tests/e2e-adapters.sh`.
+
+| Preuve | Ce qu'elle établit | Fichier |
+|---|---|---|
+| Déclaration | Chaque capacité a un niveau et une raison par harness ; ce tableau est à jour ; aucun harness sous le plancher | [`scripts/parity.mjs`](../scripts/parity.mjs), `CAPABILITIES` dans [`adapters.mjs`](../template/.harness/adapters.mjs) |
+| Structure | Chaque skill, sous-agent, rule, hook et permission de la source a son fichier généré, ou son absence est déclarée | [`tests/parity.test.mjs`](../tests/parity.test.mjs) |
+| Comportement | Les mêmes scénarios de hooks, rejoués dans le protocole de chaque harness, donnent la décision de Claude Code | [`tests/parity.test.mjs`](../tests/parity.test.mjs) |
+| Génération | Synchronisation, dérive, retrait, fichiers existants jamais écrasés | [`tests/adapters.test.mjs`](../tests/adapters.test.mjs) |
+| Bout en bout | Installation avec les quatre harness, puis retrait d'un harness par `copier update` | [`tests/e2e-adapters.sh`](../tests/e2e-adapters.sh) |
+| Vrais outils | Règles Codex par la CLI Codex, `opencode.json` par le schéma officiel, TOML et YAML par leurs parseurs | [`tests/validate-adapters.py`](../tests/validate-adapters.py) |
+
+Non vérifié sur binaire : le plugin OpenCode, les hooks Antigravity et le pont DeepSeek, rejoués dans leur protocole documenté.
+
+## Tableau
+
 | Capacité | Claude Code | Codex | OpenCode | Antigravity | DeepSeek Harness |
 | --- | --- | --- | --- | --- | --- |
 | **Consignes du projet** | 🟢 CLAUDE.md | 🟢 équivalent · AGENTS.md généré | 🟢 équivalent · AGENTS.md généré | 🟢 équivalent · AGENTS.md généré | 🟢 équivalent · AGENTS.md généré, CLAUDE.md écarté par le patch |

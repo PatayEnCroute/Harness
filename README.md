@@ -1,5 +1,7 @@
 # Harness
 
+[![ci](https://github.com/PatayEnCroute/Harness/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PatayEnCroute/Harness/actions/workflows/ci.yml)
+
 **Un cadre de travail prêt à l'emploi pour Claude Code, quelle que soit la stack. Compatible Codex, OpenCode, Antigravity et DeepSeek Harness.**
 
 Tu décris ce que tu veux, tu valides le cadrage une fois, et Claude livre seul : spec, code testé, revue, PR. Le harness installe dans ton projet les **skills**, **agents**, **rules**, **hooks** et **contrôles CI** qui rendent ce cycle fiable, autour d'[OpenSpec](https://github.com/Fission-AI/OpenSpec).
@@ -8,9 +10,9 @@ Tu décris ce que tu veux, tu valides le cadrage une fois, et Claude livre seul 
 |---|---|
 | 🎯 **Un seul arrêt** | Tu valides la spec à la porte de cadrage. Ensuite, le run va jusqu'au rapport sans te solliciter, et jusqu'à la PR relue si la confiance suffit. |
 | ⚡ **En parallèle** | Chaque run tourne dans son propre worktree : tu cadres le change suivant pendant ce temps. |
-| ✅ **Jamais vert sans test** | `hx check` lance les mêmes contrôles en local et en CI, et relie chaque scénario de spec à un test. |
+| ✅ **Jamais vert sans test** | `hx check` lance les mêmes contrôles en local et en CI ([workflow `hx-check`](template/.github/workflows/hx-check.yml.jinja) installé dans ton projet), et relie chaque scénario de spec à un test. |
 | 🧩 **Toute stack** | `/hx-setup` adapte les commandes (lint, tests, typecheck…) à ton projet. |
-| 🔁 **Cinq harness, une source** | Les fichiers de Codex, OpenCode, Antigravity et DeepSeek Harness sont générés depuis ceux de Claude Code. [La CI mesure leur parité](docs/parite.md). |
+| 🔁 **Cinq harness, une source** | Les fichiers de Codex, OpenCode, Antigravity et DeepSeek Harness sont générés depuis ceux de Claude Code. [La CI mesure leur parité](docs/parite.md) (job [`parité des harness`](.github/workflows/ci.yml)). |
 
 > Pensé pour **Claude Code Desktop** : aucune commande à taper, la suite se choisit d'un clic. Le terminal reste pris en charge. Statut : éprouvé sur un vrai projet. [Présentation en schémas →](https://patayencroute.github.io/Harness/)
 
@@ -117,14 +119,14 @@ Le langage naturel remplace toute commande : « go », « livre <change> », « 
 
 ### Livraison automatique
 
-Désactivée par défaut. Pour l'activer : `"ship": { "auto": true, "min_confidence": 80, "max_rounds": 3 }` dans `.harness/config.json`. En fin de run, `hx confidence <change>` calcule l'indice sur les fichiers du change et sur git, jamais sur l'avis de l'agent qui a codé. Le hook `PreToolUse` refuse `/hx-ship` à Claude tant que l'indice ne l'autorise pas.
+Désactivée par défaut. Pour l'activer : `"ship": { "auto": true, "min_confidence": 80, "max_rounds": 3 }` dans `.harness/config.json`. En fin de run, `hx confidence <change>` calcule l'indice sur les fichiers du change et sur git, jamais sur l'avis de l'agent qui a codé. Deux gardes refusent la livraison tant que ni toi ni l'indice ne l'autorisez : le hook `PreToolUse` sur `/hx-ship`, et `hx ship-gate` / `hx openspec archive`, qui valent pour tout harness.
 
 | ✗ Exclut toujours | − Retire des points (sur 100) |
 |---|---|
 | piste L (ou autre que M) | 10 par hypothèse à confirmer |
 | rapport de fin de run autre que « Prêt à livrer », tâches non cochées | 5 par mineur proposé |
 | important reporté hors du change | 5 par constat corrigé après la dernière relecture |
-| `.harness/`, `.claude/`, `.github/`, `CLAUDE.md`, specs principales modifiés | 15 si des dépendances changent |
+| `.harness/`, `.claude/`, `.github/`, `CLAUDE.md`, `AGENTS.md`, fichiers des autres harness, specs principales modifiés | 15 si des dépendances changent |
 | mesure absente de `.openspec.yaml`, ou antérieure au dernier commit de code ; arbre sale, revue sans sous-agents | |
 
 **Boucle de correction** : score sous le seuil, mais **plafond** (le score une fois mineurs appliqués et corrections relues) au-dessus ? `hx-review` applique les mineurs, fait relire le diff par des sous-agents neufs, corrige ce qu'ils confirment, et recommence, jusqu'à `max_rounds` tours de correction après la première revue. Toujours sous le seuil au bout : il te demande la suite (livrer quand même, un tour de plus, ou reprendre la main). Hypothèses et dépendances ne se corrigent pas : seul toi les lèves.
@@ -199,6 +201,7 @@ flowchart LR
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **4 rules** | `openspec` · `testing` · `architecture` (feature-first, proportionnée) · `comments` (aucun par défaut, liste fermée d'exceptions) |
 | **5 hooks** | `SessionStart` : prochaine action de chaque change · `UserPromptSubmit` : ton « livre <change> » noté comme un clic · `PreToolUse` : rappel sur un fichier sensible, `/hx-ship` refusé à Claude sans ta décision (clic « livrer » ou « livre <change> ») ni indice suffisant · `PostToolUse` : lint du fichier édité, réponse à « Livraison » notée · `Stop` : contrôles rapides et chemins protégés avant de rendre la main |
+| **Autres harness** (si `tools`) | `AGENTS.md` · `.codex/` · `.opencode/` · `.agents/` · `.dsh/`, générés par `hx adapters` ([détail](#autres-harness)) |
 | **CLI `hx`** | `check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `run` (une commande du contrat) · `status` (état des runs) · `confidence` (livraison automatique) · `ship-gate` (garde de livraison) · `worktree` · `doctor` · `adapters` (fichiers des autres harness) · `stats` (mesures d'élagage) · `trace` · `detect` · `migrate` · `openspec` (version épinglée) |
 
 <details>
@@ -208,7 +211,7 @@ Autorisés sans confirmation : `node .harness/hx.mjs`, `openspec`, git local (le
 
 **Aucune règle `ask`** : une confirmation que personne ne relit ne protège rien, et elle interromprait le mode Auto. Le reste (`git push`, `git rm`, `git worktree remove`, `git bisect`, `gh issue create`…) revient au mode de permission ; en Auto, son classifieur décide. Les permissions du dossier principal (`.claude/settings.local.json`) sont reprises dans chaque worktree.
 
-Interdit : éditer `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier). Un test vérifie que chaque commande citée par un skill est autorisée ou laissée exprès au mode.
+Interdit : éditer `hx.mjs`, `hooks.mjs`, `adapters.mjs` et `versions.json` (gérés par Copier). Un test vérifie que chaque commande citée par un skill est autorisée ou laissée exprès au mode.
 
 </details>
 
@@ -228,7 +231,8 @@ Un fichier générique s'améliore dans Harness, pas dans le projet. Les fichier
 |---|---|
 | **Mettre à jour** | Dis « mets à jour le harness » (`/hx-update`) : Claude lance Copier (dernier tag), tranche les conflits avec toi en choix cliquables, vérifie et commite. `hx doctor` signale un projet en retard. |
 | **Résoudre un conflit** | Fait par `/hx-update`. À la main : `hx doctor` liste les marqueurs `<<<<<<<` et fichiers `.rej` ; garde la version du template sauf personnalisation voulue, nettoie, relance `hx doctor`, commite. |
-| **Protéger le harness** | Avec `codeowners`, `.github/CODEOWNERS` couvre `.harness/`, `.claude/settings.json`, `.github/` et `openspec/specs/`. À combiner avec « Require review from Code Owners ». |
+| **Ajouter ou retirer un harness** | `node .harness/hx.mjs adapters --tools claude,codex,…`, puis commite. `hx doctor` dit ce qui manque sur ton poste pour chacun. |
+| **Protéger le harness** | Avec `codeowners`, `.github/CODEOWNERS` couvre `.harness/`, `.claude/settings.json`, `.github/`, `openspec/specs/` et, avec d'autres harness, leurs hooks et permissions (`.codex/`, `.agents/hooks.json`, `.opencode/`, `.dsh/`). À combiner avec « Require review from Code Owners ». |
 
 <details>
 <summary><b>Désinstaller</b></summary>
@@ -246,16 +250,33 @@ Un fichier générique s'améliore dans Harness, pas dans le projet. Les fichier
 ## Contribuer au template
 
 ```bash
-npm test                # unitaires, hermétiques (CI : Linux, macOS, Windows)
+npm test                # unitaires, hermétiques
 npm run test:contract   # contrat OpenSpec sur la version épinglée (réseau)
 npm run parity          # parité des harness : tableau à jour, plancher, mêmes décisions de hooks
 npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update, lanceur npx, tous les harness
 npm run evals           # agents headless notés de façon déterministe (local, sans clé d'API)
 ```
 
-**Publier une version** : sur `main`, la section « Non publié » de `CHANGELOG.md` devient la version, puis `git tag vX.Y.Z && git push origin vX.Y.Z`. Les projets suivent les tags.
+### La CI
 
-Les actions GitHub sont épinglées par SHA et tenues à jour par Dependabot ; les SHA de `hx-check.yml.jinja` suivent ceux de `ci.yml` (vérifié par un test).
+Un seul workflow, [`ci.yml`](.github/workflows/ci.yml) ([dernières exécutions](https://github.com/PatayEnCroute/Harness/actions/workflows/ci.yml)), sur chaque PR et chaque push sur `main`.
+
+| Job | Vérifie | En local | Fichiers |
+|---|---|---|---|
+| `unit` (Linux, macOS, Windows ; Node 22 et 20.19) | `hx`, hooks, générateur, lint du template, correcteurs des evals, lanceur | `npm test` | [`tests/*.test.mjs`](tests/) |
+| `contrat OpenSpec (réseau)` | Chaque hypothèse sur la version épinglée d'OpenSpec | `npm run test:contract` | [`openspec-contract.test.mjs`](tests/openspec-contract.test.mjs) |
+| `lint (shellcheck)` | Tous les scripts shell | `shellcheck -s bash -S warning` | `*.sh` |
+| `e2e (node, python, dotnet, go, mixed)` | Installation, `/hx-setup` simulé, `hx doctor`, `hx check`, workflow généré | `tests/e2e.sh <stack>` | [`e2e.sh`](tests/e2e.sh), [`fixtures/`](tests/fixtures/) |
+| `e2e (cycle OpenSpec)` | Change, trace, garde de livraison, archive | `tests/e2e-openspec.sh` | [`e2e-openspec.sh`](tests/e2e-openspec.sh) |
+| `e2e (copier update)` | Mise à jour sans écraser le spécifique | `tests/e2e-update.sh` | [`e2e-update.sh`](tests/e2e-update.sh) |
+| `e2e (lanceur npx)` | `npx github:PatayEnCroute/Harness` | `tests/e2e-launcher.sh` | [`e2e-launcher.sh`](tests/e2e-launcher.sh), [`bin/harness.mjs`](bin/harness.mjs) |
+| `parité des harness` | Tableau [`docs/parite.md`](docs/parite.md) à jour et au-dessus du plancher ; niveaux prouvés ; installation avec les quatre harness ; fichiers générés validés par de vrais outils | `npm run parity`, `tests/e2e-adapters.sh` | [`scripts/parity.mjs`](scripts/parity.mjs), [`parity.test.mjs`](tests/parity.test.mjs), [`adapters.test.mjs`](tests/adapters.test.mjs), [`e2e-adapters.sh`](tests/e2e-adapters.sh), [`validate-adapters.py`](tests/validate-adapters.py) |
+
+Le job `parité des harness` publie le tableau de parité dans le résumé de son exécution. Pas d'evals en CI : elles tournent en local, avec ta session Claude Code ([`evals/README.md`](evals/README.md)).
+
+Les actions GitHub sont épinglées par SHA et tenues à jour par [Dependabot](.github/dependabot.yml) ; les SHA de [`hx-check.yml.jinja`](template/.github/workflows/hx-check.yml.jinja), le workflow installé dans les projets, suivent ceux de `ci.yml` (vérifié par un test). Les versions de Copier et de la CLI Codex utilisées en CI sont épinglées en tête de `ci.yml`.
+
+**Publier une version** : sur `main`, la section « Non publié » de `CHANGELOG.md` devient la version, puis `git tag vX.Y.Z && git push origin vX.Y.Z`. Les projets suivent les tags.
 
 ### Pour aller plus loin
 
@@ -265,7 +286,8 @@ Les actions GitHub sont épinglées par SHA et tenues à jour par Dependabot ; l
 | [`docs/PLAN.md`](docs/PLAN.md) | le plan directeur : principes, architecture, roadmap |
 | [`docs/adr/`](docs/adr/) | les décisions du template et leurs raisons |
 | [`docs/parite.md`](docs/parite.md) | ce que chaque harness obtient, capacité par capacité |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | la CI du template, job par job |
 | [`docs/elagage.md`](docs/elagage.md) | savoir quand retirer un composant |
 | [`evals/README.md`](evals/README.md) | les evals comportementales et A/B |
-| [`docs/research/`](docs/research/etat-de-l-art-2026-10.md) | l'état de l'art sourcé (octobre 2026) |
+| [`docs/research/`](docs/research/) | l'état de l'art sourcé (octobre et novembre 2026) |
 | [`CHANGELOG.md`](CHANGELOG.md) | l'historique des versions |

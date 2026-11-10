@@ -136,11 +136,14 @@ describe('parité : déclaration', () => {
     assert.equal(new Set(CAPABILITIES.map((c) => c.id)).size, CAPABILITIES.length, 'identifiants uniques');
   });
 
-  test('README : les scores affichés sont ceux du tableau', () => {
+  test('README et page de présentation : les scores affichés sont ceux du tableau', () => {
     const readme = fs.readFileSync(path.join(repo, 'README.md'), 'utf8');
     const { scores } = parity();
     for (const tool of TOOL_IDS) assert.match(readme, new RegExp(`\\| \`${tool}\` \\| ${scores[tool]} % \\|`), tool);
     assert.ok(readme.includes(`${CAPABILITIES.length} capacités`));
+    const page = fs.readFileSync(path.join(repo, 'docs', 'index.html'), 'utf8');
+    for (const tool of TOOL_IDS) assert.ok(page.includes(`<h3>${TOOLS[tool].label} · ${scores[tool]} %</h3>`), `page de présentation : ${tool}`);
+    assert.ok(page.includes(`${CAPABILITIES.length} capacités`));
   });
 
   test('docs/parite.md publie le tableau à jour (node scripts/parity.mjs --write)', () => {

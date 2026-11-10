@@ -2,8 +2,8 @@
 
 Le **pourquoi** et le **comment** du template. Pour l'installer et s'en servir, voir le [`README`](../README.md).
 
-> **Statut** : phases 0 à 6 publiées, éprouvées sur un vrai projet ; phase 7 sur `main`, non publiée ; phase 8 (mesurer avant d'ajouter) faite sur la branche de travail, non publiée (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
-> **Cadre** : Claude Code · projets solo · GitHub Actions · agnostique de la stack · OpenSpec 1.14.x
+> **Statut** : phases 0 à 6 publiées, éprouvées sur un vrai projet ; phase 7 sur `main`, non publiée ; phase 8 (mesurer avant d'ajouter) et phase 9 (autres harness) faites, non publiées (§7). Version courante : le dernier tag ; historique : [`CHANGELOG.md`](../CHANGELOG.md).
+> **Cadre** : Claude Code en source ; Codex, OpenCode, Antigravity et DeepSeek Harness générés · projets solo · GitHub Actions · agnostique de la stack · OpenSpec 1.14.x
 > **Sources** : [état de l'art d'octobre 2026](research/etat-de-l-art-2026-10.md), [état de l'industrie de novembre 2026](research/harness-industrie-2026-11.md), [ingénierie de contexte](research/ingenierie-de-contexte-2026-11.md)
 
 ---
@@ -16,6 +16,7 @@ Le **pourquoi** et le **comment** du template. Pour l'installer et s'en servir, 
 | **Agnostique** | Le générique ignore la stack. Le spécifique tient dans quelques fichiers isolés, remplis par `/hx-setup`. |
 | **Moteur** | [Copier](https://copier.readthedocs.io) : installation **et mise à jour** par fusion à 3 voies. |
 | **Règle d'or** | Tout contrôle existe en CI ; les hooks locaux ne font qu'accélérer le retour. |
+| **Une source, cinq harness** | Claude Code est la source ; les fichiers des autres harness en sont générés, et leur parité est mesurée en CI (§4.4). |
 | **Anti-lourdeur** | Pistes S / M / L : un petit correctif n'a pas besoin de spec. |
 
 ```mermaid
@@ -43,7 +44,7 @@ flowchart LR
 | P8 | **Boucle de pilotage** | Une erreur récurrente devient une rule, un contrôle ou un skill, remonté dans Harness. | Hashimoto |
 | P9 | **Élaguer** | Un composant sans gain mesurable est retiré ([`elagage.md`](elagage.md)). | Anthropic |
 | P10 | **Architecture proportionnée** | Feature-first ; une couche seulement pour un besoin nommé (§5). | Clean Arch., YAGNI |
-| P11 | **Standard quand c'est gratuit** | Skills au format `SKILL.md`, portables sans effort. | Agent Skills |
+| P11 | **Standard quand c'est gratuit, généré quand il ne l'est pas** | Skills au format `SKILL.md`, portables sans effort. Le reste (sous-agents, hooks, permissions) est généré par harness depuis une seule source, jamais écrit deux fois (§4.4). | Agent Skills, [ADR-005](adr/005-autres-harness-generes.md) |
 | P12 | **Le durable est déterministe** | La valeur du harness tient à ce qui rend le travail de l'agent vérifiable et rapide à valider (`hx check`, `hx trace`, porte, `hx confidence`, rapport), pas à l'aide au codage, que chaque modèle rend moins utile. L'effort va d'abord là. | [industrie 2026-11](research/harness-industrie-2026-11.md) §10 |
 | P13 | **Ne pas refaire la plateforme** | Ce que Claude Code fait nativement (worktrees, revue, orchestration, mémoire) ne se reconstruit pas ; un composant devenu natif se retire. Le harness garde ce que Claude Code ne fera pas : contrat `hx`, OpenSpec, pistes, livraison fondée sur des faits. | [industrie 2026-11](research/harness-industrie-2026-11.md) §2, §9 |
 | P14 | **Rien d'utile ne vit seulement dans la conversation** | Hypothèses, décisions, état du run : dans des fichiers du change. Un run interrompu ou compacté reprend depuis eux. | [contexte 2026-11](research/ingenierie-de-contexte-2026-11.md) |
@@ -100,8 +101,10 @@ Les critères de piste vivent dans `hx-triage` seul. Sur un projet existant sans
 | | **Générique** | **Spécifique** |
 |---|---|---|
 | Source | le template, mis à jour par `copier update` | `/hx-setup`, une fois par projet |
-| Fichiers | `CLAUDE.md`, `.claude/` (skills, agents, rules, settings), `.harness/hx.mjs`, `hooks.mjs`, `config.schema.json`, `versions.json`, `openspec/config.yaml`, `hx-check.yml` | `.harness/config.json`, `project.md`, `ci/setup/action.yml`, `.claude/rules/stack-*.md`, `dependabot.yml`, `CODEOWNERS`, config `arch` et lint des commentaires |
+| Fichiers | `CLAUDE.md`, `.claude/` (skills, agents, rules, settings), `.harness/hx.mjs`, `hooks.mjs`, `adapters.mjs`, `config.schema.json`, `versions.json`, `openspec/config.yaml`, `hx-check.yml` | `.harness/config.json`, `project.md`, `ci/setup/action.yml`, `.claude/rules/stack-*.md`, `dependabot.yml`, `CODEOWNERS`, config `arch` et lint des commentaires |
 | Conflits à la mise à jour | fusion à 3 voies | **aucun** : absents du template ou `_skip_if_exists` |
+
+**Troisième catégorie : le généré.** `AGENTS.md`, `.codex/`, `.agents/`, `.opencode/` et `.dsh/` ne viennent ni du template ni de `/hx-setup` : `hx adapters` les tire du générique et du spécifique du projet (§4.4). Ils sont commités, jamais édités ; `.harness/adapters.json` en tient la liste.
 
 ### 3.2 Le contrat de commandes
 
@@ -119,22 +122,26 @@ Les critères de piste vivent dans `hx-triage` seul. Sur un projet existant sans
   "architecture": { "style": "feature-first", "level": 1, "features": { "facturation": 2 } },
   "trace": { "min_coverage": 100 },
   "tracks": { "S": { "spec": false }, "M": { "spec": true, "design": "optional" }, "L": { "spec": true, "design": "required", "adr": "required" } },
-  "ship": { "auto": false, "min_confidence": 80, "max_rounds": 3 }
+  "ship": { "auto": false, "min_confidence": 80, "max_rounds": 3 },
+  "adapters": { "models": { "codex": { "haiku": "<modèle léger>" } } }
 }
 ```
 
 JSON plutôt que YAML : `hx` n'a aucune dépendance et Node le lit nativement.
 
+
 | Commande `hx` | Rôle |
 |---|---|
 | `check [--fast]` | Tous les contrôles (§4.3). **Jamais vert sans test exécuté.** |
 | `run <cmd> [--file]` | Une commande du contrat, sur tous les composants ou celui du fichier |
-| `doctor` | Installation saine, commandes qui passent, retard sur le dernier tag |
+| `doctor` | Installation saine, commandes qui passent, retard sur le dernier tag ; par autre harness : CLI, approbation du projet, pont de hooks |
 | `detect [--write]` | Propose composants et commandes depuis les manifestes |
 | `worktree <change>` | Branche + worktree pour le run d'un change validé |
 | `status` · `stats` | État des runs · mesures d'élagage des changes archivés |
 | `confidence <change>` | Indice de confiance d'un run terminé : sortie 0 si `/hx-ship` peut partir seul ; plafond atteignable et suite |
-| `trace` · `migrate` · `openspec` | Scénarios ↔ tests · clés nouvelles du contrat · OpenSpec épinglé |
+| `ship-gate [<change>]` | Garde de livraison : sortie 0 sur décision de l'utilisateur ou si `hx confidence` l'autorise. `openspec archive` l'applique aussi |
+| `adapters [--tools …] [--check]` | Génère les fichiers des autres harness ; `--check` : 1 si l'un est périmé ; `--parity` : tableau de parité |
+| `trace` · `migrate` · `openspec` | Scénarios ↔ tests · clés nouvelles du contrat · OpenSpec épinglé (archive gardée) |
 
 Détail complet : `node .harness/hx.mjs help`.
 
@@ -153,6 +160,8 @@ Projet existant : les rules de stack viennent des conventions observées dans le
 ### 3.4 Copier et OpenSpec
 
 **Copier** installe dans un projet nouveau ou existant, met à jour par fusion à 3 voies, et marche en session cloud car tout est commité ([ADR-001](adr/001-copier-moteur-de-template.md)). Pas de plugin utilisateur en complément ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)). `copier.yml` reste minimal : la source fait foi.
+
+`copier.yml` pose cinq questions, dont `tools` (autres harness, vide par défaut). Ses tâches lancent `openspec init` pour Claude Code et les harness choisis, `hx migrate` à la mise à jour, puis `hx adapters`.
 
 **OpenSpec** est une dépendance centrale assumée, épinglée, au contrat testé ([ADR-004](adr/004-openspec-dependance-centrale.md)). Points d'accroche, sans fork :
 
@@ -194,7 +203,7 @@ Projet existant : les rules de stack viennent des conventions observées dans le
 | `hx-verifier` | Exécuter et prouver | non |
 | `hx-architect` | Décisions besoin d'abord (§5) | non |
 
-Seul `hx-explorer` fixe son modèle ; les autres héritent de la session. « Non » = lecture + shell, sans Edit ni Write.
+Seul `hx-explorer` fixe son modèle ; les autres héritent de la session. Hors de Claude Code, ce modèle se nomme dans `adapters.models` (§3.2). « Non » = lecture + shell, sans Edit ni Write.
 
 ### 4.2 Rules et hooks
 
@@ -212,9 +221,10 @@ Seul `hx-explorer` fixe son modèle ; les autres héritent de la session. « Non
 | `SessionStart` | Affiche les changes en cours (tous worktrees) et la prochaine action de chacun ; « go » lance un run validé ; propose « Capitaliser et nettoyer » pour un worktree mergé ; installe la CLI OpenSpec si absente |
 | `PreToolUse` | Rappel à Claude quand il édite une spec principale ou un fichier qui décide de ce qui s'exécute ; refuse `openspec-apply-change` au profit de `hx-implement` ; refuse `/hx-ship` lancé par Claude sans choix « livrer » de l'utilisateur ni livraison automatique permise. **Ne demande jamais confirmation.** |
 | `PostToolUse` | Lint du fichier édité ; contrat cassé → retour à Claude ; réponse à la question « Livraison » consignée pour `PreToolUse` |
+| `UserPromptSubmit` | Note « livre <change> » (ou un refus) comme une décision de livraison, au même titre qu'un clic |
 | `Stop` | D'après git : lint + typecheck des composants modifiés ; signale les chemins protégés modifiés, quel que soit l'outil |
 
-**Pas de confirmation imposée** : personne ne relit une confirmation répétée, et elle interromprait le mode Auto. Les actions risquées reviennent au mode de permission. `permissions.deny` interdit d'éditer `hx.mjs`, `hooks.mjs` et `versions.json`.
+**Pas de confirmation imposée** : personne ne relit une confirmation répétée, et elle interromprait le mode Auto. Les actions risquées reviennent au mode de permission. `permissions.deny` interdit d'éditer `hx.mjs`, `hooks.mjs`, `adapters.mjs` et `versions.json`.
 
 **Le mode Auto ne garde pas tout.** Son classifieur juge les commandes, pas les éditions de fichiers dans le projet : une évaluation indépendante en trouve 36,8 % hors de son périmètre ([étude](research/harness-industrie-2026-11.md#11-sécurité-incidents-et-gouvernance)). Le sandbox de Claude Code, lui, ne couvre que les commandes shell, ni Edit, ni Write, ni les hooks. Les gardes du harness ne reposent donc sur aucun des deux et restent déterministes :
 
@@ -222,8 +232,9 @@ Seul `hx-explorer` fixe son modèle ; les autres héritent de la session. « Non
 |---|---|
 | `permissions.deny` | outils du harness non modifiables |
 | Hook `PreToolUse` | `/hx-ship` sans décision de l'utilisateur, `openspec-apply-change` |
+| `hx ship-gate`, `hx openspec archive` | pas d'archive sans décision de l'utilisateur ni indice suffisant, **quel que soit le harness** (un hook ne voit pas toujours le lancement d'un skill) |
 | Hook `Stop` | chemins protégés modifiés, quel que soit l'outil (Bash compris) |
-| `hx confidence` | aucune livraison seule d'un change qui touche `.harness/`, `.claude/`, `.github/`, `CLAUDE.md` |
+| `hx confidence` | aucune livraison seule d'un change qui touche `.harness/`, `.claude/`, `.github/`, `CLAUDE.md`, `AGENTS.md` ou les fichiers d'un autre harness |
 | `hx doctor` | Claude Code ≥ 2.1.260 (tous les correctifs de sécurité publiés) ; sandbox signalé s'il manque à la livraison automatique ou s'il peut repasser hors sandbox en silence |
 
 Le sandbox reste **opt-in** (`/hx-setup`, étape 13) : désactivé par défaut dans Claude Code, absent sous Windows natif, réseau à ouvrir domaine par domaine. Activé, il exige `failIfUnavailable`.
@@ -235,7 +246,38 @@ Le sandbox reste **opt-in** (`/hx-setup`, étape 13) : désactivé par défaut d
 | `openspec` · `archives` | Specs et changes valides (`--strict`) ; tâches des changes archivés toutes faites |
 | `pistes` | `x-track` présent et valide sur chaque change ; artefacts exigés par la piste ; ADR cités existants |
 | `trace` | Chaque scénario a un test tagué `@scenario` (échec une fois les tâches cochées) ; couverture des specs ≥ seuil ; pas de scénarios homonymes ni de tag orphelin |
+| `adapters` | Avec d'autres harness : aucun fichier généré périmé par rapport à sa source |
 | `lint` · `typecheck` · `arch` · `test` | Commandes du contrat, par composant |
+
+Dans un projet, ces contrôles tournent par le workflow [`hx-check`](../template/.github/workflows/hx-check.yml.jinja), installé avec le template.
+
+### 4.4 Autres harness
+
+Claude Code reste la source. `hx adapters` génère pour Codex, OpenCode, Antigravity et DeepSeek Harness ce que chacun sait lire ([ADR-005](adr/005-autres-harness-generes.md)).
+
+```mermaid
+flowchart LR
+  S["Source<br/>CLAUDE.md · .claude/ · project.md"] -->|hx adapters| G["Généré<br/>AGENTS.md · .codex/ · .opencode/ · .agents/ · .dsh/"]
+  G -->|hook du harness| T["adapters.mjs<br/>traduit entrée et sortie"]
+  T --> H["hooks.mjs<br/>les handlers de Claude Code"]
+  S -.->|hx check · hx doctor| D{{périmé ?}}
+  G -.-> D
+```
+
+| Pièce | Claude Code | Codex | OpenCode | Antigravity | DeepSeek Harness |
+|---|---|---|---|---|---|
+| Consignes | `CLAUDE.md` | `AGENTS.md` | `AGENTS.md` | `AGENTS.md` | `AGENTS.md` |
+| Skills | `.claude/skills/` | `.agents/skills/` | lit `.claude/skills/` | `.agents/skills/` | `.agents/skills/` |
+| Sous-agents | `.claude/agents/*.md` | `.codex/agents/*.toml` | `.opencode/agents/*.md` | `.agents/agents/*.md` | outil `subagent` |
+| Rules | `.claude/rules/` | injectées par hook | injectées par plugin | `.agents/rules/` | injectées par hook |
+| Hooks | `settings.json` | `.codex/hooks.json` | plugin `hx-harness.js` | `.agents/hooks.json` | pont + `.dsh/hooks.json` |
+| Permissions | `settings.json` | `.codex/rules/` | `.opencode/opencode.json` | hook `PreToolUse` | préréglages |
+
+Trois règles tiennent l'ensemble :
+
+- **Un seul comportement.** Chaque harness appelle `.harness/hooks.mjs --tool <harness>` ; `adapters.mjs` traduit son protocole vers celui de Claude Code, puis la réponse dans l'autre sens. La logique n'existe qu'une fois.
+- **Pas de dérive.** Un fichier généré périmé fait échouer `hx check` et `hx doctor` ; le hook de démarrage le signale.
+- **Pas de recul silencieux.** Chaque capacité a un niveau par harness (natif, équivalent, dégradé, absent), déclaré dans `adapters.mjs` et publié dans [`parite.md`](parite.md). Le job CI [`parité des harness`](../.github/workflows/ci.yml) prouve chaque niveau et refuse un harness sous 66 %.
 
 ---
 
@@ -301,13 +343,20 @@ Outils de `hx run arch`, choisis par `/hx-setup` : dependency-cruiser (TS), impo
 
 ## 6. Qualité du template
 
-| Test | Vérifie | Où |
-|---|---|---|
-| Unitaires | `hx`, hooks, correcteurs des evals | `npm test` (Linux, macOS, Windows) |
-| Lint du template | Format `SKILL.md`, agents en lecture seule, budgets, références `hx-*`, Unicode invisible | `npm test` |
-| Contrat OpenSpec | Chaque hypothèse sur la version épinglée | `npm run test:contract` |
-| E2E | 5 stacks · cycle OpenSpec complet · `copier update` · lanceur `npx` | `npm run e2e`, CI |
-| Evals | Agents headless notés de façon déterministe ; A/B `--without <skill>` pour l'élagage | `npm run evals`, en local |
+Un seul workflow, [`ci.yml`](../.github/workflows/ci.yml) ([exécutions](https://github.com/PatayEnCroute/Harness/actions/workflows/ci.yml)), sur chaque PR et chaque push sur `main`.
+
+| Test | Vérifie | Commande | Job CI | Fichiers |
+|---|---|---|---|---|
+| Unitaires | `hx`, hooks, générateur des autres harness, correcteurs des evals, lanceur | `npm test` | `unit` (Linux, macOS, Windows) | [`tests/*.test.mjs`](../tests/) |
+| Lint du template | Format `SKILL.md` et YAML strict, agents en lecture seule, budgets, références `hx-*`, Unicode invisible, actions épinglées | `npm test` | `unit` | [`template.test.mjs`](../tests/template.test.mjs) |
+| Lint shell | Tous les scripts `*.sh` | `shellcheck` | `lint (shellcheck)` | — |
+| Contrat OpenSpec | Chaque hypothèse sur la version épinglée | `npm run test:contract` | `contrat OpenSpec (réseau)` | [`openspec-contract.test.mjs`](../tests/openspec-contract.test.mjs) |
+| E2E | 5 stacks · cycle OpenSpec complet (garde de livraison comprise) · `copier update` · lanceur `npx` | `npm run e2e` | `e2e (<stack>)`, `e2e (cycle OpenSpec)`, `e2e (copier update)`, `e2e (lanceur npx)` | [`e2e.sh`](../tests/e2e.sh), [`e2e-openspec.sh`](../tests/e2e-openspec.sh), [`e2e-update.sh`](../tests/e2e-update.sh), [`e2e-launcher.sh`](../tests/e2e-launcher.sh) |
+| Parité des harness | Tableau à jour, plancher de 66 % ; structure des fichiers générés ; mêmes décisions de hooks dans le protocole de chaque harness | `npm run parity` | `parité des harness` | [`parity.mjs`](../scripts/parity.mjs), [`parity.test.mjs`](../tests/parity.test.mjs), [`adapters.test.mjs`](../tests/adapters.test.mjs) |
+| E2E des harness | Installation avec les quatre harness, dérive, retrait ; fichiers validés par la CLI Codex, le schéma officiel d'OpenCode, les parseurs TOML et YAML | `tests/e2e-adapters.sh` | `parité des harness` | [`e2e-adapters.sh`](../tests/e2e-adapters.sh), [`validate-adapters.py`](../tests/validate-adapters.py) |
+| Evals | Agents headless notés de façon déterministe ; A/B `--without <skill>` pour l'élagage | `npm run evals` | aucun : en local | [`evals/`](../evals/README.md) |
+
+**Limite assumée** : le plugin OpenCode, les hooks Antigravity et le pont DeepSeek ne tournent sur aucun binaire en CI ; ils sont rejoués dans leur protocole documenté. Les evals ne couvrent que Claude Code.
 
 <details>
 <summary><b>Arborescences</b> : repo Harness et projet installé</summary>
@@ -322,12 +371,13 @@ Harness/
 ├── template/             # ce qui atterrit dans le projet
 │   ├── CLAUDE.md
 │   ├── .claude/          # 16 skills, 7 agents, 4 rules, settings
-│   ├── .harness/         # hx.mjs, hooks.mjs, config…
+│   ├── .harness/         # hx.mjs, hooks.mjs, adapters.mjs, config…
 │   ├── openspec/config.yaml
 │   └── .github/          # si ci
-├── tests/                # unit, contrat, e2e (5 stacks)
+├── scripts/parity.mjs    # tableau de parité des harness
+├── tests/                # unit, contrat, parité, e2e (5 stacks, 5 harness)
 ├── evals/
-└── docs/                 # PLAN, ADR, élagage, research
+└── docs/                 # PLAN, ADR, parité, élagage, research
 ```
 
 </td><td>
@@ -336,12 +386,14 @@ Harness/
 mon-projet/
 ├── .copier-answers.yml   # version du template
 ├── CLAUDE.md             # importe project.md
+├── AGENTS.md  .codex/  .opencode/  .agents/  .dsh/   # générés, si tools
 ├── .claude/              # hx-* + openspec-*, stack-*.md
 ├── .harness/
 │   ├── config.json       # ← personnalisé
 │   ├── project.md        # ← personnalisé
 │   ├── ci/setup/         # ← personnalisé
-│   └── hx.mjs  hooks.mjs …
+│   ├── adapters.json     # harness choisis, fichiers générés
+│   └── hx.mjs  hooks.mjs  adapters.mjs …
 ├── openspec/             # config, specs, changes
 ├── .github/
 └── docs/                 # adr, learnings
@@ -367,7 +419,8 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | **P5 Démarrage** ✅ | Lanceur `npx`, `INSTALL.md` | v0.4.0 |
 | **P6 Runs sans interruption** ✅ | Porte de cadrage, `hx worktree`, rapport de fin de run | v0.5.0 |
 | **P7 Desktop et livraison** ✅ | Un change par session, choix cliquables, `/hx-update`, livraison automatique (`hx confidence`, boucle de correction, revue de PR) | non publiée |
-| **P8 Mesurer avant d'ajouter** | Voir ci-dessous | — |
+| **P8 Mesurer avant d'ajouter** ✅ | Voir ci-dessous | non publiée |
+| **P9 Autres harness** ✅ | Codex, OpenCode, Antigravity et DeepSeek Harness générés depuis la source Claude Code ; parité mesurée en CI ; garde de livraison dans `hx` ; `hx doctor` par harness (§4.4) | non publiée |
 
 **P8 : mesurer avant d'ajouter.** Le harness a grossi plus vite qu'il n'a été mesuré : aucun A/B `--without` n'a été mené ([`elagage.md`](elagage.md)). **Aucune nouvelle fonction avant la fin des étapes 1 et 2.** Dans l'ordre :
 
@@ -390,7 +443,7 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 
 **Décision (07/11/2026)** : rien n'est retiré. L'utilisateur garde `hx-implement`, `hx-tdd` et le hook `PostToolUse` malgré les questions ouvertes ci-dessus ; elles reviendront à la prochaine revue d'élagage (nouvelle génération de modèles, ou au plus tard dans un trimestre). Le gel des nouvelles fonctions est levé.
 
-À ignorer tant qu'aucun besoin n'est observé : agent teams, multi-harness, Agent Plugins, A2A, mémoire automatique, `/goal` comme fin de run (juge sans outils, contraire à P6).
+À ignorer tant qu'aucun besoin n'est observé : agent teams, Agent Plugins, A2A, serveur MCP `hx`, evals par harness, mémoire automatique, `/goal` comme fin de run (juge sans outils, contraire à P6).
 
 **Leçons de la réalisation**, désormais encodées :
 
@@ -398,6 +451,8 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 - **Pas de confirmation imposée** : personne ne la relit, et elle casse le mode Auto.
 - **`Purpose` ≥ 50 caractères** pour une nouvelle capability, sinon `validate --strict` la refuse après l'archive.
 - **`state` décide, pas `missingPrerequisites`** : bug révélé par l'eval `implement-m`, couvert par le contrat.
+- **Une garde qui compte ne vit pas que dans un hook** : Codex ne montre pas aux hooks le lancement d'un skill. La garde de livraison est dans `hx` (`ship-gate`, `openspec archive`).
+- **YAML strict dans les frontmatters** : Claude Code tolère une valeur non citée qui contient « : » ; les parseurs des autres harness refusent le skill. Un test l'interdit.
 - **Jamais de dossier `bin/`** pour les scripts du harness ; `hx doctor` vérifie qu'aucun n'est ignoré par git.
 
 ---
@@ -412,7 +467,9 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | L'architecte sur-conçoit | Besoin d'abord, option la plus simple obligatoire ; `hx-code-reviewer` signale l'abstraction sans besoin |
 | Conflits ou projets en retard | Spécifique hors template ; `hx doctor` détecte conflits et retard ; `hx migrate` complète le contrat |
 | Stack exotique, monorepo | Toute commande shell acceptée ; composants multi-stack |
-| Besoin d'un autre outil IA | Skills au standard `SKILL.md` ; outil de synchronisation (rulesync, APM) |
+| Un autre harness change de format (hooks, sous-agents) | Une seule couche à corriger (`adapters.mjs`) ; fichiers validés en CI par de vrais outils là où c'est possible ; `hx doctor` par harness ; sinon, vu à l'usage (§6) |
+| Un harness prend du retard sur Claude Code | Niveaux de parité prouvés en CI, plancher de 66 %, tableau publié ([`parite.md`](parite.md)) |
+| Fichier généré édité à la main, ou périmé | `hx check`, `hx doctor` et le hook de démarrage le signalent ; `hx adapters` régénère |
 | Livraison automatique d'un mauvais change | Opt-in, piste M seule ; indice calculé sur les fichiers et git, pas sur l'avis de l'agent ; PR en brouillon, revue neuve en commentaire ; jamais de merge |
 | Lourdeur | Pistes S/M/L ; élagage mesuré |
 | Valeur du harness non démontrée face aux modèles forts | P12 ; A/B de P8 avant toute nouvelle fonction |
@@ -436,6 +493,8 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 | Archive OpenSpec | **Dernier commit de la PR** : `main` a toujours code et specs cohérents |
 | Architecture | **Feature-first + règle de dépendance**, niveau proportionné au besoin (§5) |
 | Hook sur `openspec/specs/` | **Rappel**, ni blocage ni confirmation |
-| Modèle des agents | **Hérité de la session**, sauf `hx-explorer` (`haiku`) |
+| Modèle des agents | **Hérité de la session**, sauf `hx-explorer` (`haiku`) ; pour les autres harness, `adapters.models` de `.harness/config.json`, vide par défaut |
+| Garde de livraison | **Dans `hx`** (`ship-gate`, `openspec archive`), en plus du hook : valable pour tout harness |
+| Parité des harness | **Mesurée, pas promise** : niveau par capacité, prouvé en CI, plancher de 66 % |
 | Nouvelles fonctions | Gel levé le 07/11/2026, après les étapes 1 et 2 de P8 |
 | Place de l'humain en M/L | **Une porte, au cadrage**, puis run sans interruption et livraison par l'utilisateur (ou seule si `hx confidence` l'autorise, merge toujours humain). Le but n'est pas un agent sans humain : l'utilisateur cadre le change suivant pendant le run. |
