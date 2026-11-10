@@ -90,7 +90,7 @@ describe('lanceur npx', () => {
     const questions = fs.readFileSync(path.join(repo, 'copier.yml'), 'utf8').split(/\n(?=\w)/)
       .filter((block) => /^[a-z]\w*:/.test(block) && !/\n\s+when: false/.test(block))
       .map((block) => block.split(':')[0]);
-    assert.deepEqual(questions, ['project_name', 'ci', 'default_branch', 'codeowners']);
+    assert.deepEqual(questions, ['project_name', 'ci', 'default_branch', 'codeowners', 'tools']);
     for (const q of questions) {
       assert.match(install, new RegExp(`\\| \`${q}\` \\|`), `${q} absente du tableau`);
       assert.match(install, new RegExp(`--data ${q}=`), `${q} absente de la commande`);

@@ -138,6 +138,7 @@ function demo() {
     fs.writeFileSync(path.join(root, rel), content);
   }
   fs.copyFileSync(hx, path.join(root, '.harness', 'hx.mjs'));
+  fs.copyFileSync(path.join(path.dirname(hx), 'adapters.mjs'), path.join(root, '.harness', 'adapters.mjs'));
   const git = (...args) => spawnSync('git', ['-c', 'user.email=e@x', '-c', 'user.name=e', ...args], { cwd: root, encoding: 'utf8' });
   git('init', '-q');
   git('add', '-A');

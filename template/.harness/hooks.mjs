@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Hooks Claude Code du harness, câblés dans .claude/settings.json.
+// Hooks du harness, câblés dans .claude/settings.json. Les autres harness (Codex, OpenCode, Antigravity, DeepSeek
+// Harness) appellent le même fichier avec « --tool <harness> » : leur protocole est traduit par adapters.mjs.
 // Fichier géré par le template Harness : les améliorations se font dans Harness, puis `copier update`.
 // Un hook ne doit jamais casser une session : une erreur inattendue est signalée puis ignorée.
 
@@ -12,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   FAST_STEPS,
+  adaptersDrift,
   confidence,
   execute,
   findComponentForFile,
@@ -63,7 +65,12 @@ export function relative(root, file) {
 // Aucune confirmation demandée (le mode de permission de Claude Code en décide) : PreToolUse en informe Claude,
 // Stop signale à l'utilisateur ceux modifiés pendant la session, quel que soit l'outil qui a écrit.
 const SPECS = 'openspec/specs/';
-const EXECUTION_FILES = ['.harness/config.json', '.harness/hx.mjs', '.harness/hooks.mjs', '.harness/versions.json', '.claude/settings.json', '.claude/settings.local.json'];
+const EXECUTION_FILES = [
+  '.harness/config.json', '.harness/hx.mjs', '.harness/hooks.mjs', '.harness/adapters.mjs', '.harness/adapters.json', '.harness/versions.json',
+  '.claude/settings.json', '.claude/settings.local.json',
+  '.codex/hooks.json', '.codex/config.toml', '.codex/rules/harness.rules', '.agents/hooks.json',
+  '.opencode/opencode.json', '.opencode/plugins/hx-harness.js', '.dsh/hooks.json', '.dsh/harness.patch.yml',
+];
 const EXECUTION_NOTE = 'Ce fichier décide des commandes exécutées sans confirmation (contrat hx, hooks, permissions ou version d\'OpenSpec). L\'utilisateur verra ce chemin signalé en fin de tour.';
 const PROTECTED = [
   { test: (rel) => rel.startsWith(SPECS), note: 'Les specs principales (openspec/specs/) ne changent que pendant /opsx:sync ou /opsx:archive.' },
@@ -218,6 +225,8 @@ export function sessionStart(root, input, env = process.env) {
   if (here?.main && trees.some((tree) => tree.shipped === 'mergé')) {
     lines.push("  Au premier échange, propose en choix cliquable « Capitaliser et nettoyer » : git pull, hx-learn, puis pour chaque worktree mergé git worktree remove <dossier> et git branch -d <branche>.");
   }
+  const stale = adaptersDrift(root);
+  if (stale.length) lines.push(`- Fichiers des autres harness périmés (${stale.slice(0, 3).join(', ')}${stale.length > 3 ? '…' : ''}) : lance node .harness/hx.mjs adapters, puis commite.`);
   if (lines.length) console.log(`Harness :\n${lines.join('\n')}`);
   return 0;
 }
@@ -246,7 +255,8 @@ function recordShipDecision(root, input) {
   return 0;
 }
 
-// Demande de livraison tapée par l'utilisateur, au même titre qu'un clic : « /hx-ship [change] » en début de message, ou
+// Demande de livraison tapée par l'utilisateur, au même titre qu'un clic : « /hx-ship [change] » en début de message
+// (« $hx-ship » sous Codex, « @hx-ship » sous OpenCode), ou
 // « livre » à l'impératif en tête de phrase (« Livre-le », « ok, livre add-mult »). Une phrase négative (« ne livre
 // pas », « pas maintenant ») retire une décision consignée. Seule la dernière ligne qui en parle compte : un rapport
 // collé au-dessus ne décide rien.
@@ -255,7 +265,7 @@ const SHIP_REFUSAL = /\bne\s+(?:\S+\s+)?livre[sz]?\s+pas\b|ne pas livrer|\bpas (
 
 export function shipRequest(prompt) {
   const text = String(prompt ?? '').trim();
-  if (/^\/(?:[\w-]+:)?hx-ship(?:\s|$)/.test(text)) return { decision: 'approve', said: text.split(/\r?\n/)[0] };
+  if (/^[/$@](?:[\w-]+:)?hx-ship(?:\s|$)/.test(text)) return { decision: 'approve', said: text.split(/\r?\n/)[0] };
   const said = text.split(/\r?\n/).map((l) => l.trim()).findLast((l) => SHIP_REFUSAL.test(l) || SHIP_ORDER.test(l));
   if (!said) return null;
   return { decision: SHIP_REFUSAL.test(said) ? 'refuse' : 'approve', said: said.slice(0, 120) };
@@ -396,8 +406,103 @@ export function runHook(event, root, input) {
   }
 }
 
+// Sorties d'un handler (console.log, console.error) retenues au lieu d'être écrites : elles sont au format de Claude Code.
+function captured(fn) {
+  const logs = { out: [], err: [] };
+  const { log, error } = console;
+  console.log = (...args) => logs.out.push(args.join(' '));
+  console.error = (...args) => logs.err.push(args.join(' '));
+  try {
+    return { code: fn(), out: logs.out.join('\n'), err: logs.err.join('\n') };
+  } finally {
+    Object.assign(console, { log, error });
+  }
+}
+
+const parsed = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
+const MANAGED_NOTE = 'Fichier géré par le template Harness (mis à jour par copier update) : il ne s\'édite pas dans le projet.';
+
+// Hook appelé par un autre harness que Claude Code : entrée traduite au format de Claude Code, mêmes handlers,
+// résultat rendu dans le protocole du harness. Renvoie { stdout, stderr, code }.
+export function runForeignHook(tool, event, raw, projectDir, adapters) {
+  const { base, calls } = adapters.foreignInput(tool, raw);
+  const root = projectRoot(projectDir, base);
+  const result = { block: null, ask: false, approve: false, context: null, notice: null };
+  const add = (key, text) => {
+    if (text) result[key] = [result[key], text].filter(Boolean).join('\n\n');
+  };
+  const run = (input) => captured(() => runHook(event, root, { ...base, ...input }));
+  const patchState = (patch) => writeState(root, base, { ...(readState(root, base) ?? initialState(root) ?? { base: null, seen: {} }), ...patch });
+
+  if (event === 'session-start') add('context', run({}).out);
+  if (event === 'user-prompt-submit') {
+    // Antigravity appelle ce hook avant chaque appel au modèle : une même demande n'est lue qu'une fois, sinon une
+    // décision de livrer déjà consommée reviendrait.
+    const seen = createHash('sha256').update(String(base.prompt ?? '')).digest('hex').slice(0, 16);
+    if (tool !== 'antigravity' || readState(root, base)?.lastPrompt !== seen) {
+      run({});
+      if (tool === 'antigravity') patchState({ lastPrompt: seen });
+    }
+  }
+  if (event === 'pre-tool-use') {
+    const source = adapters.readSource(root);
+    for (const call of calls) {
+      if (call.tool_name === 'Bash') {
+        if (adapters.PRE_APPROVES.has(tool) && adapters.preApproved(source.allow, call.tool_input.command)) result.approve = true;
+        continue;
+      }
+      const rel = call.tool_name === 'Edit' ? relative(root, call.tool_input.file_path) : null;
+      if (rel !== null && source.deny.some((d) => d.toLowerCase() === rel.toLowerCase())) {
+        add('block', `${rel} : ${MANAGED_NOTE}`);
+        continue;
+      }
+      const decision = parsed(run(call).out)?.hookSpecificOutput ?? {};
+      if (decision.permissionDecision === 'deny') {
+        add('block', decision.permissionDecisionReason);
+        result.ask ||= call.tool_input.skill === 'hx-ship';
+      }
+      add('context', decision.additionalContext);
+    }
+  }
+  if (event === 'post-tool-use') {
+    for (const call of calls) {
+      const r = run(call);
+      if (r.code === FEEDBACK) add('block', r.err);
+    }
+  }
+  if (event === 'stop') {
+    const guard = adapters.NO_STOP_GUARD.has(tool);
+    const r = run(guard ? { stop_hook_active: readState(root, base)?.stopBlocked === true } : {});
+    if (r.code === FEEDBACK) add('block', r.err);
+    add('notice', parsed(r.out)?.systemMessage);
+    if (guard) patchState({ stopBlocked: r.code === FEEDBACK });
+  }
+  return adapters.foreignOutput(tool, event, result);
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) {
   const input = readInput();
-  const root = projectRoot(process.env.CLAUDE_PROJECT_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), input);
-  process.exitCode = runHook(process.argv[2], root, input);
+  const projectDir = process.env.CLAUDE_PROJECT_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const tool = process.argv[3] === '--tool' ? process.argv[4] : null;
+  if (tool) {
+    // Un hook ne casse jamais une session : harness inconnu ou erreur de traduction, on laisse passer.
+    try {
+      const adapters = await import('./adapters.mjs');
+      const r = adapters.TOOLS[tool] && HANDLERS[process.argv[2]] ? runForeignHook(tool, process.argv[2], input, projectDir, adapters) : { stdout: '', stderr: `hooks : « ${process.argv[2]} --tool ${tool} » inconnu, ignoré`, code: 0 };
+      if (r.stdout) process.stdout.write(`${r.stdout}\n`);
+      if (r.stderr) process.stderr.write(`${r.stderr}\n`);
+      process.exitCode = r.code;
+    } catch (err) {
+      console.error(`hooks : ${process.argv[2]} (${tool}) a échoué (${err.message}), ignoré`);
+    }
+  } else {
+    process.exitCode = runHook(process.argv[2], projectRoot(projectDir, input), input);
+  }
 }

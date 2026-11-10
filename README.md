@@ -1,6 +1,6 @@
 # Harness
 
-**Un cadre de travail prêt à l'emploi pour Claude Code, quelle que soit la stack.**
+**Un cadre de travail prêt à l'emploi pour Claude Code, quelle que soit la stack. Compatible Codex, OpenCode, Antigravity et DeepSeek Harness.**
 
 Tu décris ce que tu veux, tu valides le cadrage une fois, et Claude livre seul : spec, code testé, revue, PR. Le harness installe dans ton projet les **skills**, **agents**, **rules**, **hooks** et **contrôles CI** qui rendent ce cycle fiable, autour d'[OpenSpec](https://github.com/Fission-AI/OpenSpec).
 
@@ -10,6 +10,7 @@ Tu décris ce que tu veux, tu valides le cadrage une fois, et Claude livre seul 
 | ⚡ **En parallèle** | Chaque run tourne dans son propre worktree : tu cadres le change suivant pendant ce temps. |
 | ✅ **Jamais vert sans test** | `hx check` lance les mêmes contrôles en local et en CI, et relie chaque scénario de spec à un test. |
 | 🧩 **Toute stack** | `/hx-setup` adapte les commandes (lint, tests, typecheck…) à ton projet. |
+| 🔁 **Cinq harness, une source** | Les fichiers de Codex, OpenCode, Antigravity et DeepSeek Harness sont générés depuis ceux de Claude Code. [La CI mesure leur parité](docs/parite.md). |
 
 > Pensé pour **Claude Code Desktop** : aucune commande à taper, la suite se choisit d'un clic. Le terminal reste pris en charge. Statut : éprouvé sur un vrai projet. [Présentation en schémas →](https://patayencroute.github.io/Harness/)
 
@@ -38,7 +39,7 @@ npx github:PatayEnCroute/Harness
 |---|---|
 | fait `git init` dans un dossier vide ; refuse un arbre git sale | `/hx-setup` retrouve dans git les fichiers que l'installation remplace |
 | installe [uv](https://docs.astral.sh/uv/) s'il manque, après accord | uv lance Copier, le moteur du template |
-| lance `uvx copier@9.19.1 copy --trust` | pose 4 questions : nom du projet, workflow CI (`ci`), branche par défaut (`default_branch`), relecteurs obligatoires (`codeowners`) |
+| lance `uvx copier@9.19.1 copy --trust` | pose 5 questions : nom du projet, workflow CI (`ci`), branche par défaut (`default_branch`), relecteurs obligatoires (`codeowners`), autres harness (`tools`) |
 | ouvre Desktop sur le dossier (`claude --desktop`), sinon dit comment faire | tu y tapes `/hx-setup` |
 
 Options : `--vcs-ref vX.Y.Z` (version précise) · `--defaults` (sans questions) · `--terminal` (Claude Code dans le terminal au lieu de Desktop) · `--no-claude` · `--help`.
@@ -145,6 +146,46 @@ Le commentaire de revue donne : verdict, indice et contrôles, constats triés p
 
 ---
 
+## Autres harness
+
+Claude Code reste la source. À l'installation, la question `tools` choisit les autres harness ; leurs fichiers sont **générés**, jamais édités.
+
+```mermaid
+flowchart LR
+    S["Source<br/>CLAUDE.md · .claude/ · .harness/project.md"] -->|hx adapters| G
+    subgraph G [Fichiers générés]
+      A["AGENTS.md<br/>consignes + carte du projet"]
+      C[".codex/ · .agents/skills/"]
+      O[".opencode/"]
+      Y[".agents/"]
+      D[".dsh/ · .agents/skills/"]
+    end
+    C --> H
+    O --> H
+    Y --> H
+    D --> H
+    H[".harness/hooks.mjs<br/>mêmes contrôles pour tous"]
+```
+
+| Harness | `tools` | Parité | Pour démarrer |
+|---|---|---|---|
+| **Codex** | `codex` | 74 % | Approuve le projet, puis les hooks (`/hooks`). Skills : `$hx-setup`. |
+| **OpenCode** (V1 ≥ 1.18.29, V2) | `opencode` | 90 % | Rien à faire : le plugin `.opencode/plugins/hx-harness.js` se charge seul. |
+| **Antigravity** (app, IDE, `agy`) | `antigravity` | 83 % | Approuve le dossier (Workspace Trust). Skills : `/hx-setup`. |
+| **DeepSeek Harness** (préversion) | `dsh` | 71 % | Ajoute le pont de hooks `@deepseek-ai/dsh-hooks-claude-code` à ton profil, puis lance `dsh --patch .dsh/harness.patch.yml`. |
+
+| Besoin | Commande |
+|---|---|
+| Ajouter ou retirer un harness après coup | `node .harness/hx.mjs adapters --tools claude,codex,opencode` |
+| Régénérer après un changement de `.claude/` ou de la carte du projet | `node .harness/hx.mjs adapters` |
+| Vérifier que rien n'est périmé | `node .harness/hx.mjs adapters --check` (inclus dans `hx check` et `hx doctor`) |
+
+**Ce que la parité mesure** : 21 capacités (skills, sous-agents, rules, chaque hook, permissions…), chacune notée natif, équivalent, dégradé ou absent, avec sa raison : [`docs/parite.md`](docs/parite.md). Principaux écarts : Codex ne voit pas le lancement d'un skill ; Antigravity ne renvoie pas le lint d'un fichier édité ; DeepSeek Harness n'a ni sous-agents en fichiers ni règles de permission.
+
+> ⚠️ Les formats viennent des documentations officielles (10/11/2026) et les hooks sont rejoués en CI dans le protocole de chaque harness. Les quatre binaires eux-mêmes ne sont pas lancés en CI.
+
+---
+
 ## Ce qui est installé
 
 | Composant | Contenu |
@@ -153,7 +194,7 @@ Le commentaire de revue donne : verdict, indice et contrôles, constats triés p
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **4 rules** | `openspec` · `testing` · `architecture` (feature-first, proportionnée) · `comments` (aucun par défaut, liste fermée d'exceptions) |
 | **5 hooks** | `SessionStart` : prochaine action de chaque change · `UserPromptSubmit` : ton « livre <change> » noté comme un clic · `PreToolUse` : rappel sur un fichier sensible, `/hx-ship` refusé à Claude sans ta décision (clic « livrer » ou « livre <change> ») ni indice suffisant · `PostToolUse` : lint du fichier édité, réponse à « Livraison » notée · `Stop` : contrôles rapides et chemins protégés avant de rendre la main |
-| **CLI `hx`** | `check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `run` (une commande du contrat) · `status` (état des runs) · `confidence` (livraison automatique) · `worktree` · `doctor` · `stats` (mesures d'élagage) · `trace` · `detect` · `migrate` · `openspec` (version épinglée) |
+| **CLI `hx`** | `check` (openspec, archives, pistes, trace `@scenario`, lint, typecheck, arch, test) · `run` (une commande du contrat) · `status` (état des runs) · `confidence` (livraison automatique) · `worktree` · `doctor` · `adapters` (fichiers des autres harness) · `stats` (mesures d'élagage) · `trace` · `detect` · `migrate` · `openspec` (version épinglée) |
 
 <details>
 <summary><b>Permissions</b> : pourquoi aucune confirmation n'est imposée</summary>
@@ -170,9 +211,9 @@ Interdit : éditer `hx.mjs`, `hooks.mjs` et `versions.json` (gérés par Copier)
 
 | 🔄 Générique — mis à jour par `copier update` | 📌 Spécifique — rempli par `/hx-setup`, jamais écrasé |
 |---|---|
-| `CLAUDE.md`, `.claude/`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json`, `.harness/project.md`, `.harness/ci/setup/action.yml`, `.github/dependabot.yml`, `.github/CODEOWNERS`, `.claude/rules/stack-*.md` |
+| `CLAUDE.md`, `.claude/`, `.harness/hx.mjs`, `.harness/hooks.mjs`, `.harness/adapters.mjs`, `openspec/config.yaml`, `.github/workflows/hx-check.yml` | `.harness/config.json`, `.harness/project.md`, `.harness/ci/setup/action.yml`, `.github/dependabot.yml`, `.github/CODEOWNERS`, `.claude/rules/stack-*.md` |
 
-Un fichier générique s'améliore dans Harness, pas dans le projet.
+Un fichier générique s'améliore dans Harness, pas dans le projet. Les fichiers des autres harness (`AGENTS.md`, `.codex/`, `.agents/`, `.opencode/`, `.dsh/`) sont générés par `hx adapters` : ils se corrigent dans leur source.
 
 ---
 
@@ -187,7 +228,7 @@ Un fichier générique s'améliore dans Harness, pas dans le projet.
 <details>
 <summary><b>Désinstaller</b></summary>
 
-1. Supprime `.harness/`, `.copier-answers.yml`, `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing`, `architecture` et `comments`, `.github/workflows/hx-check.yml` (et `CODEOWNERS`, `dependabot.yml` s'ils viennent du template).
+1. Supprime `.harness/`, `.copier-answers.yml`, les fichiers des autres harness (`node .harness/hx.mjs adapters --tools claude` les retire, à lancer avant), `.claude/skills/hx-*`, `.claude/agents/hx-*`, les rules `openspec`, `testing`, `architecture` et `comments`, `.github/workflows/hx-check.yml` (et `CODEOWNERS`, `dependabot.yml` s'ils viennent du template).
 2. Dans `.claude/settings.json`, retire les hooks vers `.harness/hooks.mjs`, les permissions `hx.mjs`, `openspec` et `git` du template, et `OPENSPEC_TELEMETRY`.
 3. Dans `CLAUDE.md`, retire les sections du harness.
 
@@ -202,7 +243,8 @@ Un fichier générique s'améliore dans Harness, pas dans le projet.
 ```bash
 npm test                # unitaires, hermétiques (CI : Linux, macOS, Windows)
 npm run test:contract   # contrat OpenSpec sur la version épinglée (réseau)
-npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update, lanceur npx
+npm run parity          # parité des harness : tableau à jour, plancher, mêmes décisions de hooks
+npm run e2e             # 5 stacks, cycle OpenSpec complet, copier update, lanceur npx, tous les harness
 npm run evals           # agents headless notés de façon déterministe (local, sans clé d'API)
 ```
 
@@ -217,6 +259,7 @@ Les actions GitHub sont épinglées par SHA et tenues à jour par Dependabot ; l
 | [Page de présentation](https://patayencroute.github.io/Harness/) | comprendre le harness en schémas |
 | [`docs/PLAN.md`](docs/PLAN.md) | le plan directeur : principes, architecture, roadmap |
 | [`docs/adr/`](docs/adr/) | les décisions du template et leurs raisons |
+| [`docs/parite.md`](docs/parite.md) | ce que chaque harness obtient, capacité par capacité |
 | [`docs/elagage.md`](docs/elagage.md) | savoir quand retirer un composant |
 | [`evals/README.md`](evals/README.md) | les evals comportementales et A/B |
 | [`docs/research/`](docs/research/etat-de-l-art-2026-10.md) | l'état de l'art sourcé (octobre 2026) |

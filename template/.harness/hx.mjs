@@ -7,6 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { MANIFEST, TOOLS, formatParity, parity, plan, readManifest, sync, validTools } from './adapters.mjs';
+
 export const MIN_NODE = [20, 19];
 // Plus ancienne version de Claude Code qui contient tous les correctifs de sécurité publiés (avis GHSA de
 // anthropics/claude-code, dernier : GHSA-gfvf-j8jh-jxxw, 29/09/2026). À relever à chaque nouvel avis.
@@ -16,8 +18,10 @@ export const FAST_STEPS = ['lint', 'typecheck'];
 export const DOCTOR_STEPS = ['lint', 'typecheck', 'build', 'arch', 'test'];
 export const CONFIG_PATH = '.harness/config.json';
 const LOCAL_SETTINGS = '.claude/settings.local.json';
+// Dossiers des autres harness, générés par `hx adapters` (adapters.mjs).
+const ADAPTER_DIRS = ['.codex', '.agents', '.opencode', '.dsh'];
 
-const VALUE_FLAGS = new Set(['file', 'component', 'path', 'branch', 'since']);
+const VALUE_FLAGS = new Set(['file', 'component', 'path', 'branch', 'since', 'tools']);
 const TAIL_LINES = 60;
 const IGNORED_DIRS = new Set([
   'node_modules', 'bower_components', 'vendor', 'dist', 'build', 'out', 'target', 'bin', 'obj',
@@ -798,7 +802,7 @@ export function createWorktree(root, change, { target, branch = change } = {}) {
   for (const file of ['.harness/hx.mjs', CONFIG_PATH]) {
     if (git(['cat-file', '-e', `HEAD:${file}`]).status !== 0) return { error: `${file} n'est pas commité : le worktree part de HEAD` };
   }
-  const dirty = git(['status', '--porcelain', '--untracked-files=no', '--', '.harness', '.claude', 'CLAUDE.md', 'openspec/config.yaml']).stdout.trim();
+  const dirty = git(['status', '--porcelain', '--untracked-files=no', '--', '.harness', '.claude', 'CLAUDE.md', 'AGENTS.md', ...ADAPTER_DIRS, 'openspec/config.yaml']).stdout.trim();
   if (dirty) return { error: `harness modifié et non commité (le worktree part de HEAD) :\n${dirty}` };
   const adrs = [...readText(path.join(root, rel, 'design.md')).matchAll(ADR_REF)].map((m) => m[0]);
   const paths = [...new Set([rel, ...adrs])].filter((p) => fs.existsSync(path.join(root, p)));
@@ -999,7 +1003,7 @@ export const CONFIDENCE_PENALTIES = [
 const DEPENDENCY_POINTS = 15;
 const DEPENDENCY_FILE = /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements[^/]*\.txt|pyproject\.toml|poetry\.lock|uv\.lock|Pipfile(\.lock)?|go\.(mod|sum)|Cargo\.(toml|lock)|pom\.xml|build\.gradle(\.kts)?|gradle\.lockfile|[^/]+\.(cs|fs|vb)proj|Directory\.Packages\.props|packages\.lock\.json|Gemfile(\.lock)?|composer\.(json|lock))$/;
 // Harness, CI, permissions et specs principales : un changement ici se relit avant d'être poussé.
-const SHIP_GUARDED = /^(\.harness\/|\.claude\/|\.github\/|openspec\/specs\/|CLAUDE\.md$|openspec\/config\.yaml$|\.copier-answers\.yml$)/;
+const SHIP_GUARDED = /^(\.harness\/|\.claude\/|\.codex\/|\.agents\/|\.opencode\/|\.dsh\/|\.github\/|openspec\/specs\/|(CLAUDE|AGENTS)\.md$|openspec\/config\.yaml$|\.copier-answers\.yml$)/;
 
 function branchDiff(root) {
   const git = (...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
@@ -1219,6 +1223,12 @@ function cmdCheck(root, args) {
   } else {
     results.push({ label: 'openspec', component: '—', skipped: true, reason: 'dossier openspec/ absent' });
   }
+  if (readManifest(root).tools.length) {
+    results.push(inProcessStep('adapters', () => {
+      const drift = adaptersDrift(root);
+      return { ok: !drift.length, output: drift.length ? `Fichiers des autres harness périmés (relance node .harness/hx.mjs adapters) :\n${drift.map((f) => `- ${f}`).join('\n')}` : '' };
+    }, opts));
+  }
   for (const step of opts.fast ? FAST_STEPS : CHECK_STEPS) {
     const invocations = resolveInvocations(config, root, step, { component: opts.component });
     // Pas de « vert » sans test exécuté : une étape test absente est un échec, pas un saut.
@@ -1306,11 +1316,11 @@ const CONFLICT_MARKER = /^(<{7}|>{7})( |$)/m;
 
 // Restes d'un `copier update` en conflit dans les fichiers du harness : marqueurs <<<<<<< / >>>>>>> ou fichiers .rej.
 export function mergeLeftovers(root) {
-  const files = ['CLAUDE.md', 'openspec/config.yaml', '.github/workflows/hx-check.yml']
+  const files = ['CLAUDE.md', 'AGENTS.md', 'openspec/config.yaml', '.github/workflows/hx-check.yml']
     .flatMap((rel) => [rel, `${rel}.rej`])
     .map((rel) => path.join(root, rel))
     .filter((file) => fs.existsSync(file));
-  for (const dir of ['.claude', '.harness']) {
+  for (const dir of ['.claude', '.harness', ...ADAPTER_DIRS]) {
     files.push(...walkFiles(path.join(root, dir), () => true, { skip: (name) => name === 'node_modules' }));
   }
   return files
@@ -1346,6 +1356,44 @@ export function templateStatus(root, { timeout = 15000 } = {}) {
   return { level: 'warn', detail: `${commit ?? 'version inconnue'}, dernière : ${latest} → /hx-update (ou « mets à jour le harness »)` };
 }
 
+// Fichiers des autres harness qui ne correspondent plus à leur source (.claude/, CLAUDE.md, .harness/project.md).
+export function adaptersDrift(root) {
+  try {
+    const p = plan(root);
+    return [...p.write, ...p.remove.map((rel) => `${rel} (à retirer)`)];
+  } catch (err) {
+    return [`${MANIFEST} : ${err.message}`];
+  }
+}
+
+function cmdAdapters(root, args) {
+  const opts = parseFlags(args);
+  if (opts.parity) {
+    console.log(formatParity(parity()));
+    return 0;
+  }
+  let tools;
+  try {
+    tools = validTools(opts.tools === undefined ? readManifest(root).tools : String(opts.tools).split(',').map((t) => t.trim()).filter(Boolean));
+  } catch (err) {
+    console.error(`hx : ${err.message}`);
+    return 2;
+  }
+  const names = tools.map((t) => TOOLS[t].label).join(', ') || 'aucun autre harness';
+  if (opts.check) {
+    const drift = adaptersDrift(root);
+    console.log(drift.length ? `hx adapters : ${drift.length} fichier(s) périmé(s)\n${drift.map((f) => `  ✗ ${f}`).join('\n')}` : `hx adapters : à jour (${names})`);
+    return drift.length ? 1 : 0;
+  }
+  const r = sync(root, tools, { force: opts.force === true });
+  if (!r.ok) {
+    console.error(`hx : ces fichiers existent déjà et ne viennent pas du harness :\n${r.foreign.map((f) => `  - ${f}`).join('\n')}\nReporte leur contenu utile dans .harness/project.md (consignes) ou .claude/ (skills, agents, rules), puis relance avec --force.`);
+    return 1;
+  }
+  console.log(`hx adapters : ${names} · ${r.write.length} fichier(s) écrit(s), ${r.remove.length} retiré(s)`);
+  return 0;
+}
+
 function cmdDoctor(root, args) {
   const opts = parseFlags(args);
   const checks = [];
@@ -1374,6 +1422,13 @@ function cmdDoctor(root, args) {
 
   const settings = checkSettings(root);
   add(settings.level, 'Hooks Claude Code', settings.detail);
+  const others = readManifest(root).tools;
+  if (others.length) {
+    const drift = adaptersDrift(root);
+    add(drift.length ? 'error' : 'ok', 'Autres harness', drift.length
+      ? `fichiers périmés, relance node .harness/hx.mjs adapters : ${drift.join(', ')}`
+      : others.map((t) => TOOLS[t]?.label ?? t).join(', '));
+  }
   const sandbox = sandboxCheck(projectSettings(root), config?.ship?.auto === true);
   add(sandbox.level, 'Sandbox', sandbox.detail);
 
@@ -1560,6 +1615,9 @@ const HELP = `hx : contrat de commandes du harness
   hx confidence [<change>] [--json]
                       indice de confiance d'un run terminé : 0 si le harness peut lancer /hx-ship seul, 1 sinon ;
                       plafond atteignable et suite (livrer, corriger, rendre la main)
+  hx adapters [--tools codex,opencode,antigravity,dsh] [--check] [--force] [--parity]
+                      génère les fichiers des autres harness depuis CLAUDE.md et .claude/ (sans --tools : ceux déjà choisis)
+                      --check : 1 si un fichier généré est périmé · --parity : tableau de parité par harness
   hx migrate          complète .harness/config.json avec les clés ajoutées par le template
   hx openspec <args>  appelle la version épinglée d'OpenSpec
 
@@ -1574,6 +1632,7 @@ export function main(argv = process.argv.slice(2), root = path.resolve(path.dirn
     case 'detect': return cmdDetect(root, rest);
     case 'trace': return cmdTrace(root, rest);
     case 'migrate': return cmdMigrate(root);
+    case 'adapters': return cmdAdapters(root, rest);
     case 'worktree': return cmdWorktree(root, rest);
     case 'status': return cmdStatus(root, rest);
     case 'stats': return cmdStats(root, rest);

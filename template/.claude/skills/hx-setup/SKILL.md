@@ -51,6 +51,7 @@ Lis aussi `.harness/config.json`, `.harness/project.md`, le README, les manifest
 | `CLAUDE.md` | Consignes propres au projet | `.harness/project.md` ou `.claude/rules/stack-*.md` |
 | `.claude/settings.json` | `permissions`, `model`, `env`, hooks du projet | Fusion dans `.claude/settings.json` (les hooks du harness restent) ; ce qui est personnel va dans `.claude/settings.local.json` |
 | `openspec/config.yaml` | `context` métier, `rules` propres au projet | `.harness/project.md` (le `context` du template y renvoie) |
+| `AGENTS.md`, fichiers de `.codex/`, `.agents/`, `.opencode/`, `.dsh/` (autres harness) | Consignes, agents, hooks et permissions propres au projet | `.harness/project.md` et `.claude/` : ces fichiers en sont régénérés |
 | `.github/workflows/hx-check.yml` | — (nouveau fichier) | — |
 
 Montre chaque récupération à l'utilisateur avant de l'écrire.
@@ -174,6 +175,12 @@ Les runs tournent seuls, en mode Auto. Le sandbox de Claude Code isole leurs com
 5. **Pas de réponse possible** (outil absent, session non interactive) : ne change rien, et signale dans la conclusion que le sandbox reste à décider.
 
 ### 14. Conclure
+
+Si `.harness/adapters.json` existe, le projet sert aussi d'autres harness (Codex, OpenCode, Antigravity, DeepSeek Harness) : leurs fichiers (`AGENTS.md`, `.codex/`, `.agents/`, `.opencode/`, `.dsh/`) sont générés depuis `CLAUDE.md`, `.claude/` et `.harness/project.md`. Régénère-les après tes changements, sans jamais les éditer :
+
+```bash
+node .harness/hx.mjs adapters
+```
 
 ```bash
 node .harness/hx.mjs doctor

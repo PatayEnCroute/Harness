@@ -48,7 +48,7 @@ flowchart LR
 | P13 | **Ne pas refaire la plateforme** | Ce que Claude Code fait nativement (worktrees, revue, orchestration, mémoire) ne se reconstruit pas ; un composant devenu natif se retire. Le harness garde ce que Claude Code ne fera pas : contrat `hx`, OpenSpec, pistes, livraison fondée sur des faits. | [industrie 2026-11](research/harness-industrie-2026-11.md) §2, §9 |
 | P14 | **Rien d'utile ne vit seulement dans la conversation** | Hypothèses, décisions, état du run : dans des fichiers du change. Un run interrompu ou compacté reprend depuis eux. | [contexte 2026-11](research/ingenierie-de-contexte-2026-11.md) |
 
-**Non-objectifs** : forker OpenSpec ou modifier ses skills `openspec-*` · supporter un autre outil que Claude Code ([ADR-002](adr/002-claude-code-seul-standards-gratuits.md)) · des « packs » de stack précâblés · une spec pour un correctif d'une ligne.
+**Non-objectifs** : forker OpenSpec ou modifier ses skills `openspec-*` · écrire à la main les fichiers d'un autre harness que Claude Code : ils sont générés ([ADR-005](adr/005-autres-harness-generes.md)) · des « packs » de stack précâblés · une spec pour un correctif d'une ligne.
 
 ---
 
@@ -426,7 +426,7 @@ Les scripts `hx` sont en `.mjs` sans dépendance (OpenSpec impose déjà Node �
 
 | Question | Décision |
 |---|---|
-| Outil IA | **Claude Code** seul ([ADR-002](adr/002-claude-code-seul-standards-gratuits.md)) |
+| Outil IA | **Claude Code** en source ; Codex, OpenCode, Antigravity et DeepSeek Harness générés ([ADR-005](adr/005-autres-harness-generes.md), [parité](parite.md)) |
 | Moteur de template | **Copier** ([ADR-001](adr/001-copier-moteur-de-template.md)) |
 | Usage | **Projets solo**, fichiers commités dans le projet |
 | Plugin utilisateur | **Non** : les skills dépendent des fichiers du projet ([ADR-003](adr/003-plugin-utilisateur-non-retenu.md)) |

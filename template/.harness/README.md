@@ -8,7 +8,9 @@ Installé par le template [Harness](https://github.com/PatayEnCroute/Harness). M
 | `project.md` | **spécifique** (rempli par `/hx-setup`) | Carte du projet, importée par `CLAUDE.md` |
 | `ci/setup/action.yml` | **spécifique** (rempli par `/hx-setup`) | Outillage de la stack pour le workflow `hx-check` |
 | `hx.mjs` | générique | CLI `hx` (aucune dépendance) |
-| `hooks.mjs` | générique | Hooks Claude Code (câblés dans `.claude/settings.json`) |
+| `hooks.mjs` | générique | Hooks du harness (câblés dans `.claude/settings.json`, et dans les fichiers des autres harness) |
+| `adapters.mjs` | générique | Génère les fichiers des autres harness (`hx adapters`) et traduit leurs hooks |
+| `adapters.json` | généré | Harness choisis et fichiers générés pour eux (`AGENTS.md`, `.codex/`, `.agents/`, `.opencode/`, `.dsh/`) |
 | `config.schema.json` | générique | Schéma du contrat (autocomplétion dans l'éditeur) |
 | `versions.json` | générique | Version épinglée d'OpenSpec |
 

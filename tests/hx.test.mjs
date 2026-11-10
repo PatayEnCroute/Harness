@@ -275,7 +275,7 @@ describe('CLI', () => {
   test('pistes : une erreur de piste fait échouer check', { skip: process.platform === 'win32' }, () => {
     // Faux openspec à la version épinglée : check n'appelle pas le réseau.
     const root = tempProject({ version: 1, components: { a: { path: '.', commands: { test: ok } } } });
-    fs.copyFileSync(path.join(repo, 'template', '.harness', 'hx.mjs'), path.join(root, '.harness', 'hx.mjs'));
+    for (const file of ['hx.mjs', 'adapters.mjs']) fs.copyFileSync(path.join(repo, 'template', '.harness', file), path.join(root, '.harness', file));
     fs.writeFileSync(path.join(root, '.harness', 'versions.json'), '{ "openspec": "0.0.0-test" }');
     writeFiles(root, {
       'bin/openspec': '#!/bin/sh\n[ "$1" = "--version" ] && echo 0.0.0-test\nexit 0\n',

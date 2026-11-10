@@ -5,3 +5,10 @@
 /.claude/settings.json        {{ codeowners }}
 /.github/                     {{ codeowners }}
 /openspec/specs/              {{ codeowners }}
+{%- if tools %}
+# Hooks et permissions des autres harness (générés par hx adapters).
+/.codex/                      {{ codeowners }}
+/.agents/hooks.json           {{ codeowners }}
+/.opencode/                   {{ codeowners }}
+/.dsh/                        {{ codeowners }}
+{%- endif %}

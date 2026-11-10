@@ -24,8 +24,9 @@ Un seul message, chaque question avec sa réponse par défaut :
 | `ci` | Ajouter le workflow GitHub Actions `hx-check` ? | `true` |
 | `default_branch` | Branche principale (seulement si `ci`) | branche par défaut du dépôt, sinon `main` |
 | `codeowners` | Relecteurs obligatoires du harness et des specs (`@utilisateur` ou `@org/équipe`) | vide : pas de CODEOWNERS |
+| `tools` | Autres harness à rendre compatibles, en plus de Claude Code : `codex`, `opencode`, `antigravity`, `dsh` (DeepSeek Harness) | `[]` : Claude Code seul |
 
-**Projet existant** : si `CLAUDE.md`, `.claude/settings.json` ou `openspec/config.yaml` existent, préviens que l'installation les remplace et que `/hx-setup` récupérera leur contenu utile depuis git. Avec son accord, ajoute `--overwrite` à la commande ci-dessous.
+**Projet existant** : si `CLAUDE.md`, `.claude/settings.json` ou `openspec/config.yaml` existent (et, avec un autre harness, `AGENTS.md` ou ses fichiers dans `.codex/`, `.agents/`, `.opencode/`, `.dsh/`), préviens que l'installation les remplace et que `/hx-setup` récupérera leur contenu utile depuis git. Avec son accord, ajoute `--overwrite` à la commande ci-dessous.
 
 ## 3. Installer
 
@@ -33,10 +34,11 @@ Sans terminal interactif, `--defaults` est obligatoire et les réponses passent 
 
 ```bash
 npx --yes github:PatayEnCroute/Harness --defaults --no-claude \
-  --data project_name=<nom> --data ci=true --data default_branch=main --data codeowners=
+  --data project_name=<nom> --data ci=true --data default_branch=main --data codeowners= \
+  --data tools='[codex,opencode]'
 ```
 
-`--data default_branch=…` seulement si `ci=true`. Le lanceur installe la dernière version taguée du template ; `--vcs-ref vX.Y.Z` en fixe une.
+`--data default_branch=…` seulement si `ci=true`. `--data tools=…` seulement si l'utilisateur veut un autre harness ([ce que chacun obtient](docs/parite.md)). Le lanceur installe la dernière version taguée du template ; `--vcs-ref vX.Y.Z` en fixe une.
 
 ## 4. Après
 
