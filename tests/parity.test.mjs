@@ -210,6 +210,7 @@ describe('parité : structure des fichiers générés', () => {
           assert.match(file, /^---\ntrigger: glob\nglobs: "/);
           for (const glob of rule.paths) assert.ok(file.includes(glob), `${rule.name} · ${glob}`);
         } else {
+          assert.ok(adapters.RULES_BY_HOOK.has(tool), 'rule injectée par le hook d\'édition');
           assert.ok(text('AGENTS.md').includes(`\`.claude/rules/${rule.name}.md\``), `${rule.name} indexée dans AGENTS.md`);
         }
       }
@@ -218,8 +219,7 @@ describe('parité : structure des fichiers générés', () => {
     test(`${tool} : chaque hook du harness est câblé, ou déclaré absent`, () => {
       const config = text(hookConfig[tool]);
       const wired = (event) => config.includes(`${event} --tool ${tool}`) || (tool === 'opencode' && config.includes(`'${event}'`));
-      for (const event of ['session-start', 'user-prompt-submit', 'pre-tool-use', 'stop']) assert.ok(wired(event), event);
-      assert.equal(wired('post-tool-use'), level('hook-lint', tool) !== 'absent', 'post-tool-use');
+      for (const event of ['session-start', 'user-prompt-submit', 'pre-tool-use', 'post-tool-use', 'stop']) assert.ok(wired(event), event);
       if (tool !== 'opencode') JSON.parse(config);
     });
 
@@ -239,6 +239,34 @@ describe('parité : structure des fichiers générés', () => {
       }
     });
   }
+
+  test('codex : skills réservés à l\'utilisateur, variables d\'environnement', () => {
+    const onDemand = source.skills.filter((s) => s.data['disable-model-invocation'] === 'true').map((s) => s.name);
+    assert.ok(onDemand.includes('hx-setup') && !onDemand.includes('hx-ship'));
+    for (const skill of source.skills) {
+      const policy = text(`.agents/skills/${skill.name}/agents/openai.yaml`);
+      if (onDemand.includes(skill.name)) assert.match(policy, /^policy:\n {2}allow_implicit_invocation: false$/m, skill.name);
+      else assert.equal(policy, '', `${skill.name} reste lançable par l'agent`);
+    }
+    for (const [key, value] of Object.entries(source.env)) {
+      assert.ok(text('.codex/config.toml').includes(`${key} = "${value}"`), key);
+    }
+    assert.match(text('.codex/config.toml'), /^\[shell_environment_policy\]$/m);
+  });
+
+  test('modèle des sous-agents : celui de adapters.models, sinon celui de la session', () => {
+    const light = source.agents.find((a) => a.model === 'haiku').name;
+    assert.doesNotMatch(text(`.codex/agents/${light}.toml`), /^model = /m);
+    assert.doesNotMatch(text(`.opencode/agents/${light}.md`), /^model: /m);
+    assert.match(text(`.agents/agents/${light}.md`), /^model: flash$/m);
+    const configured = { ...source, model: (tool, alias) => ({ codex: { haiku: 'léger-1' }, opencode: { haiku: 'fournisseur/léger' }, antigravity: { haiku: 'flash_lite' } }[tool]?.[alias] ?? null) };
+    const out = generate(template, TOOL_IDS, configured);
+    assert.match(String(out[`.codex/agents/${light}.toml`]), /^model = "léger-1"$/m);
+    assert.match(String(out[`.opencode/agents/${light}.md`]), /^model: fournisseur\/léger$/m);
+    assert.match(String(out[`.agents/agents/${light}.md`]), /^model: flash_lite$/m);
+    const other = source.agents.find((a) => !a.model).name;
+    assert.doesNotMatch(String(out[`.codex/agents/${other}.toml`]), /^model = /m, 'les autres agents gardent le modèle de la session');
+  });
 
   test('dsh : le patch monte le pont de hooks et écarte CLAUDE.md', () => {
     const yml = text('.dsh/harness.patch.yml');
@@ -275,8 +303,26 @@ describe('parité : mêmes décisions de hooks dans chaque harness', () => {
       const spec = run(tool, root, id, 'pre-tool-use', input.edit(root, 'openspec/specs/calc/spec.md'));
       assert.equal(spec.blocked, false);
       assert.match(spec.context, /\/opsx:sync/);
-      const code = run(tool, root, id, 'pre-tool-use', input.edit(root, 'src/a.js'));
-      assert.deepEqual([code.blocked, code.context], [false, '']);
+      const free = run(tool, root, id, 'pre-tool-use', input.edit(root, 'data/notes.txt'));
+      assert.deepEqual([free.blocked, free.context], [false, '']);
+    });
+
+    test(`${tool} : la rule d'un fichier arrive à sa première édition`, () => {
+      const { root } = project();
+      const id = session();
+      const first = run(tool, root, id, 'pre-tool-use', input.edit(root, 'src/a.test.js'));
+      assert.equal(first.blocked, false);
+      if (!adapters.RULES_BY_HOOK.has(tool)) {
+        // Claude Code et Antigravity chargent la rule eux-mêmes, d'après son ciblage.
+        assert.equal(first.context, '');
+        assert.ok(tool === 'claude' || fs.existsSync(path.join(root, '.agents', 'rules', 'testing.md')));
+        return;
+      }
+      for (const rule of ['testing', 'architecture', 'comments']) assert.ok(first.context.includes(`.claude/rules/${rule}.md`), rule);
+      assert.match(first.context, /Ne jamais affaiblir un test/);
+      assert.doesNotMatch(first.context, /rules\/openspec\.md/, 'rule d\'un autre type de fichier');
+      assert.equal(run(tool, root, id, 'pre-tool-use', input.edit(root, 'src/b.test.js')).context, '', 'une fois par session');
+      assert.match(run(tool, root, session(), 'pre-tool-use', input.edit(root, 'openspec/changes/add-mult/tasks.md')).context, /rules\/openspec\.md/);
     });
 
     test(`${tool} : les fichiers gérés par le template ne s'éditent pas`, () => {
@@ -318,8 +364,9 @@ describe('parité : mêmes décisions de hooks dans chaque harness', () => {
     test(`${tool} : un clic « livrer » autorise /hx-ship, un refus non`, () => {
       const { root } = project();
       if (!input.answer) {
+        // Antigravity ne donne pas aux hooks la réponse à une question : la confirmation native de /hx-ship en tient lieu.
         assert.equal(tool, 'antigravity');
-        assert.equal(JSON.parse(fs.readFileSync(path.join(root, '.agents', 'hooks.json'), 'utf8')).hx.PostToolUse, undefined);
+        assert.doesNotMatch(JSON.parse(fs.readFileSync(path.join(root, '.agents', 'hooks.json'), 'utf8')).hx.PostToolUse[0].matcher, /ask_question/);
         return;
       }
       const refused = session();
@@ -339,11 +386,15 @@ describe('parité : mêmes décisions de hooks dans chaque harness', () => {
 
     test(`${tool} : lint du fichier édité`, () => {
       const { root } = project({ lintFile: `${ko} {file}` });
-      if (level('hook-lint', tool) === 'absent') {
-        assert.equal(JSON.parse(fs.readFileSync(path.join(root, '.agents', 'hooks.json'), 'utf8')).hx.PostToolUse, undefined);
+      const id = session();
+      const r = run(tool, root, id, 'post-tool-use', input.edit(root, 'src/a.js'));
+      if (adapters.DEFERRED_FEEDBACK.has(tool)) {
+        // PostToolUse d'Antigravity ne renvoie rien à l'agent : le retour arrive avant l'appel suivant au modèle, une fois.
+        assert.deepEqual([r.blocked, r.context], [false, '']);
+        assert.match(run(tool, root, id, 'user-prompt-submit', input.prompt('continue')).context, /lint KO/);
+        assert.equal(run(tool, root, id, 'user-prompt-submit', input.prompt('continue')).context, '');
         return;
       }
-      const r = run(tool, root, session(), 'post-tool-use', input.edit(root, 'src/a.js'));
       assert.equal(r.blocked, true);
       assert.match(r.context, /lint KO/);
     });

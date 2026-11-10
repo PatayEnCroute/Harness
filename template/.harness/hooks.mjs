@@ -450,6 +450,11 @@ export function runForeignHook(tool, event, raw, projectDir, adapters) {
       run({});
       if (tool === 'antigravity') patchState({ lastPrompt: seen });
     }
+    const pending = readState(root, base)?.pendingFeedback;
+    if (pending) {
+      add('context', pending);
+      patchState({ pendingFeedback: null });
+    }
   }
   if (event === 'pre-tool-use') {
     const source = adapters.readSource(root);
@@ -463,6 +468,13 @@ export function runForeignHook(tool, event, raw, projectDir, adapters) {
         add('block', `${rel} : ${MANAGED_NOTE}`);
         continue;
       }
+      // Harness sans rules ciblées par chemin : la règle du fichier est donnée à sa première édition de la session.
+      if (rel !== null && adapters.RULES_BY_HOOK.has(tool)) {
+        const shown = readState(root, base)?.rulesShown ?? [];
+        const fresh = adapters.rulesFor(source.rules, rel).filter((rule) => !shown.includes(rule.name));
+        for (const rule of fresh) add('context', `Règle .claude/rules/${rule.name}.md, à appliquer à ${rel} et aux fichiers du même type :\n\n${rule.body.trim()}`);
+        if (fresh.length) patchState({ rulesShown: [...shown, ...fresh.map((rule) => rule.name)] });
+      }
       const decision = parsed(run(call).out)?.hookSpecificOutput ?? {};
       if (decision.permissionDecision === 'deny') {
         add('block', decision.permissionDecisionReason);
@@ -475,6 +487,10 @@ export function runForeignHook(tool, event, raw, projectDir, adapters) {
     for (const call of calls) {
       const r = run(call);
       if (r.code === FEEDBACK) add('block', r.err);
+    }
+    if (result.block && adapters.DEFERRED_FEEDBACK.has(tool)) {
+      patchState({ pendingFeedback: [readState(root, base)?.pendingFeedback, result.block].filter(Boolean).join('\n\n') });
+      result.block = null;
     }
   }
   if (event === 'stop') {

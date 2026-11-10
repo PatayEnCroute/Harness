@@ -164,6 +164,21 @@
         }
       }
     },
+    "adapters": {
+      "type": "object",
+      "description": "Autres harness (Codex, OpenCode, Antigravity, DeepSeek Harness), dont les fichiers sont générés par « hx adapters ».",
+      "additionalProperties": false,
+      "properties": {
+        "models": {
+          "type": "object",
+          "description": "Modèle à donner, par harness, aux sous-agents qui déclarent un alias de modèle Claude (hx-explorer : haiku). Ex. { \"codex\": { \"haiku\": \"<modèle léger>\" }, \"opencode\": { \"haiku\": \"<fournisseur>/<modèle>\" } }. Vide : modèle de la session. Relancer « hx adapters » après un changement.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
     "ship": {
       "type": "object",
       "description": "Livraison automatique : à la fin d'un run, hx-review lance /hx-ship seul si « hx confidence » l'autorise (piste M, aucune exclusion, score ≥ min_confidence), puis fait relire la PR et publie la revue en commentaire. Score sous le seuil mais plafond atteignable : boucle de correction d'abord (mineurs appliqués, corrections relues).",

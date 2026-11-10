@@ -26,7 +26,7 @@ commit "fixture"
 hx detect --write
 commit "harness"
 
-for file in AGENTS.md .codex/hooks.json .codex/agents/hx-explorer.toml .codex/rules/harness.rules \
+for file in AGENTS.md .codex/hooks.json .codex/config.toml .agents/skills/hx-setup/agents/openai.yaml .codex/agents/hx-explorer.toml .codex/rules/harness.rules \
   .opencode/opencode.json .opencode/plugins/hx-harness.js .opencode/agents/hx-explorer.md \
   .agents/hooks.json .agents/agents/hx-explorer.md .agents/rules/testing.md .agents/skills/hx-triage/SKILL.md \
   .dsh/hooks.json .dsh/harness.patch.yml; do

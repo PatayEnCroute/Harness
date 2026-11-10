@@ -84,6 +84,12 @@ export function readSource(root) {
   } catch {
     settings = {};
   }
+  let models = {};
+  try {
+    models = JSON.parse(readText(path.join(root, '.harness', 'config.json')) || '{}').adapters?.models ?? {};
+  } catch {
+    models = {};
+  }
   const inner = (rule, kind) => (rule.startsWith(`${kind}(`) && rule.endsWith(')') ? rule.slice(kind.length + 1, -1) : null);
   const hooks = {};
   for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
@@ -113,6 +119,8 @@ export function readSource(root) {
     deny: (settings.permissions?.deny ?? []).map((r) => inner(r, 'Edit')).filter(Boolean).map((p) => p.replace(/^\//, '')),
     env: settings.env ?? {},
     hooks,
+    // Modèle de chaque harness pour un alias de modèle Claude (« haiku »…) : adapters.models de .harness/config.json.
+    model: (tool, alias) => (alias && typeof models?.[tool]?.[alias] === 'string' && models[tool][alias]) || null,
   };
 }
 
@@ -157,11 +165,26 @@ const tomlString = (text) => `"""\n${text.replace(/\\/g, '\\\\').replace(/"""/g,
 
 function codexFiles(source) {
   const out = { ...sharedSkills(source) };
+  // Skill réservé à l'utilisateur : Codex ignore « disable-model-invocation », sa politique vit dans agents/openai.yaml.
+  for (const skill of source.skills.filter((s) => s.data['disable-model-invocation'] === 'true')) {
+    out[`.agents/skills/${skill.name}/agents/openai.yaml`] = `# ${NOTE}\npolicy:\n  allow_implicit_invocation: false\n`;
+  }
+  if (Object.keys(source.env).length) {
+    out['.codex/config.toml'] = [
+      `# ${NOTE}`,
+      '# Réglages propres au projet : .harness/project.md (consignes) ou ~/.codex/config.toml (personnels).',
+      '[shell_environment_policy]',
+      `set = { ${Object.entries(source.env).map(([key, value]) => `${key} = ${JSON.stringify(String(value))}`).join(', ')} }`,
+      '',
+    ].join('\n');
+  }
   for (const agent of source.agents) {
+    const model = source.model('codex', agent.model);
     out[`.codex/agents/${agent.name}.toml`] = [
       `# ${NOTE}`,
       `name = ${JSON.stringify(agent.name.replace(/-/g, '_'))}`,
       `description = ${JSON.stringify(agent.description)}`,
+      ...(model ? [`model = ${JSON.stringify(model)}`] : []),
       `developer_instructions = ${tomlString(agent.body.replace(/^\n+/, ''))}`,
       '',
     ].join('\n');
@@ -172,7 +195,8 @@ function codexFiles(source) {
     hooks[event] = [{
       ...(matchers[event] ? { matcher: matchers[event] } : {}),
       // Le cwd d'un hook Codex est celui de la session, pas la racine : on part de la racine git (celle du worktree).
-      hooks: [{ type: 'command', command: `node "$(git rev-parse --show-toplevel)/${source.prefix}.harness/hooks.mjs" ${HOOK_EVENTS[event]} --tool codex`, ...seconds(source, event) }],
+      // additionalContextLimit : une rule injectée à l'édition dépasse la limite par défaut (2500).
+      hooks: [{ type: 'command', command: `node "$(git rev-parse --show-toplevel)/${source.prefix}.harness/hooks.mjs" ${HOOK_EVENTS[event]} --tool codex`, ...seconds(source, event), ...(event === 'PreToolUse' ? { additionalContextLimit: 30000 } : {}) }],
     }];
   }
   if (Object.keys(hooks).length) out['.codex/hooks.json'] = json({ hooks });
@@ -331,6 +355,7 @@ function opencodeFiles(source) {
       '---',
       `description: ${JSON.stringify(agent.description)}`,
       'mode: subagent',
+      ...(source.model('opencode', agent.model) ? [`model: ${source.model('opencode', agent.model)}`] : []),
       ...(agent.readOnly ? ['permission:', '  edit: deny'] : []),
       '---',
       `<!-- ${NOTE} -->`,
@@ -377,20 +402,21 @@ function antigravityFiles(source) {
       `description: ${JSON.stringify(agent.description)}`,
       `tools: [${tools.join(', ')}]`,
       'mainAgent: false',
-      ...(ANTIGRAVITY_MODELS[agent.model] ? [`model: ${ANTIGRAVITY_MODELS[agent.model]}`] : []),
+      ...((source.model('antigravity', agent.model) ?? ANTIGRAVITY_MODELS[agent.model]) ? [`model: ${source.model('antigravity', agent.model) ?? ANTIGRAVITY_MODELS[agent.model]}`] : []),
       '---',
       `<!-- ${NOTE} -->`,
       agent.body.replace(/^\n+/, ''),
     ].join('\n');
   }
-  // Pas de PostToolUse : il ne peut rien renvoyer à l'agent (le lint du fichier édité passe par Stop).
-  // PreInvocation (avant chaque appel au modèle) tient lieu de UserPromptSubmit, dédoublonné côté hooks.mjs.
-  const events = { SessionStart: 'SessionStart', UserPromptSubmit: 'PreInvocation', PreToolUse: 'PreToolUse', Stop: 'Stop' };
+  // PreInvocation (avant chaque appel au modèle) tient lieu de UserPromptSubmit, dédoublonné côté hooks.mjs. PostToolUse
+  // ne peut rien renvoyer à l'agent : hooks.mjs garde le retour du lint et PreInvocation l'injecte à l'appel suivant.
+  const events = { SessionStart: 'SessionStart', UserPromptSubmit: 'PreInvocation', PreToolUse: 'PreToolUse', PostToolUse: 'PostToolUse', Stop: 'Stop' };
   const group = { enabled: true };
   for (const [event, target] of Object.entries(events)) {
     if (!source.hooks[event]) continue;
     const handler = { type: 'command', command: command('antigravity', event, ''), ...seconds(source, event) };
-    group[target] = event === 'PreToolUse' ? [{ matcher: `${ANTIGRAVITY_EDITS}|view_file|run_command`, hooks: [handler] }] : [handler];
+    const matcher = { PreToolUse: `${ANTIGRAVITY_EDITS}|view_file|run_command`, PostToolUse: ANTIGRAVITY_EDITS }[event];
+    group[target] = matcher ? [{ matcher, hooks: [handler] }] : [handler];
   }
   if (Object.keys(group).length > 1) out['.agents/hooks.json'] = json({ hx: group });
   return out;
@@ -514,7 +540,7 @@ function agentsMd(source, tools) {
       '',
       '## Règles par type de fichier',
       '',
-      'Avant de créer ou de modifier un fichier, lis la règle qui le concerne (une fois par session).',
+      'Chaque règle s\'applique aux fichiers listés. Ton harness te la donne à la première édition d\'un fichier concerné ; si tu ne l\'as pas reçue, lis-la avant d\'écrire.',
       '',
       row(['Règle', 'Fichiers concernés']),
       row(['---', '---']),
@@ -622,15 +648,15 @@ export const CAPABILITIES = [
   { id: 'skills', label: 'Skills', claude: '`.claude/skills/`',
     codex: [N, '`.agents/skills/`'], opencode: [N, 'lit `.claude/skills/`'], antigravity: [N, '`.agents/skills/`'], dsh: [N, '`.agents/skills/`'] },
   { id: 'skills-on-demand', label: 'Skills lancés seulement à la demande', claude: '`disable-model-invocation`',
-    codex: [D, 'champ ignoré : la description dit « à la demande »'], opencode: [N, 'champ reconnu (V2) ; ignoré en V1'], antigravity: [D, 'champ ignoré : la description dit « à la demande »'], dsh: [N, 'champ reconnu'] },
+    codex: [E, '`agents/openai.yaml` : `allow_implicit_invocation: false`'], opencode: [N, 'champ reconnu (V2) ; ignoré en V1'], antigravity: [D, 'champ ignoré : la description dit « à la demande »'], dsh: [N, 'champ reconnu'] },
   { id: 'agents', label: 'Sous-agents', claude: '`.claude/agents/*.md`',
     codex: [E, '`.codex/agents/*.toml`'], opencode: [E, '`.opencode/agents/*.md`'], antigravity: [E, '`.agents/agents/*.md`'], dsh: [D, 'pas de sous-agent en fichier : outil `subagent` avec la consigne de `.claude/agents/`'] },
   { id: 'agents-read-only', label: 'Sous-agents en lecture seule', claude: 'liste `tools` sans Edit ni Write',
     codex: [D, 'consigne seulement : pas de restriction par agent'], opencode: [E, '`permission.edit: deny`'], antigravity: [E, 'liste `tools` sans outil d\'écriture'], dsh: [D, 'consigne seulement'] },
   { id: 'agents-model', label: 'Modèle léger pour l\'exploration', claude: '`model: haiku`',
-    codex: [A, 'modèle de la session'], opencode: [A, 'modèle de la session'], antigravity: [E, '`model: flash`'], dsh: [A, 'modèle de la session'] },
+    codex: [E, '`adapters.models` de `.harness/config.json` (vide : modèle de la session)'], opencode: [E, '`adapters.models` de `.harness/config.json` (vide : modèle de la session)'], antigravity: [E, '`model: flash`, réglable par `adapters.models`'], dsh: [A, 'pas de sous-agent en fichier : modèle de la session'] },
   { id: 'rules', label: 'Rules ciblées par chemin', claude: '`.claude/rules/*.md` (`paths:`)',
-    codex: [D, 'index dans AGENTS.md : l\'agent lit la règle lui-même'], opencode: [D, 'index dans AGENTS.md'], antigravity: [N, '`.agents/rules/*.md` (`trigger: glob`)'], dsh: [D, 'index dans AGENTS.md'] },
+    codex: [E, 'hook `PreToolUse` : règle injectée à la première édition d\'un fichier concerné'], opencode: [E, 'plugin : règle jointe au résultat de la première édition concernée'], antigravity: [N, '`.agents/rules/*.md` (`trigger: glob`)'], dsh: [E, 'pont de hooks : règle injectée à la première édition concernée'] },
   { id: 'hook-session-start', label: 'Démarrage : prochaine action de chaque change', claude: 'hook `SessionStart`',
     codex: [N, '`.codex/hooks.json`'], opencode: [E, 'plugin, événement `session.created`'], antigravity: [N, '`.agents/hooks.json`'], dsh: [D, 'pont expérimental ; le contexte peut arriver après la première requête'] },
   { id: 'hook-ship-message', label: '« livre <change> » noté comme une décision', claude: 'hook `UserPromptSubmit`',
@@ -640,7 +666,7 @@ export const CAPABILITIES = [
   { id: 'hook-ship-guard', label: '`/hx-ship` refusé sans décision ni indice suffisant', claude: 'hook `PreToolUse` sur l\'outil Skill',
     codex: [D, 'pas d\'outil Skill : seule la lecture de `SKILL.md` par le shell est vue'], opencode: [N, 'plugin, outil `skill`'], antigravity: [E, 'lecture de `SKILL.md` vue ; confirmation native demandée à l\'utilisateur'], dsh: [N, 'pont de hooks, outil `skill`'] },
   { id: 'hook-lint', label: 'Lint du fichier édité', claude: 'hook `PostToolUse`',
-    codex: [N, '`.codex/hooks.json`'], opencode: [E, 'plugin : retour joint au résultat de l\'outil'], antigravity: [A, '`PostToolUse` ne renvoie rien à l\'agent ; le hook Stop couvre'], dsh: [N, 'pont de hooks'] },
+    codex: [N, '`.codex/hooks.json`'], opencode: [E, 'plugin : retour joint au résultat de l\'outil'], antigravity: [E, 'retour gardé par `PostToolUse`, injecté par `PreInvocation` à l\'appel suivant au modèle'], dsh: [N, 'pont de hooks'] },
   { id: 'hook-ship-click', label: 'Clic « livrer » noté comme une décision', claude: 'hook `PostToolUse` sur AskUserQuestion',
     codex: [D, '`request_user_input` selon le mode ; sinon message « livre <change> »'], opencode: [E, 'plugin, outil `question`'], antigravity: [E, 'réponse invisible aux hooks : confirmation native au lancement de `/hx-ship`'], dsh: [D, 'réponse en texte libre : notée seulement si un seul choix y figure'] },
   { id: 'hook-stop', label: 'Contrôles rapides avant de rendre la main', claude: 'hook `Stop`',
@@ -650,7 +676,7 @@ export const CAPABILITIES = [
   { id: 'permissions-deny', label: 'Fichiers du harness non éditables', claude: '`permissions.deny`',
     codex: [E, 'hook `PreToolUse` sur `apply_patch`'], opencode: [E, '`permission.edit` et plugin'], antigravity: [E, 'hook `PreToolUse`'], dsh: [E, 'pont de hooks'] },
   { id: 'env', label: 'Variables d\'environnement de session', claude: '`env` de settings.json',
-    codex: [A, 'à poser dans `.codex/config.toml` du projet'], opencode: [E, 'plugin, environnement du shell'], antigravity: [A, 'aucun réglage de projet'], dsh: [A, 'aucun réglage de projet'] },
+    codex: [E, '`.codex/config.toml` (`shell_environment_policy`)'], opencode: [E, 'plugin, environnement du shell'], antigravity: [A, 'aucun réglage de projet'], dsh: [A, 'aucun réglage de projet'] },
   { id: 'ask', label: 'Choix cliquables aux arrêts prévus', claude: 'outil AskUserQuestion',
     codex: [D, '`request_user_input` selon le mode, sinon texte'], opencode: [N, 'outil `question`'], antigravity: [N, 'outil `ask_question`'], dsh: [N, 'outil `ask_user_question`'] },
   { id: 'worktree', label: 'Run dans un worktree sans changer de session', claude: 'outil EnterWorktree',
@@ -759,6 +785,19 @@ export function foreignInput(tool, raw) {
   return { base, calls: calls(tool, name, args, response) };
 }
 
+// Glob de rule (« **/*.test.* », « openspec/** ») en expression régulière, sur un chemin relatif en « / ».
+export function globToRegExp(glob) {
+  const body = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*\/|\*\*|\*|\?/g, (m) => ({ '**/': '(?:.*/)?', '**': '.*', '*': '[^/]*', '?': '[^/]' }[m]));
+  return new RegExp(`^${body}$`);
+}
+
+// Rules dont le ciblage couvre ce fichier, pour les harness sans ciblage par chemin.
+export const rulesFor = (rules, rel) => rules.filter((rule) => rule.paths.some((glob) => globToRegExp(glob).test(rel)));
+export const RULES_BY_HOOK = new Set(['codex', 'opencode', 'dsh']);
+// Harness dont PostToolUse ne renvoie rien à l'agent : le retour attend l'appel suivant au modèle.
+export const DEFERRED_FEEDBACK = new Set(['antigravity']);
+
 // Harness qui ne disent pas au hook Stop qu'il a déjà bloqué : hooks.mjs tient le compte lui-même.
 export const NO_STOP_GUARD = new Set(['opencode', 'antigravity', 'dsh']);
 // Harness dont les hooks peuvent approuver une commande à la place de l'utilisateur.
@@ -780,6 +819,7 @@ export function foreignOutput(tool, event, r) {
   if (tool === 'antigravity') {
     if (event === 'session-start') return out(r.context ? { injectSteps: [{ systemMessage: { systemMessage: r.context } }] } : {});
     if (event === 'stop') return out(r.block ? { decision: 'continue', reason: r.block } : {});
+    if (event === 'user-prompt-submit') return out(r.context ? { injectSteps: [{ systemMessage: { systemMessage: r.context } }] } : {});
     if (event !== 'pre-tool-use') return out({});
     if (r.block) return out({ decision: r.ask ? 'ask' : 'deny', reason: r.block });
     if (r.approve) return out({ decision: 'auto_approve' });

@@ -169,10 +169,10 @@ flowchart LR
 
 | Harness | `tools` | Parité | Pour démarrer |
 |---|---|---|---|
-| **Codex** | `codex` | 74 % | Approuve le projet, puis les hooks (`/hooks`). Skills : `$hx-setup`. |
-| **OpenCode** (V1 ≥ 1.18.29, V2) | `opencode` | 90 % | Rien à faire : le plugin `.opencode/plugins/hx-harness.js` se charge seul. |
-| **Antigravity** (app, IDE, `agy`) | `antigravity` | 83 % | Approuve le dossier (Workspace Trust). Skills : `/hx-setup`. |
-| **DeepSeek Harness** (préversion) | `dsh` | 71 % | Ajoute le pont de hooks `@deepseek-ai/dsh-hooks-claude-code` à ton profil, puis lance `dsh --patch .dsh/harness.patch.yml`. |
+| **Codex** | `codex` | 88 % | Approuve le projet, puis les hooks (`/hooks`). Skills : `$hx-setup`. `.codex/config.toml` est généré. |
+| **OpenCode** (V1 ≥ 1.18.29, V2) | `opencode` | 98 % | Rien à faire : le plugin `.opencode/plugins/hx-harness.js` se charge seul. |
+| **Antigravity** (app, IDE, `agy`) | `antigravity` | 88 % | Approuve le dossier (Workspace Trust). Skills : `/hx-setup`. |
+| **DeepSeek Harness** (préversion) | `dsh` | 74 % | Ajoute le pont de hooks `@deepseek-ai/dsh-hooks-claude-code` à ton profil, puis lance `dsh --patch .dsh/harness.patch.yml`. |
 
 | Besoin | Commande |
 |---|---|
@@ -180,7 +180,9 @@ flowchart LR
 | Régénérer après un changement de `.claude/` ou de la carte du projet | `node .harness/hx.mjs adapters` |
 | Vérifier que rien n'est périmé | `node .harness/hx.mjs adapters --check` (inclus dans `hx check` et `hx doctor`) |
 
-**Ce que la parité mesure** : 21 capacités (skills, sous-agents, rules, chaque hook, permissions…), chacune notée natif, équivalent, dégradé ou absent, avec sa raison : [`docs/parite.md`](docs/parite.md). Principaux écarts : Codex ne voit pas le lancement d'un skill ; Antigravity ne renvoie pas le lint d'un fichier édité ; DeepSeek Harness n'a ni sous-agents en fichiers ni règles de permission.
+**Ce que la parité mesure** : 21 capacités (skills, sous-agents, rules, chaque hook, permissions…), chacune notée natif, équivalent, dégradé ou absent, avec sa raison : [`docs/parite.md`](docs/parite.md). Les écarts restants viennent des harness eux-mêmes : Codex ne montre pas aux hooks le lancement d'un skill et ne restreint pas un sous-agent ; Antigravity ne montre pas la réponse à une question ; DeepSeek Harness n'a ni sous-agents en fichiers ni règles de permission.
+
+**Modèle des sous-agents** : `hx-explorer` demande un modèle léger (`haiku`). Pour les autres harness, nomme-le dans `.harness/config.json`, puis relance `hx adapters` : `"adapters": { "models": { "codex": { "haiku": "<modèle>" }, "opencode": { "haiku": "<fournisseur>/<modèle>" } } }`. Vide : modèle de la session.
 
 > ⚠️ Les formats viennent des documentations officielles (10/11/2026) et les hooks sont rejoués en CI dans le protocole de chaque harness. Les quatre binaires eux-mêmes ne sont pas lancés en CI.
 

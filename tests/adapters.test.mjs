@@ -102,6 +102,18 @@ describe('hx adapters', () => {
     assert.match(String(files['.agents/skills/hx-implement/SKILL.md']), /l'argument donné avec la demande/);
   });
 
+  test('adapters.models : lu dans .harness/config.json, un changement se voit comme une dérive', () => {
+    const root = project();
+    sync(root, ['codex']);
+    assert.doesNotMatch(read(root, '.codex/agents/hx-explorer.toml'), /^model = /m);
+    const file = path.join(root, '.harness', 'config.json');
+    fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), adapters: { models: { codex: { haiku: 'léger-1' } } } }));
+    assert.equal(hx(root, 'adapters', '--check').code, 1);
+    assert.equal(hx(root, 'adapters').code, 0);
+    assert.match(read(root, '.codex/agents/hx-explorer.toml'), /^model = "léger-1"$/m);
+    assert.doesNotMatch(read(root, '.codex/agents/hx-architect.toml'), /^model = /m);
+  });
+
   test('doctor signale des fichiers périmés', () => {
     const root = project();
     sync(root, ['codex']);

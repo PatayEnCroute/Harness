@@ -55,6 +55,7 @@ export function defaultConfig() {
       L: { spec: true, design: 'required', adr: 'required' },
     },
     ship: { auto: false, min_confidence: 80, max_rounds: 3 },
+    adapters: { models: {} },
   };
 }
 
@@ -162,6 +163,12 @@ export function validateConfig(config, root) {
   const min = config.trace?.min_coverage;
   if (min !== undefined && !(Number.isInteger(min) && min >= 0 && min <= 100)) {
     add('error', 'Trace', 'min_coverage doit être un entier de 0 à 100');
+  }
+  if (config.adapters !== undefined) {
+    const models = config.adapters?.models;
+    const valid = isObject(config.adapters) && (models === undefined || (isObject(models)
+      && Object.values(models).every((m) => isObject(m) && Object.values(m).every((v) => typeof v === 'string'))));
+    if (!valid) add('error', 'Autres harness', 'adapters.models : { "<harness>": { "<alias Claude>": "<modèle>" } }, ex. { "codex": { "haiku": "…" } }');
   }
   if (config.ship !== undefined) {
     if (!isObject(config.ship)) add('error', 'Livraison', '« ship » doit être un objet');
