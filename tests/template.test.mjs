@@ -141,6 +141,22 @@ describe('cohérence et budgets', () => {
     assert.equal(JSON.parse(read(path.join(template, '.harness', 'config.json'))).ship.auto, false, 'désactivée par défaut');
   });
 
+  test('steward : règles lues par PR Steward et /ship, alignées sur hx-ship et hx-review', () => {
+    // Chemin imposé par Claude Code : PR Steward et la surveillance de /ship ou /steward ne lisent que ce fichier.
+    const steward = read(path.join(claude, 'skills', 'steward', 'SKILL.md'));
+    const { data } = frontmatter(steward);
+    assert.equal(data['user-invocable'], 'false');
+    assert.equal(data['disable-model-invocation'], 'true');
+    const ship = read(path.join(claude, 'skills', 'hx-ship', 'SKILL.md'));
+    for (const step of ['`git revert --no-edit <commit d\'archive>`', '`node .harness/hx.mjs openspec archive <change> -y`', '`<change> : archive OpenSpec`']) {
+      assert.ok(ship.includes(step) && steward.includes(step), step);
+    }
+    const header = /^## (Revue automatique) · <change>$/m.exec(read(path.join(claude, 'skills', 'hx-review', 'SKILL.md')))[1];
+    assert.ok(steward.includes(`\`## ${header} · <change>\``), 'reconnaît le commentaire de hx-review --pr');
+    assert.match(steward, /`node \.harness\/hx\.mjs check` vert avant chaque push/);
+    assert.match(steward, /Passer une PR brouillon en prête[^\n]*Merger, rebaser ou forcer un push/);
+  });
+
   test('Desktop : rien à taper, choix cliquables aux arrêts, un change par session', () => {
     const md = read(path.join(template, 'CLAUDE.md'));
     assert.match(md, /## Desktop : l'utilisateur n'a rien à taper/);

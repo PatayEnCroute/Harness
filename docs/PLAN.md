@@ -370,7 +370,7 @@ Harness/
 ├── copier.yml
 ├── template/             # ce qui atterrit dans le projet
 │   ├── CLAUDE.md
-│   ├── .claude/          # 16 skills, 7 agents, 4 rules, settings
+│   ├── .claude/          # 16 skills, règles steward, 7 agents, 4 rules, settings
 │   ├── .harness/         # hx.mjs, hooks.mjs, adapters.mjs, config…
 │   ├── openspec/config.yaml
 │   └── .github/          # si ci

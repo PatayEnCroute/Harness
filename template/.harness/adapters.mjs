@@ -103,7 +103,8 @@ export function readSource(root) {
     instructions: readText(path.join(root, 'CLAUDE.md')),
     project: readText(path.join(root, '.harness', 'project.md')),
     // Les skills openspec-* sont installés par OpenSpec lui-même, dans le dossier de chaque harness.
-    skills: names(path.join(claude, 'skills'), (e) => e.isDirectory() && !e.name.startsWith('openspec-')).map((name) => {
+    // steward n'est lu que par PR Steward et la surveillance de /ship, à ce chemin : aucun autre harness ne s'en sert.
+    skills: names(path.join(claude, 'skills'), (e) => e.isDirectory() && !e.name.startsWith('openspec-') && e.name !== 'steward').map((name) => {
       const dir = path.join(claude, 'skills', name);
       return { name, dir, files: walk(dir), data: frontmatter(readText(path.join(dir, 'SKILL.md'))).data };
     }).filter((s) => s.files.includes('SKILL.md')),
