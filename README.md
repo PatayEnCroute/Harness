@@ -198,6 +198,7 @@ flowchart LR
 | Composant | Contenu |
 |---|---|
 | **16 skills** | Workflow : `hx-setup`, `hx-triage`, `hx-clarify`, `hx-tdd`, `hx-implement`, `hx-verify`, `hx-review`, `hx-ship`, `hx-adr`, `hx-debug`, `hx-learn`, `hx-discover` · À la demande : `hx-security-audit`, `hx-explain`, `hx-dream`, `hx-update` |
+| **Règles de suivi de PR** | `.claude/skills/steward/SKILL.md`, lu par le `/ship` et le `/steward` de Claude Code et par PR Steward : commandes `hx`, archive OpenSpec en dernier commit, revue automatique laissée à l'auteur |
 | **7 agents** | `hx-explorer`, `hx-implementer`, `hx-spec-reviewer`, `hx-code-reviewer`, `hx-security-reviewer`, `hx-architect`, `hx-verifier` |
 | **4 rules** | `openspec` · `testing` · `architecture` (feature-first, proportionnée) · `comments` (aucun par défaut, liste fermée d'exceptions) |
 | **5 hooks** | `SessionStart` : prochaine action de chaque change · `UserPromptSubmit` : ton « livre <change> » noté comme un clic · `PreToolUse` : rappel sur un fichier sensible, `/hx-ship` refusé à Claude sans ta décision (clic « livrer » ou « livre <change> ») ni indice suffisant · `PostToolUse` : lint du fichier édité, réponse à « Livraison » notée · `Stop` : contrôles rapides et chemins protégés avant de rendre la main |

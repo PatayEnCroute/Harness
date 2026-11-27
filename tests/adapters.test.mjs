@@ -100,6 +100,7 @@ describe('hx adapters', () => {
     assert.ok('.agents/skills/hx-setup/references/ci-setup.md' in files);
     assert.doesNotMatch(String(files['.agents/skills/hx-implement/SKILL.md']), /\$ARGUMENTS/);
     assert.match(String(files['.agents/skills/hx-implement/SKILL.md']), /l'argument donné avec la demande/);
+    assert.ok(!Object.keys(files).some((f) => f.startsWith('.agents/skills/steward/')), 'steward reste propre à Claude Code');
   });
 
   test('adapters.models : lu dans .harness/config.json, un changement se voit comme une dérive', () => {
